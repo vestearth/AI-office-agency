@@ -85,6 +85,51 @@ test('Stop sends SIGTERM to the process group and reports stopped', async () => 
   assert.equal(stopped.termination, 'operator_stop');
 });
 
+test('a stop that lands while the wrapper is spawning the CLI still ends the CLI', { skip: process.platform === 'win32' }, async () => {
+  // 2026-10-24, macOS under load: the stop's group SIGTERM landed while the wrapper was
+  // inside spawn(). The CLI, which joined the group only as spawn() created it, missed the
+  // signal, and the wrapper died of it before its handlers were on: the launch read as
+  // stopped with no exit code while the CLI ran on. The preload holds the wrapper just
+  // before its spawn, catching the stop's signal, and raises it again once the CLI exists.
+  const dir = tmp();
+  const spawning = path.join(dir, 'spawning');
+  const go = path.join(dir, 'go');
+  const cliPid = path.join(dir, 'cli.pid');
+  const preload = path.join(dir, 'hold-spawn.js');
+  fs.writeFileSync(preload, `if (/\\.exit$/.test(process.argv[1] || '')) {
+  const fs = require('fs'); const cp = require('child_process'); const spawn = cp.spawn;
+  cp.spawn = (...args) => {
+    cp.spawn = spawn;
+    const hold = () => {};
+    process.on('SIGTERM', hold);
+    fs.writeFileSync(${JSON.stringify(spawning)}, '');
+    const until = Date.now() + 10000; while (!fs.existsSync(${JSON.stringify(go)}) && Date.now() < until);
+    const child = spawn(...args);
+    fs.writeFileSync(${JSON.stringify(cliPid)}, String(child.pid));
+    process.removeListener('SIGTERM', hold);
+    process.kill(process.pid, 'SIGTERM');
+    return child;
+  };
+}`);
+  const launcher = new OfficeLauncher(tmp());
+  const launch = start(launcher, 'TASK-STOP-RACE', node('setInterval(() => {}, 1000)'), { env: { ...process.env, NODE_OPTIONS: `--require ${JSON.stringify(preload)}` } });
+  for (let i = 0; i < 400 && !fs.existsSync(spawning); i++) await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.ok(fs.existsSync(spawning), 'the wrapper reached its spawn');
+  assert.equal(launcher.stop(launch.id).status, 'stopping');
+  fs.writeFileSync(go, '');
+  for (let i = 0; i < 400 && !fs.existsSync(cliPid); i++) await new Promise((resolve) => setTimeout(resolve, 25));
+  const pid = Number(fs.readFileSync(cliPid, 'utf8'));
+  assert.ok(pid > 0, 'the CLI was spawned');
+  const alive = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  try {
+    assert.equal((await settled(launcher, 'TASK-STOP-RACE')).status, 'stopped');
+    for (let i = 0; i < 80 && alive(); i++) await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(alive(), false, 'the CLI outlived the stop');
+  } finally {
+    if (alive()) process.kill(pid, 'SIGKILL');
+  }
+});
+
 test('a launch whose process is gone without an exit file is lost, not running', () => {
   const dir = tmp();
   fs.writeFileSync(path.join(dir, 'x.json'), JSON.stringify({ id: 'x', kind: 'task', key: 'TASK-5', label: 'TASK-5', display: '', cwd: '/', pid: 2 ** 22 + 12345, startedAt: '2026-10-16T00:00:00.000Z' }));
