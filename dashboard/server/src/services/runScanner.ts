@@ -4,6 +4,7 @@ import yaml from 'js-yaml';
 import { config } from '../config';
 import { TASK_ID_PATTERN } from '../pathSecurity';
 import { GateViewService, globalGateViews, hasCompletionGates } from './gateView';
+import { officeMs } from './officeTime';
 import type {
   RunSummary,
   RunDetail,
@@ -283,7 +284,7 @@ export function lastHandoffAt(history: unknown): string | undefined {
   return best === undefined ? undefined : new Date(best).toISOString();
 }
 
-const recency = (run: RunSummary) => { const t = Date.parse(run.lastHandoffAt ?? run.updatedAt ?? ''); return Number.isFinite(t) ? t : -Infinity; };
+const recency = (run: RunSummary) => { const t = officeMs(run.lastHandoffAt ?? run.updatedAt); return Number.isFinite(t) ? t : -Infinity; };
 
 /**
  * Status first, then the most recently moved run. Task numbers are per project

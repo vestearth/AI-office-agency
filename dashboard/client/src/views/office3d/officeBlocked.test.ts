@@ -1,6 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { inBangkok } from '../../testing/inBangkok';
 import { summarizeZones } from '../commandZones';
 import {
   BAR_CAP,
@@ -156,17 +157,7 @@ describe('waiting on you across rooms', () => {
   });
 
   describe('in Bangkok', () => {
-    // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
-    let savedTz: string | undefined;
-    beforeEach(() => {
-      savedTz = process.env.TZ;
-      process.env.TZ = 'Asia/Bangkok';
-      expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
-    });
-    afterEach(() => {
-      if (savedTz === undefined) delete process.env.TZ;
-      else process.env.TZ = savedTz;
-    });
+    inBangkok();
 
     it('reads a date-only statusUpdatedAt as local midnight, the basis of the side panel\'s Oldest wait', () => {
       // 01:00 local on the 24th: a date-only value read as UTC midnight would give 8 days in Bangkok.

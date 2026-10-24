@@ -1,7 +1,8 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { DecisionRecord, ReviewSummary } from '../../../../shared/types';
+import { inBangkok } from '../../testing/inBangkok';
 import { summarizeZones } from '../commandZones';
 import { COMPLETE_TEXT, debugCard, debugLines, sentBackByEarth, stayAge } from './officeDebug';
 import { DebugBlock, DebugReadout } from './OfficeDebugViews';
@@ -46,17 +47,7 @@ const fromEarth = (over: Partial<OfficeTask> = {}): OfficeTask => inLab('C-1', {
 });
 
 describe('how long a task has been in Debug Lab', () => {
-  // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
-  let savedTz: string | undefined;
-  beforeEach(() => {
-    savedTz = process.env.TZ;
-    process.env.TZ = 'Asia/Bangkok';
-    expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
-  });
-  afterEach(() => {
-    if (savedTz === undefined) delete process.env.TZ;
-    else process.env.TZ = savedTz;
-  });
+  inBangkok();
 
   it('uses minutes, then hours, for a timestamped entry', () => {
     expect(stayAge('2026-10-24T00:53:00Z', NOW)).toBe('7m');

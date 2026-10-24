@@ -1,18 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { formatAge } from './formatAge';
+import { describe, expect, it } from 'vitest';
+import { inBangkok } from '../testing/inBangkok';
+import { formatAge, statusTimeMs } from './formatAge';
 
 describe('formatAge in Bangkok', () => {
-  // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
-  let savedTz: string | undefined;
-  beforeEach(() => {
-    savedTz = process.env.TZ;
-    process.env.TZ = 'Asia/Bangkok';
-    expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
-  });
-  afterEach(() => {
-    if (savedTz === undefined) delete process.env.TZ;
-    else process.env.TZ = savedTz;
-  });
+  inBangkok();
 
   it('ages a date-only value from local midnight, so Attention\'s Age agrees with the stale tag beside it', () => {
     // 03:00 local on the 24th, when the server's idle reads 2026-10-16 as 8 days: from UTC midnight it was 7d.
@@ -29,5 +20,15 @@ describe('formatAge in Bangkok', () => {
   it('says Unknown without a usable value', () => {
     expect(formatAge(null)).toBe('Unknown');
     expect(formatAge('not a date')).toBe('Unknown');
+  });
+});
+
+describe('a date-only value that is not a calendar date', () => {
+  it('has no time and no age, as on the server', () => {
+    for (const value of ['2026-13-01', '2026-10-32', '2026-10-00', '2026-02-30', '2026-04-31']) {
+      expect(statusTimeMs(value), value).toBeNaN();
+      expect(formatAge(value), value).toBe('Unknown');
+    }
+    expect(statusTimeMs('2028-02-29')).toBe(new Date(2028, 1, 29).getTime());
   });
 });

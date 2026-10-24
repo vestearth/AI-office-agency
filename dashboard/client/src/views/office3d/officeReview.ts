@@ -1,7 +1,7 @@
 import type { ActionKind, DecisionAction } from '../../../../shared/types';
 import { runStatusLabel } from '../../../../shared/statusLabels';
 import { PHASE_TO_ZONE, ZONE_COLORS } from '../commandZones';
-import { timeOf } from './officeBlocked';
+import { statusTimeMs } from '../formatAge';
 import type { OfficeTask } from './officeSelection';
 
 /** The line holds this many waiting boxes. It equals `SCENE_DESK_LIMIT`, so the side list still reaches every box. */
@@ -137,12 +137,18 @@ export interface ReviewBoard {
   tags: ReviewTag[];
 }
 
+/** When status.yaml last changed, as `statusTimeMs` reads it; null without a usable value. */
+function changedAt(statusUpdatedAt: string | null | undefined): number | null {
+  const at = statusUpdatedAt ? statusTimeMs(statusUpdatedAt) : NaN;
+  return Number.isFinite(at) ? at : null;
+}
+
 /**
  * The server's `idle` formula: whole days since status.yaml changed. A date-only value counts from
- * local midnight, as `timeOf` reads it and the server reads it in the office time zone.
+ * local midnight, as `statusTimeMs` reads it and the server reads it in the office time zone.
  */
 export function reviewAgeDays(statusUpdatedAt: string | null | undefined, now: Date): number | null {
-  const at = timeOf({ statusUpdatedAt });
+  const at = changedAt(statusUpdatedAt);
   if (at === null) return null;
   return Math.max(0, Math.floor((now.getTime() - at) / DAY_MS));
 }
@@ -154,8 +160,8 @@ export function reviewKindOf(task: OfficeTask): ReviewKind {
 }
 
 function byOldest(a: OfficeTask, b: OfficeTask): number {
-  const left = timeOf(a) ?? Infinity;
-  const right = timeOf(b) ?? Infinity;
+  const left = changedAt(a.statusUpdatedAt) ?? Infinity;
+  const right = changedAt(b.statusUpdatedAt) ?? Infinity;
   if (left !== right) return left < right ? -1 : 1;
   return a.taskId.localeCompare(b.taskId);
 }
