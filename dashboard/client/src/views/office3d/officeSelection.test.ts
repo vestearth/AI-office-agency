@@ -217,6 +217,38 @@ describe('office task binding', () => {
     expect(mapped.operator).toBe('unknown');
   });
 
+  it('keeps the decision state, idle, gates and action kind the Review room needs', () => {
+    const latestDecision = { decision: 'approve' as const, actor: 'earth', decidedAt: '2026-10-24T01:00:00Z' };
+    const [mapped, plain] = officeTasksFromApi(
+      [
+        {
+          taskId: 'TASK-EAR-390', title: 't', phase: 'in_review', needsReview: false, decisionPending: true, latestDecision,
+          idle: { days: 9, thresholdDays: 7 }, gates: { readable: true, total: 2, resolved: 1, passable: 0 }, actionKind: 'decision_pending',
+          statusUpdatedAt: '2026-10-15T00:00:00Z',
+        },
+        { taskId: 'TASK-EAR-1', title: 't', phase: 'assigned', needsReview: false },
+      ],
+      [],
+    );
+    expect(mapped).toMatchObject({
+      decisionPending: true, latestDecision, idle: { days: 9, thresholdDays: 7 },
+      gates: { total: 2, resolved: 1 }, actionKind: 'decision_pending',
+    });
+    expect(plain.decisionPending).toBeFalsy();
+    expect(plain.latestDecision).toBeFalsy();
+  });
+
+  it('lists the Review room in line order: waiting by age, then decided, then the rest', () => {
+    const list: OfficeTask[] = [
+      task({ taskId: 'X', phase: 'review', status: 'waiting_review', actionKind: 'completion_held' }),
+      task({ taskId: 'D', phase: 'in_review', status: 'waiting_review', decisionPending: true,
+        latestDecision: { decision: 'reject', actor: 'e', decidedAt: '2026-10-24T00:00:00Z' } }),
+      task({ taskId: 'NEW', phase: 'in_review', status: 'waiting_review', needsReview: true, statusUpdatedAt: '2026-10-23T00:00:00Z' }),
+      task({ taskId: 'OLD', phase: 'in_review', status: 'waiting_review', needsReview: true, statusUpdatedAt: '2026-10-10T00:00:00Z' }),
+    ];
+    expect(desksForZone('review', list).map((desk) => desk.taskId)).toEqual(['OLD', 'NEW', 'D', 'X']);
+  });
+
   it('keeps the last operator, and maps legacy gemini onto antigravity', () => {
     const [mapped] = officeTasksFromApi(
       [{ taskId: 'TASK-OP-1', title: 'palette', phase: 'debugging', needsReview: false }],

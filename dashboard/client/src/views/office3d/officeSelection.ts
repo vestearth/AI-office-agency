@@ -5,6 +5,7 @@ import type { DeskRowMap } from './officeLook';
 import { characterOperator, lastOperatorLabel } from './officeOperator';
 import { blockedSeating, buildWaitQueue, queueLines } from './officeBlocked';
 import { escalationSeating } from './officeEscalation';
+import { reviewOrder } from './officeReview';
 
 /**
  * Desks drawn in the room and reachable from the keyboard.
@@ -24,6 +25,9 @@ export interface OfficeTask extends ZoneTask {
   /** Latest human decision and whether it is still waiting to be applied (the Escalation room reads both). */
   latestDecision?: ReviewSummary['latestDecision'];
   decisionPending?: ReviewSummary['decisionPending'];
+  /** Review room: the server's idle flag (past its threshold) and the completion-gate counts. */
+  idle?: ReviewSummary['idle'];
+  gates?: ReviewSummary['gates'];
 }
 
 export type OfficeZoneStats = Map<string, ZoneStat<OfficeTask>>;
@@ -72,7 +76,7 @@ export const ROOM_LAYOUT: Record<string, { x: number; z: number }> = {
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 export function officeTasksFromApi(
-  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'waitsOn' | 'isReleaseTrain' | 'actionKind' | 'recommendedAction' | 'latestDecision' | 'decisionPending'>>>,
+  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'waitsOn' | 'isReleaseTrain' | 'actionKind' | 'recommendedAction' | 'latestDecision' | 'decisionPending' | 'idle' | 'gates'>>>,
   runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt' | 'currentConductor'>>,
 ): OfficeTask[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
@@ -95,6 +99,8 @@ export function officeTasksFromApi(
       recommendedAction: review.recommendedAction,
       latestDecision: review.latestDecision,
       decisionPending: review.decisionPending,
+      idle: review.idle,
+      gates: review.gates,
     };
   });
 }
@@ -108,7 +114,8 @@ export function desksForZone(zoneId: string, tasks: OfficeTask[], stats?: Office
   const zone = ZONE_BY_ID.get(zoneId);
   if (!zone) return [];
   const inZone = tasksInZone(zoneId, tasks, stats);
-  const ordered = zonePreview(zone, inZone, inZone.length || 1);
+  // Review is a line, not a row of desks: the longest wait first, then decided, then the rest.
+  const ordered = zoneId === 'review' ? reviewOrder(inZone) : zonePreview(zone, inZone, inZone.length || 1);
   if (ordered.length === 0) {
     return [{ key: `${zoneId}:empty`, zoneId, taskId: null, task: null }];
   }

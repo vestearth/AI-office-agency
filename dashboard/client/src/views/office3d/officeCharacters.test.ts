@@ -16,6 +16,8 @@ import {
   SLOT_Z_OFFSET,
   UNKNOWN_VISOR_GAIN,
   VISOR_GAIN,
+  MAX_ACTORS,
+  SEATED_CAP,
   characterSlots,
   resolveClipCues,
   resolveGaitClip,
@@ -194,6 +196,8 @@ describe('character slots', () => {
           phase: PHASE_BY_ZONE[zoneId],
           status: zoneId === 'done' ? 'completed' : zoneId === 'aborted' ? 'cancelled' : 'running',
           operator: CHARACTER_OPERATORS[index % CHARACTER_OPERATORS.length],
+          // Review has a line, not desks: four tasks waiting for a decision fill it.
+          ...(zoneId === 'review' ? { needsReview: true, statusUpdatedAt: `2026-10-1${index}T00:00:00Z` } : {}),
           // The waiting room seats by who it waits on: five wait on Earth, four on others.
           ...(zoneId === 'blocked' ? { waitsOn: [{ kind: index < 5 ? 'prod_run' : 'aws_permission' }] } : {}),
         }));
@@ -220,6 +224,68 @@ describe('character slots', () => {
     expect(slots.filter((slot) => slot.zoneId === 'escalation')).toHaveLength(5);
     expect(slots.every((slot) => WORK_AND_STUCK.includes(slot.zoneId))).toBe(true);
     expect(slots.filter((slot) => slot.posture === 'blocked').every((slot) => slot.zoneId === 'blocked' || slot.zoneId === 'rejected')).toBe(true);
+  });
+});
+
+describe('actor capacity', () => {
+  it('has room for a robot at every spot of every room, plus a few walking in or out', () => {
+    const tasks: OfficeTask[] = [];
+    const add = (zoneId: string, count: number, over: (index: number) => Partial<OfficeTask> = () => ({})) => {
+      for (let index = 0; index < count; index += 1) {
+        tasks.push(task({
+          taskId: `${zoneId}-full-${index}`,
+          phase: PHASE_BY_ZONE[zoneId],
+          status: 'running',
+          operator: CHARACTER_OPERATORS[index % CHARACTER_OPERATORS.length],
+          ...over(index),
+        }));
+      }
+    };
+    for (const zoneId of ['inbox', 'devops', 'dev', 'debug', 'rejected']) add(zoneId, SCENE_DESK_LIMIT + 2);
+    // Blocked: five wait on Earth, four on others. The help desk: the desk, two bench seats, two hand-offs.
+    add('blocked', 9, (index) => ({ waitsOn: [{ kind: index < 5 ? 'prod_run' : 'aws_permission' }] }));
+    for (let index = 0; index < 3; index += 1) tasks.push(task({ taskId: `esc-full-${index}`, phase: 'escalated', status: 'running' }));
+    for (let index = 0; index < 3; index += 1) tasks.push(task({ taskId: `esc-hand-${index}`, phase: 'free_roam_complete', status: 'running' }));
+    // Review: four waiting boxes, two at each decided place, two at the side.
+    add('review', 6, (index) => ({ needsReview: true, statusUpdatedAt: `2026-10-0${index + 1}T00:00:00Z` }));
+    for (const decision of ['approve', 'request_changes', 'escalate', 'reject'] as const) {
+      add('review', 3, (index) => ({
+        needsReview: false,
+        decisionPending: true,
+        latestDecision: { decision, actor: 'e', decidedAt: `2026-10-2${index}T00:00:00Z` },
+        taskId: `review-${decision}-${index}`,
+      }));
+    }
+    add('review', 3, (index) => ({ actionKind: 'completion_held', taskId: `review-other-${index}` }));
+    const slots = characterSlots(tasks);
+    expect(slots.filter((slot) => slot.zoneId === 'review')).toHaveLength(14);
+    expect(slots).toHaveLength(SEATED_CAP);
+    expect(SEATED_CAP).toBe(46);
+    expect(MAX_ACTORS).toBeGreaterThanOrEqual(SEATED_CAP + 8);
+    expect(slots.length + 8).toBeLessThanOrEqual(MAX_ACTORS);
+  });
+});
+
+describe('review standing slots', () => {
+  const waiting = (taskId: string, at: string) => task({
+    taskId, phase: 'in_review', status: 'waiting_review', needsReview: true, statusUpdatedAt: at, operator: 'codex',
+  });
+
+  it('stands the robots of Review on the line instead of seating them at desks', () => {
+    const slots = characterSlots([waiting('OLD', '2026-10-10T00:00:00Z'), waiting('NEW', '2026-10-20T00:00:00Z')]);
+    expect(slots.map((slot) => slot.taskId)).toEqual(['OLD', 'NEW']);
+    for (const slot of slots) {
+      expect(slot.zoneId).toBe('review');
+      expect(slot).toMatchObject({ stance: 'stand', posture: 'standing', rotY: FACING_Y });
+      expect(slot.y).not.toBeCloseTo(SEAT_Y);
+    }
+    expect(slots[0].x).toBeGreaterThan(slots[1].x);
+  });
+
+  it('keeps every desk room seated', () => {
+    const slots = characterSlots([task({ taskId: 'D', phase: 'assigned', status: 'running' })]);
+    expect(slots[0].stance).toBe('sit');
+    expect(slots[0].y).toBeCloseTo(SEAT_Y);
   });
 });
 

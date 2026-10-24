@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { FlowInsights, ReviewModelResponse, RunSummary } from '../../../../shared/types';
+import type { FlowInsights, ReviewModelResponse, ReviewSummary, RunSummary } from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
 import { readDashboardStream, subscribeDashboardStream } from '../../dashboardStream';
 import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones';
@@ -11,6 +11,9 @@ import { BlockedReadout, WaitBlock } from './OfficeWaitViews';
 import { beaconLit, escalationCard, escalationLines } from './officeEscalation';
 import { EscalationBlock, EscalationReadout } from './OfficeEscalationViews';
 import { valFailedCard, valFailedLines } from './officeValFailed';
+import { QuickDecisionPanel } from '../QuickDecisionPanel';
+import { ReviewBlock, ReviewReadoutView } from './OfficeReviewViews';
+import { reviewBoard, reviewClickIntent, reviewKindOf, reviewPanelStatus, reviewReadout, type ReviewVia } from './officeReview';
 import { READOUT_FADE_MS, chipValue } from './officeLabels';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { initialCatchUp, onStreamPhase } from './officeCatchUp';
@@ -71,6 +74,7 @@ const STYLE = `
 .o3d-board p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .o3d-board .reason { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
 .o3d-queue { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 360px; max-width: 360px; margin: 0; padding: 4px 6px 5px;
+  max-height: min(300px, 60%); overflow-y: auto;
   background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(216, 218, 221, 0.35); border-radius: 4px; color: #e6edf5; font-size: 10px; line-height: 1.3; }
 .o3d-queue .head { margin: 0 0 2px; font-size: 10px; letter-spacing: 0.3px; color: #e6edf5; }
 .o3d-queue ul { list-style: none; margin: 0 0 4px; padding: 0; display: block; }
@@ -85,6 +89,7 @@ const STYLE = `
 .o3d-qline .age { text-align: right; }
 .o3d-qline .room { color: #aeb2b8; }
 .o3d-card.live { pointer-events: auto; width: 250px; }
+.o3d-badge { padding: 0 4px; border: 1px solid rgba(243, 236, 223, 0.55); border-radius: 3px; color: #f3ecdf; }
 .o3d-wait { display: grid; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.14); }
 .o3d-wait p { margin: 0; }
 .o3d-wait .lead { color: #e6edf5; }
@@ -191,6 +196,9 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<ReviewSummary[]>([]);
+  const [reviewNow, setReviewNow] = useState(() => new Date());
+  const [panelTaskId, setPanelTaskId] = useState<string | null>(null);
   const [deskRows, setDeskRows] = useState<DeskRowMap | null>(null);
   const deskRowsRef = useRef<DeskRowMap | null>(null);
   deskRowsRef.current = deskRows;
@@ -224,6 +232,9 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     return loungeReadout(flow, ordered.map((task) => task.taskId), now);
   }, [flow, tasks, stats, now]);
   const board = useMemo(() => abortedBoard(tasks), [tasks]);
+  // Review ages count from the moment the data was read, the way the server counted `idle`.
+  const review = useMemo(() => reviewBoard(tasks, reviewNow), [tasks, reviewNow]);
+  const reviewView = useMemo(() => reviewReadout(review, reviewNow), [review, reviewNow]);
   // Days are the age at this load; the order never depends on the clock.
   const queue = useMemo(() => buildWaitQueue(tasks, Date.now()), [tasks]);
   const selectedTask = selection?.kind === 'desk' && selection.taskId
@@ -231,6 +242,11 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     : null;
   const selectedWait = selectedTask ? waitCard(selectedTask, queue) : null;
   const escalation = useMemo(() => escalationLines(tasks, Date.now()), [tasks]);
+  const reviewSelectedId = selection?.kind === 'desk' && selection.zoneId === 'review' ? selection.taskId : null;
+  const reviewTask = reviewSelectedId ? tasks.find((task) => task.taskId === reviewSelectedId) ?? null : null;
+  const reviewDecides = reviewTask != null && reviewClickIntent(reviewTask, 'card') === 'panel';
+  const panelTask = panelTaskId ? tasks.find((task) => task.taskId === panelTaskId) ?? null : null;
+  const panelReview = panelTaskId ? reviews.find((item) => item.taskId === panelTaskId) ?? null : null;
   const selectedEscalation = selectedTask ? escalationCard(selectedTask, Date.now()) ?? valFailedCard(selectedTask, Date.now()) : null;
   const valFailed = useMemo(() => valFailedLines(tasks, Date.now()), [tasks]);
   const detail = describeOfficeSelection(selection, tasks, stats);
@@ -259,6 +275,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
       ]).then(([review, runs, nextFlow]) => {
         if (!active || signal.aborted) return;
         setTasks(officeTasksFromApi(review.reviews, runs));
+        setReviews(review.reviews);
+        setReviewNow(new Date());
         setFlow(nextFlow);
         setLoadedAt(new Date().toISOString());
         setError(null);
@@ -295,6 +313,16 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     selectionRef.current = next;
     setSelection(next);
   }, [selectedTaskId, tasks]);
+
+  // A Review box or readout line selects the task and, for one that waits on a decision, opens the panel.
+  const pickReview = (taskId: string, via: ReviewVia) => {
+    const task = tasksRef.current.find((item) => item.taskId === taskId);
+    const next = deskSelectionForTask(taskId, tasksRef.current);
+    if (!task || !next) return;
+    selectionRef.current = next;
+    setSelection(next);
+    if (reviewClickIntent(task, via) === 'panel') setPanelTaskId(taskId);
+  };
 
   const pickTask = (taskId: string) => {
     const next = deskSelectionForTask(taskId, tasksRef.current);
@@ -339,11 +367,13 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             awaitingReload={awaitingReload}
             waitingOnEarth={queue.earth.length}
             escalationLit={beaconLit(tasks)}
+            reviewBoard={review}
+            onReviewPick={(taskId) => pickReview(taskId, 'box')}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
         {ZONES.map((zone) => {
-          const chip = chipValue(zone.id, { stats, closedToday: readout.closed ?? 0, abortedTotal: board.count, waitingOnEarth: queue.earth.length });
+          const chip = chipValue(zone.id, { stats, closedToday: readout.closed ?? 0, abortedTotal: board.count, waitingOnEarth: queue.earth.length, reviewWaiting: review.waitingCount });
           return (
             <p key={zone.id} className="o3d-label" data-label={zone.id} data-chip={chip ?? undefined} aria-hidden="true">
               {zone.label}
@@ -361,16 +391,25 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
           {board.reason && <p className="reason">{boardReason(board.reason)}</p>}
         </div>
         <BlockedReadout queue={queue} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
+        <ReviewReadoutView readout={reviewView} selectedTaskId={reviewSelectedId} onPick={(taskId) => pickReview(taskId, 'readout')} />
         {escalation.length > 0 && <EscalationReadout lines={escalation} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
         {valFailed.length > 0 && <EscalationReadout lines={valFailed} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} room="rejected" head="failed validation" />}
         {selection && (
-          <div className={selectedWait || selectedEscalation ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
+          <div className={selectedWait || selectedEscalation || reviewTask ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
             {detail.tasks.length === 0 ? <p>{detail.emptyLabel}</p> : detail.tasks.slice(0, 3).map((task) => (
               <p key={task.taskId}>{officeTaskSummary(task)}</p>
             ))}
             {detail.tasks.length > 3 && <p>+{detail.tasks.length - 3} more</p>}
             {selectedTask && selectedEscalation && <EscalationBlock taskId={selectedTask.taskId} card={selectedEscalation} />}
+            {reviewTask && (
+              <ReviewBlock
+                taskId={reviewTask.taskId}
+                decides={reviewDecides}
+                onDecide={() => setPanelTaskId(reviewTask.taskId)}
+                showMonitor={!selectedWait && !selectedEscalation}
+              />
+            )}
             {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!selectedEscalation} />}
           </div>
         )}
@@ -390,6 +429,17 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         </div>
         <OfficeDetail tasks={tasks} stats={stats} selection={selection} waits={flow?.waits ?? []} closedTodayLabel={readout.label} />
       </aside>
+      {panelTask && panelReview && (
+        <QuickDecisionPanel
+          review={panelReview}
+          status={reviewPanelStatus(panelTask)}
+          onClose={() => setPanelTaskId(null)}
+          onDecided={() => {
+            setPanelTaskId(null);
+            window.dispatchEvent(new Event('dashboard:refresh'));
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -22,9 +22,9 @@ export const FOCUS_MARGIN = 0.06;
 /** Readouts fade over this long. Reduced motion has no fade. */
 export const READOUT_FADE_MS = 150;
 /** Rooms with a readout of their own. Each room's issue adds itself here. */
-export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked', 'escalation', 'rejected'];
+export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked', 'escalation', 'review', 'rejected'];
 /** Readouts that are lists of clickable tasks: they stay while one of their tasks is selected. */
-export const LIST_READOUTS: readonly string[] = ['blocked', 'escalation', 'rejected'];
+export const LIST_READOUTS: readonly string[] = ['blocked', 'escalation', 'review', 'rejected'];
 
 const NAME_STEPS = 8;
 const READOUT_GAP = 12;
@@ -173,11 +173,12 @@ export function placeReadout({
 /**
  * The number in a room's name chip, or null when there is none. Open rooms count their tasks, Done
  * counts tasks closed today (not the all-time total), Aborted counts every aborted task, and Blocked
- * counts the tasks waiting on Earth from every room (zero hides it, even with tasks waiting on others).
+ * counts the tasks waiting on Earth from every room (zero hides it, even with tasks waiting on others), and
+ * Review counts only the tasks still waiting for a decision.
  */
 export function chipValue(
   zoneId: string,
-  input: { stats: ReadonlyMap<string, { count: number }>; closedToday: number; abortedTotal: number; waitingOnEarth: number },
+  input: { stats: ReadonlyMap<string, { count: number }>; closedToday: number; abortedTotal: number; waitingOnEarth: number; reviewWaiting: number },
 ): number | null {
   const value = zoneId === 'done'
     ? input.closedToday
@@ -185,7 +186,9 @@ export function chipValue(
       ? input.abortedTotal
       : zoneId === 'blocked'
         ? input.waitingOnEarth
-        : input.stats.get(zoneId)?.count ?? 0;
+        : zoneId === 'review'
+          ? input.reviewWaiting
+          : input.stats.get(zoneId)?.count ?? 0;
   return value > 0 ? value : null;
 }
 

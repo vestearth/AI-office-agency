@@ -81,7 +81,7 @@ describe('Val.Failed clicks and card', () => {
     expect(shown.has('rejected')).toBe(true);
     expect(visibleReadouts({ focus: 'rejected', selection: { zoneId: 'rejected', kind: 'room' }, tvHot: false }).has('rejected')).toBe(false);
     const tasks = [failed('A', 1), failed('B', 2)];
-    expect(chipValue('rejected', { stats: summarizeZones(tasks), closedToday: 0, abortedTotal: 0, waitingOnEarth: 0 })).toBe(2);
+    expect(chipValue('rejected', { stats: summarizeZones(tasks), closedToday: 0, abortedTotal: 0, waitingOnEarth: 0, reviewWaiting: 0 })).toBe(2);
   });
 
   it('selects the task from a readout line and the card carries Open in Monitor', () => {
