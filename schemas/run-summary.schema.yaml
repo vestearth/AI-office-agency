@@ -187,6 +187,43 @@ properties:
             oneOf:
               - type: "null"
               - type: string
+  debugRounds:
+    description: >
+      Provenance: the number of status.yaml history[] transitions whose target
+      is `debugging` and whose source is not `debugging` (how many times the
+      task entered Debug Lab), skipping gate updates. Counts the `phase` field
+      only, never the reason. 0 when the task never entered it.
+    type: integer
+    minimum: 0
+  debugEntry:
+    description: >
+      Provenance: the latest of the debugRounds entry rows, by time (the
+      lastTransition ordering), in the lastTransition shape. A later
+      `debugging -> debugging` row (branch updates and other bookkeeping during
+      a stay) does not replace it. `reason` is displayed verbatim and never
+      classified. null when there is no entry row.
+    oneOf:
+      - type: "null"
+      - type: object
+        additionalProperties: false
+        required:
+          - agent
+          - phase
+          - reason
+          - at
+        properties:
+          agent:
+            type: string
+          phase:
+            type: string
+          reason:
+            oneOf:
+              - type: "null"
+              - type: string
+          at:
+            oneOf:
+              - type: "null"
+              - type: string
   gates:
     description: >
       Issue #28 Phase 2F: completion gate counts from CompletionGuard.gate_view
