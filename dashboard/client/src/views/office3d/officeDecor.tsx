@@ -16,6 +16,7 @@ import { ABORTED } from './officeAborted';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
 import { RECEPTION } from './officeReception';
+import { REVIEW } from './officeReview';
 import { ROOM_LAYOUT } from './officeSelection';
 
 export type DecorBucket = 'wood' | 'metal' | 'fabric' | 'shade' | 'loungeShade';
@@ -40,15 +41,12 @@ export interface DecorPlacement {
  * Back-wall band (local z about -1.5 to -0.5) so pieces sit behind the desk row
  * (desks at z 0.35) and behind monitors. The near wall is +x from this camera,
  * so pieces stay at local x <= ~1. Review's meeting set stays left of the wall
- * screen. DevOps lamp sits opposite the code racks.
+ * screen. DevOps lamp sits opposite the code racks. Review has no models: its conveyor, gate, rack,
+ * shelf and bin are boxes added below.
  */
 export const DECOR_PLACEMENTS: DecorPlacement[] = [
   ...RECEPTION.counters.map((item) => ({ ...item, zoneId: 'inbox' })),
   { ...RECEPTION.shelf, zoneId: 'inbox' },
-
-  { file: 'table', zoneId: 'review', x: -1.2, y: 0, z: -0.95, rotY: 0, scale: 1.2 },
-  { file: 'chair', zoneId: 'review', x: -1.2, y: 0, z: -0.48, rotY: Math.PI, scale: 1.2 },
-  { file: 'chair', zoneId: 'review', x: -1.88, y: 0, z: -0.95, rotY: Math.PI / 2, scale: 1.2 },
 
   { file: 'bookcaseOpen', zoneId: 'dev', x: -1.55, y: 0, z: -1.48, rotY: 0, scale: 1.05 },
   { file: 'bookcaseClosed', zoneId: 'dev', x: -0.35, y: 0, z: -1.48, rotY: 0, scale: 1.05 },
@@ -177,6 +175,14 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
   slab.deleteAttribute('uv');
   slab.translate(boardLayout.x + board.x, FLOOR_TOP + board.y, boardLayout.z + board.z);
   buckets.set('wood', [...(buckets.get('wood') ?? []), slab]);
+  // The Review conveyor, gate, rack, shelf and bin are plain boxes too, in the same three buckets.
+  const reviewLayout = ROOM_LAYOUT.review;
+  for (const item of REVIEW.props) {
+    const part = new BoxGeometry(item.w, item.h, item.d).toNonIndexed();
+    part.deleteAttribute('uv');
+    part.translate(reviewLayout.x + item.x, FLOOR_TOP + item.y, reviewLayout.z + item.z);
+    buckets.set(item.bucket, [...(buckets.get(item.bucket) ?? []), part]);
+  }
   const merged = {} as DecorGeometries;
   for (const [name, list] of buckets) {
     const geometry = list.length === 1 ? list[0] : mergeGeometries(list, false);

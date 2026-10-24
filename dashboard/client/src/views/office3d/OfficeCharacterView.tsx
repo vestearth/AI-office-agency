@@ -28,6 +28,7 @@ import {
   resolveGaitClip,
   resolveNamedClip,
   seatClipCues,
+  standClipCues,
   visorGain,
   INTERACT_TIMESCALE,
   type CharacterOperator,
@@ -87,12 +88,14 @@ interface Proxy {
   modeSig: string;
 }
 
-type PoseMode = 'work' | 'blocked' | 'still' | 'walk' | 'sprint' | 'emote-yes' | 'interact';
+type PoseMode = 'work' | 'blocked' | 'stand' | 'still' | 'walk' | 'sprint' | 'emote-yes' | 'interact';
 
 interface Actor {
   taskId: string;
   operator: CharacterOperator;
   posture: 'work' | 'blocked';
+  /** On their feet beside a Review box: no chair, the idle clip. */
+  standing: boolean;
   reduced: boolean;
   proxy: Proxy;
   acceptedKey: string;
@@ -228,7 +231,8 @@ function cuesFor(actor: Actor, mode: PoseMode, rig: BlockyRig): ClipCue[] {
     const name = resolveNamedClip('interact-right', names);
     return name ? [{ name, timeScale: INTERACT_TIMESCALE }] : [];
   }
-  if (mode === 'still') return resolveClipCues(seatClipCues(actor.posture, true), names);
+  if (mode === 'still') return resolveClipCues(actor.standing ? standClipCues(true) : seatClipCues(actor.posture, true), names);
+  if (mode === 'stand') return resolveClipCues(standClipCues(false), names);
   return resolveClipCues(seatClipCues(mode === 'blocked' ? 'blocked' : 'work', false), names);
 }
 
@@ -251,12 +255,13 @@ function setMode(actor: Actor, rig: BlockyRig, mode: PoseMode): void {
     action.play();
   }
   if (mode === 'still') mixer.update(0);
-  else if (mode === 'work' || mode === 'blocked') mixer.update(phaseOf(actor.taskId));
+  else if (mode === 'work' || mode === 'blocked' || mode === 'stand') mixer.update(phaseOf(actor.taskId));
   else mixer.update(0);
 }
 
 function sitMode(actor: Actor): PoseMode {
   if (actor.reduced) return 'still';
+  if (actor.standing) return 'stand';
   return actor.posture === 'blocked' ? 'blocked' : 'work';
 }
 
@@ -341,6 +346,8 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
     actor.carryBox = true;
     actor.dropSpot = route.dropSpot ?? null;
   }
+  // A robot leaving its Review spot takes the box with it.
+  if (route.carry) actor.carryBox = true;
   if (!route.celebrate && route.points[1]) face(actor, start, route.points[1]);
   if (start.role === 'pickup') {
     actor.pickupLeft = PICKUP_SECONDS;
@@ -360,6 +367,8 @@ function finish(actor: Actor, rig: BlockyRig): void {
     actor.x = last.x;
     actor.z = last.z;
   }
+  // The Review box ends its trip with the robot: put down where the walk ends, or gone with a vanish.
+  if (plan?.carry && plan.action !== 'leave' && !plan.vanish) actor.carryBox = false;
   if (plan && plan.sitSeconds > 0) {
     actor.seated = true;
     actor.sitLeft = plan.sitSeconds;
@@ -480,6 +489,7 @@ function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
     taskId: place.taskId,
     operator: place.operator,
     posture: place.posture,
+    standing: place.standing,
     reduced: false,
     proxy: makeProxy(rig),
     acceptedKey: '',
@@ -619,6 +629,7 @@ function syncActors(
     if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion && !(snap && enRoute)) {
       actor.operator = place.operator;
       actor.posture = place.posture;
+      actor.standing = place.standing;
       continue;
     }
     const previousSeat = actor?.loungeSeatIndex ?? null;
@@ -649,6 +660,7 @@ function syncActors(
     if (plan.seatIndex != null) takenSeats.add(plan.seatIndex);
     actor.operator = place.operator;
     actor.posture = place.posture;
+    actor.standing = place.standing;
     actor.reduced = reducedMotion;
     actor.acceptedKey = key;
     if (plan.action === 'leave' && prev) actor.originZoneId = prev.zoneId;
@@ -754,7 +766,7 @@ function paintIdentity(body: Batch, glow: Batch, head: Matrix4, bounds: Box3, op
 
 function stanceOf(actor: Actor): FootStance {
   if (actor.celebrateLeft > 0) return 'celebrate';
-  return actor.seated ? 'sit' : 'stand';
+  return actor.seated && !actor.standing ? 'sit' : 'stand';
 }
 
 function pushEnvelope(batch: Batch, actor: Actor): void {

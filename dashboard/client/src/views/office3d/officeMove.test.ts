@@ -957,3 +957,64 @@ describe('desk row hold', () => {
     );
   });
 });
+
+describe('Review line movement', () => {
+  const line = (taskId: string, at: string, over: Partial<OfficeTask> = {}) => ({
+    taskId, phase: 'in_review' as const, status: 'waiting_review' as const, needsReview: true, statusUpdatedAt: at, ...over,
+  });
+  const placeIn = (tasks: Parameters<typeof task>[0][], taskId: string): CharacterPlace =>
+    classifyTasks(tasks.map((item) => task(item))).find((found) => found.taskId === taskId)!;
+
+  it('stands the robots of Review and seats everyone else', () => {
+    const [review] = classifyTasks([task(line('R', '2026-10-20T00:00:00Z'))]);
+    expect(review.standing).toBe(true);
+    expect(place('D', 'assigned', 'running').standing).toBe(false);
+  });
+
+  it('re-seats a robot whose box moved up the line with no walk', () => {
+    const before = placeIn([line('A', '2026-10-10T00:00:00Z'), line('B', '2026-10-12T00:00:00Z')], 'B');
+    const after = placeIn([line('B', '2026-10-12T00:00:00Z')], 'B');
+    expect(near(before.seat!, after.seat!)).toBe(false);
+    const plan = planMove(before, after, live)!;
+    expect(plan.action).toBe('stay');
+    expect(plan.gait).toBe('none');
+    expect(near(plan.points[0], after.seat!)).toBe(true);
+  });
+
+  it('walks a robot out carrying its box when the phase changes', () => {
+    const from = placeIn([line('A', '2026-10-10T00:00:00Z')], 'A');
+    const to = place('A', 'assigned', 'running');
+    const plan = planMove(from, to, live)!;
+    expect(plan.action).toBe('walk');
+    expect(plan.carry).toBe(true);
+    expect(plan.points.some((point) => near(point, roomFront('review')))).toBe(true);
+  });
+
+  it('carries the box out of Review to Done, to the heap, and when the new room is full', () => {
+    const from = placeIn([line('A', '2026-10-10T00:00:00Z')], 'A');
+    expect(planMove(from, place('A', 'aborted', 'cancelled'), { ...live, dropSpot: 0 })!.carry).toBe(true);
+    expect(planMove(from, place('A', 'assigned', 'running', { phase: 'assigned' }), live)!.carry).toBe(true);
+  });
+
+  it('carries nothing out of any other room, and nothing on first load, reduced motion or snap', () => {
+    const from = placeIn([line('A', '2026-10-10T00:00:00Z')], 'A');
+    expect(planMove(place('A', 'assigned', 'running'), place('A', 'in_review', 'waiting_review'), live)!.carry).toBeFalsy();
+    expect(planMove(place('A', 'debugging', 'running'), place('A', 'assigned', 'running'), live)!.carry).toBeFalsy();
+    expect(planMove(from, place('A', 'assigned', 'running'), reduced)!.carry).toBeFalsy();
+    expect(planMove(from, place('A', 'assigned', 'running'), { ...live, snap: true })!.carry).toBeFalsy();
+    expect(planMove(null, from, boot)!.action).toBe('stay');
+  });
+
+  it('keeps the carry flag when a walk is resumed mid-route', () => {
+    const from = placeIn([line('A', '2026-10-10T00:00:00Z')], 'A');
+    const plan = planMove(from, place('A', 'assigned', 'running'), live)!;
+    expect(resumeMove({ x: plan.points[0].x, z: plan.points[0].z + 0.5 }, plan).carry).toBe(true);
+  });
+
+  it('stands a robot that walks into Review at its spot', () => {
+    const to = placeIn([line('A', '2026-10-10T00:00:00Z')], 'A');
+    const plan = planMove(place('A', 'assigned', 'running'), to, live)!;
+    expect(plan.action).toBe('walk');
+    expect(near(plan.points[plan.points.length - 1], to.seat!)).toBe(true);
+  });
+});

@@ -1,6 +1,7 @@
 import { ZONES, summarizeZones } from '../commandZones';
 import { FLOOR_TOP, deskLocalX, type DeskRowMap } from './officeLook';
 import { deskZ } from './officeReception';
+import { reviewStanding } from './officeReview';
 import { characterOperator, type CharacterOperator } from './officeOperator';
 import {
   ROOM_LAYOUT,
@@ -51,9 +52,14 @@ export interface CharacterSlot {
   rotY: number;
   operator: CharacterOperator;
   posture: 'work' | 'blocked';
+  /** On their feet beside a box (the Review line) instead of seated at a desk. */
+  standing?: boolean;
 }
 
-/** One seated character per drawn desk in work and stuck rooms. Done and Aborted stay empty. */
+/** Feet on the room slab: the Review line has no chair under the robot. */
+export const STAND_Y = FLOOR_TOP;
+
+/** One seated character per drawn desk in work and stuck rooms, and one standing per spot in Review. Done and Aborted stay empty. */
 export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, rows?: DeskRowMap | null): CharacterSlot[] {
   const resolved = stats ?? summarizeZones(tasks);
   const slots: CharacterSlot[] = [];
@@ -61,6 +67,26 @@ export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, row
     if (!CHARACTER_KINDS.has(zone.kind)) continue;
     const layout = ROOM_LAYOUT[zone.id];
     if (!layout) continue;
+    if (zone.id === 'review') {
+      const byId = new Map(tasks.map((item) => [item.taskId, item]));
+      for (const spot of reviewStanding(tasks.filter((item) => item.phase != null && zone.phases.includes(item.phase)))) {
+        const found = byId.get(spot.taskId);
+        if (!found) continue;
+        slots.push({
+          key: spot.taskId,
+          zoneId: zone.id,
+          taskId: spot.taskId,
+          x: layout.x + spot.x,
+          y: STAND_Y,
+          z: layout.z + spot.z,
+          rotY: FACING_Y,
+          operator: characterOperator(found.operator),
+          posture: 'work',
+          standing: true,
+        });
+      }
+      continue;
+    }
     const live = sceneDesks(desksForZone(zone.id, tasks, resolved)).filter((desk) => desk.taskId && desk.task);
     const row = rows?.[zone.id];
     const placed = row
@@ -106,6 +132,11 @@ export function seatClipCues(posture: CharacterSlot['posture'], reducedMotion: b
     { name: 'sit', timeScale: 1 },
     { name: 'interact-right', timeScale: INTERACT_TIMESCALE },
   ];
+}
+
+/** Standing clip beside a box. Reduced motion holds a still idle. */
+export function standClipCues(reducedMotion: boolean): ClipCue[] {
+  return [{ name: 'idle', timeScale: reducedMotion ? 0 : 1 }];
 }
 
 /** Drop cues whose clip is not in the asset. A missing clip is a static pose, never a throw. */

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { FlowInsights, ReviewModelResponse, RunSummary } from '../../../../shared/types';
+import type { FlowInsights, ReviewModelResponse, ReviewSummary, RunSummary } from '../../../../shared/types';
 import { apiFetchJson } from '../../api';
 import { readDashboardStream, subscribeDashboardStream } from '../../dashboardStream';
 import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones';
 import { sparkPolylinePoints } from '../spark';
+import { navigateTo } from '../../navigation';
+import { QuickDecisionPanel } from '../QuickDecisionPanel';
 import { SCENE, type DeskRowMap } from './officeLook';
 import { abortedBoard, boardReason } from './officeAborted';
 import { READOUT_FADE_MS, chipValue } from './officeLabels';
@@ -13,6 +15,7 @@ import { officeSnapshotSettled } from './officeMove';
 import { OfficeLiveBadge } from './officeLive';
 import { OfficeDetail, OfficeRoomList } from './OfficeSelectionPanel';
 import { OfficeScene } from './OfficeScene';
+import { reviewBoard, reviewClickIntent, reviewPanelStatus, reviewReadout, type ReviewVia } from './officeReview';
 import {
   commitOfficeKey,
   describeOfficeSelection,
@@ -69,7 +72,23 @@ const STYLE = `
   border-radius: 12px; color: #e6edf5; pointer-events: none;
   background: rgba(12, 18, 26, 0.72); border: 1px solid rgba(255,255,255,0.16);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.o3d-rv { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 230px; max-height: 300px; overflow-y: auto; margin: 0; padding: 4px 6px;
+  background: rgba(8, 12, 18, 0.9); border: 1px solid rgba(216, 218, 221, 0.35); border-radius: 4px; color: #d8dadd; font-size: 10px; line-height: 1.3; }
+.o3d-rv p { margin: 0; }
+.o3d-rv .rv-head { color: #f3ecdf; font-weight: 600; }
+.o3d-rv .rv-sub { margin-top: 4px; color: #8e949c; }
+.o3d-rv .rv-foot { margin-top: 4px; color: #8e949c; font-style: italic; }
+.o3d-rv .rv-line { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; box-sizing: border-box; margin: 0; padding: 2px 3px;
+  font: inherit; color: inherit; text-align: left; background: none; border: 0; border-radius: 3px; cursor: pointer; }
+.o3d-rv .rv-line:hover, .o3d-rv .rv-line.on { background: rgba(243, 236, 223, 0.12); }
+.o3d-rv .rv-line:focus-visible { outline: 2px solid #f3ecdf; outline-offset: -1px; }
+.o3d-rv .rv-badge { flex: none; padding: 0 4px; border: 1px solid rgba(243, 236, 223, 0.55); border-radius: 3px; color: #f3ecdf; font-style: normal; }
 .o3d-card strong { display: block; margin-bottom: 6px; font-size: 14px; }
+.o3d-card-actions { margin-top: 6px; pointer-events: auto; }
+.o3d-card-actions button { font: inherit; font-size: 12px; color: #e6edf5; background: rgba(243, 236, 223, 0.14); border: 1px solid rgba(243, 236, 223, 0.5);
+  border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.o3d-card-actions button:hover { background: rgba(243, 236, 223, 0.24); }
+.o3d-card-actions button:focus-visible { outline: 2px solid #f3ecdf; outline-offset: 2px; }
 .o3d-card p { margin: 0 0 4px; font-size: 12px; color: #c9d4e3; }
 .o3d-office { margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid #1e2733; color: #e6edf5; }
 .o3d-office p { margin: 0 0 4px; font-size: 13px; }
@@ -153,6 +172,9 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<ReviewSummary[]>([]);
+  const [reviewNow, setReviewNow] = useState(() => new Date());
+  const [panelTaskId, setPanelTaskId] = useState<string | null>(null);
   const [deskRows, setDeskRows] = useState<DeskRowMap | null>(null);
   const deskRowsRef = useRef<DeskRowMap | null>(null);
   deskRowsRef.current = deskRows;
@@ -186,6 +208,9 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     return loungeReadout(flow, ordered.map((task) => task.taskId), now);
   }, [flow, tasks, stats, now]);
   const board = useMemo(() => abortedBoard(tasks), [tasks]);
+  // Ages count from the moment the data was read, the way the server counted `idle`.
+  const review = useMemo(() => reviewBoard(tasks, reviewNow), [tasks, reviewNow]);
+  const reviewView = useMemo(() => reviewReadout(review, reviewNow), [review, reviewNow]);
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -212,6 +237,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
       ]).then(([review, runs, nextFlow]) => {
         if (!active || signal.aborted) return;
         setTasks(officeTasksFromApi(review.reviews, runs));
+        setReviews(review.reviews);
+        setReviewNow(new Date());
         setFlow(nextFlow);
         setLoadedAt(new Date().toISOString());
         setError(null);
@@ -249,6 +276,23 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     setSelection(next);
   }, [selectedTaskId, tasks]);
 
+  // A box or a readout line selects the task and, for one that waits on a decision, opens the panel.
+  const pickReview = (taskId: string, via: ReviewVia) => {
+    const task = tasksRef.current.find((item) => item.taskId === taskId);
+    if (!task) return;
+    const next: OfficeSelection = { kind: 'desk', zoneId: 'review', taskId };
+    selectionRef.current = next;
+    setSelection(next);
+    if (reviewClickIntent(task, via) === 'panel') setPanelTaskId(taskId);
+  };
+
+  const cardTask = selection?.kind === 'desk' && selection.zoneId === 'review' && selection.taskId
+    ? tasks.find((item) => item.taskId === selection.taskId) ?? null
+    : null;
+  const cardDecides = cardTask != null && reviewClickIntent(cardTask, 'card') === 'panel';
+  const panelTask = panelTaskId ? tasks.find((item) => item.taskId === panelTaskId) ?? null : null;
+  const panelReview = panelTaskId ? reviews.find((item) => item.taskId === panelTaskId) ?? null : null;
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     const next = commitOfficeKey(selectionRef.current, event.key, tasksRef.current, event.currentTarget, deskRowsRef.current);
     if (!next) return;
@@ -283,11 +327,15 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             tableTaskId={readout.tableTaskId}
             streamOpen={streamOpen}
             awaitingReload={awaitingReload}
+            reviewBoard={review}
+            onReviewPick={(taskId) => pickReview(taskId, 'box')}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
         {ZONES.map((zone) => {
-          const chip = chipValue(zone.id, { stats, closedToday: readout.closed ?? 0, abortedTotal: board.count });
+          const chip = chipValue(zone.id, {
+            stats, closedToday: readout.closed ?? 0, abortedTotal: board.count, reviewWaiting: review.waitingCount,
+          });
           return (
             <p key={zone.id} className="o3d-label" data-label={zone.id} data-chip={chip ?? undefined} aria-hidden="true">
               {zone.label}
@@ -304,6 +352,24 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
           {board.latestId && <p>{board.latestId}</p>}
           {board.reason && <p className="reason">{boardReason(board.reason)}</p>}
         </div>
+        <div className="o3d-rv o3d-readout" data-review-readout data-readout="review">
+          <p className="rv-head">{reviewView.header}</p>
+          {[...reviewView.waiting, ...reviewView.decided].map((line) => (
+            <button type="button" key={line.taskId} className={`rv-line${selection?.kind === 'desk' && selection.taskId === line.taskId ? ' on' : ''}`}
+              data-task={line.taskId} onClick={() => pickReview(line.taskId, 'readout')}>
+              <span>{line.text}</span>
+              {line.badge && <em className="rv-badge">{line.badge}</em>}
+            </button>
+          ))}
+          {reviewView.othersHeading && <p className="rv-sub">{reviewView.othersHeading}</p>}
+          {reviewView.others.map((line) => (
+            <button type="button" key={line.taskId} className={`rv-line${selection?.kind === 'desk' && selection.taskId === line.taskId ? ' on' : ''}`}
+              data-task={line.taskId} onClick={() => pickReview(line.taskId, 'readout')}>
+              <span>{line.text}</span>
+            </button>
+          ))}
+          {reviewView.footer && <p className="rv-foot">{reviewView.footer}</p>}
+        </div>
         {selection && (
           <div className="o3d-card" data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
@@ -311,6 +377,19 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
               <p key={task.taskId}>{officeTaskSummary(task)}</p>
             ))}
             {detail.tasks.length > 3 && <p>+{detail.tasks.length - 3} more</p>}
+            {cardTask && (
+              <div className="o3d-card-actions">
+                {cardDecides ? (
+                  <button type="button" onClick={() => setPanelTaskId(cardTask.taskId)} aria-label={`Review and decide ${cardTask.taskId}`}>
+                    Review &amp; decide
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => navigateTo('monitor', cardTask.taskId)} aria-label={`Open ${cardTask.taskId} in Monitor`}>
+                    Open in Monitor
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
         {loading && <p className="o3d-banner" role="status">Loading tasks…</p>}
@@ -329,6 +408,17 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         </div>
         <OfficeDetail tasks={tasks} stats={stats} selection={selection} waits={flow?.waits ?? []} closedTodayLabel={readout.label} />
       </aside>
+      {panelTask && panelReview && (
+        <QuickDecisionPanel
+          review={panelReview}
+          status={reviewPanelStatus(panelTask)}
+          onClose={() => setPanelTaskId(null)}
+          onDecided={() => {
+            setPanelTaskId(null);
+            window.dispatchEvent(new Event('dashboard:refresh'));
+          }}
+        />
+      )}
     </div>
   );
 }

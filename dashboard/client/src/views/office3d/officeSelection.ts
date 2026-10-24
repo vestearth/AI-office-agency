@@ -3,6 +3,7 @@ import { phaseLabel, runStatusLabel } from '../../../../shared/statusLabels';
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type ZoneStat, type ZoneTask } from '../commandZones';
 import type { DeskRowMap } from './officeLook';
 import { characterOperator, lastOperatorLabel } from './officeOperator';
+import { reviewOrder } from './officeReview';
 
 /**
  * Desks drawn in the room and reachable from the keyboard.
@@ -14,6 +15,12 @@ export interface OfficeTask extends ZoneTask {
   title: string;
   /** Last history operator. Legacy `gemini` is stored as `antigravity`. */
   operator?: string;
+  /** Review room: the server's action kind, decision state, idle flag and gate counts (SPAR-47). */
+  actionKind?: ReviewSummary['actionKind'];
+  decisionPending?: boolean;
+  latestDecision?: ReviewSummary['latestDecision'];
+  idle?: ReviewSummary['idle'];
+  gates?: ReviewSummary['gates'];
 }
 
 export type OfficeZoneStats = Map<string, ZoneStat<OfficeTask>>;
@@ -60,7 +67,8 @@ export const ROOM_LAYOUT: Record<string, { x: number; z: number }> = {
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 export function officeTasksFromApi(
-  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt'>>>,
+  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'>
+    & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'actionKind' | 'decisionPending' | 'latestDecision' | 'idle' | 'gates'>>>,
   runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt' | 'currentConductor'>>,
 ): OfficeTask[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
@@ -77,6 +85,11 @@ export function officeTasksFromApi(
       operator: characterOperator(run?.currentConductor),
       lastTransition: review.lastTransition,
       statusUpdatedAt: review.statusUpdatedAt,
+      actionKind: review.actionKind,
+      decisionPending: review.decisionPending,
+      latestDecision: review.latestDecision,
+      idle: review.idle,
+      gates: review.gates,
     };
   });
 }
@@ -90,7 +103,8 @@ export function desksForZone(zoneId: string, tasks: OfficeTask[], stats?: Office
   const zone = ZONE_BY_ID.get(zoneId);
   if (!zone) return [];
   const inZone = tasksInZone(zoneId, tasks, stats);
-  const ordered = zonePreview(zone, inZone, inZone.length || 1);
+  // Review is a line, not a row of desks: the longest wait first, then decided, then the rest.
+  const ordered = zoneId === 'review' ? reviewOrder(inZone) : zonePreview(zone, inZone, inZone.length || 1);
   if (ordered.length === 0) {
     return [{ key: `${zoneId}:empty`, zoneId, taskId: null, task: null }];
   }

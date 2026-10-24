@@ -30,6 +30,8 @@ export interface CharacterPlace {
   seat: { x: number; z: number } | null;
   operator: CharacterOperator;
   posture: 'work' | 'blocked';
+  /** Standing beside a box (the Review line) rather than seated. */
+  standing: boolean;
 }
 
 export interface MovePlan {
@@ -44,6 +46,8 @@ export interface MovePlan {
   seatIndex: number | null;
   /** Aborted drop spot this walk reserved. Null or absent when it does not throw. */
   dropSpot?: number | null;
+  /** The robot picks up its Review box and carries it out. */
+  carry?: boolean;
   points: MovePoint[];
 }
 
@@ -112,6 +116,7 @@ export function classifyTasks(tasks: OfficeTask[], stats?: OfficeZoneStats, rows
       seat: slot ? { x: slot.x, z: slot.z } : null,
       operator: slot?.operator ?? characterOperator(task.operator),
       posture: zone.kind === 'stuck' ? 'blocked' : 'work',
+      standing: Boolean(slot?.standing),
     });
   }
   return places;
@@ -230,8 +235,9 @@ export function resumeMove(current: { x: number; z: number }, plan: MovePlan): M
     seatIndex: plan.seatIndex,
     dropSpot: plan.dropSpot,
   });
-  if (plan.gait === 'walk' && resumed.gait === 'sprint') return { ...resumed, gait: 'walk' };
-  return resumed;
+  const kept = plan.carry ? { ...resumed, carry: true } : resumed;
+  if (plan.gait === 'walk' && resumed.gait === 'sprint') return { ...kept, gait: 'walk' };
+  return kept;
 }
 
 function stay(place: CharacterPlace): MovePlan {
@@ -377,7 +383,25 @@ export function needsReceptionPickup(
   return Boolean(prev && !prev.drawn && !prev.terminal && next.drawn && next.seat && next.zoneId === 'inbox');
 }
 
+/**
+ * A robot that leaves its Review spot walks out with its box in hand: any route that starts there
+ * and does not celebrate. Nothing is carried on first load, reduced motion or a snap, which place
+ * with no walk anyway.
+ */
 export function planMove(
+  prev: CharacterPlace | null,
+  next: CharacterPlace | null,
+  options: Parameters<typeof planMoveRoute>[2],
+): MovePlan | null {
+  const plan = planMoveRoute(prev, next, options);
+  const carrying = prev?.zoneId === 'review' && prev.standing && prev.seat != null && next?.zoneId !== 'review';
+  if (plan && carrying && (plan.action === 'walk' || plan.action === 'overflow' || plan.action === 'leave') && !plan.celebrate) {
+    return { ...plan, carry: true };
+  }
+  return plan;
+}
+
+function planMoveRoute(
   prev: CharacterPlace | null,
   next: CharacterPlace | null,
   options: {

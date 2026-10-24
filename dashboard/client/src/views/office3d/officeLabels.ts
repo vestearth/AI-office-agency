@@ -21,7 +21,7 @@ export const FOCUS_MARGIN = 0.06;
 /** Readouts fade over this long. Reduced motion has no fade. */
 export const READOUT_FADE_MS = 150;
 /** Rooms with a readout of their own. Each room's issue adds itself here. */
-export const READOUT_ROOMS: readonly string[] = ['done', 'aborted'];
+export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'review'];
 
 const NAME_STEPS = 8;
 const READOUT_GAP = 12;
@@ -169,23 +169,32 @@ export function placeReadout({
 
 /**
  * The number in a room's name chip, or null when there is none. Open rooms count their tasks, Done
- * counts tasks closed today (not the all-time total) and Aborted counts every aborted task.
+ * counts tasks closed today (not the all-time total), Aborted counts every aborted task and Review
+ * counts only the tasks still waiting for a decision.
  */
 export function chipValue(
   zoneId: string,
-  input: { stats: ReadonlyMap<string, { count: number }>; closedToday: number; abortedTotal: number },
+  input: {
+    stats: ReadonlyMap<string, { count: number }>;
+    closedToday: number;
+    abortedTotal: number;
+    /** Review tasks still waiting for a decision. */
+    reviewWaiting: number;
+  },
 ): number | null {
   const value = zoneId === 'done'
     ? input.closedToday
     : zoneId === 'aborted'
       ? input.abortedTotal
-      : input.stats.get(zoneId)?.count ?? 0;
+      : zoneId === 'review'
+        ? input.reviewWaiting
+        : input.stats.get(zoneId)?.count ?? 0;
   return value > 0 ? value : null;
 }
 
 /**
- * The rooms whose readout shows. The focused room's readout shows unless that room is the selected
- * room, because the card carries the details. A selected Done task keeps SPAR-41's behaviour: the
+ * The rooms whose readout shows. The focused room's readout shows unless that room itself is selected,
+ * because the card carries the details; a selected task in it keeps the readout. A selected Done task keeps SPAR-41's behaviour: the
  * Done readout shows, highlighted, at any zoom.
  */
 export function visibleReadouts({
@@ -194,11 +203,13 @@ export function visibleReadouts({
   tvHot,
 }: {
   focus: string | null;
-  selection: Pick<OfficeSelection, 'zoneId'> | null;
+  selection: Pick<OfficeSelection, 'kind' | 'zoneId'> | null;
   tvHot: boolean;
 }): Set<string> {
   const shown = new Set<string>();
-  if (focus && READOUT_ROOMS.includes(focus) && selection?.zoneId !== focus) shown.add(focus);
+  // Only selecting the room itself hides its readout. A selected task (a Review line or box) keeps it.
+  const roomSelected = selection?.kind === 'room' && selection.zoneId === focus;
+  if (focus && READOUT_ROOMS.includes(focus) && !roomSelected) shown.add(focus);
   if (tvHot) shown.add('done');
   return shown;
 }

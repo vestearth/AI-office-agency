@@ -21,6 +21,7 @@ import {
   resolveGaitClip,
   resolveNamedClip,
   seatClipCues,
+  standClipCues,
   visorGain,
 } from './officeCharacters';
 import { CHARACTER_OPERATORS, characterOperator } from './officeOperator';
@@ -194,6 +195,9 @@ describe('character slots', () => {
           phase: PHASE_BY_ZONE[zoneId],
           status: zoneId === 'done' ? 'completed' : zoneId === 'aborted' ? 'cancelled' : 'running',
           operator: CHARACTER_OPERATORS[index % CHARACTER_OPERATORS.length],
+          // Review has a line, not desks: four tasks waiting for a decision fill it.
+          needsReview: zoneId === 'review',
+          statusUpdatedAt: `2026-10-1${index}T00:00:00Z`,
         }));
       }
     }
@@ -201,6 +205,37 @@ describe('character slots', () => {
     expect(slots).toHaveLength(WORK_AND_STUCK.length * SCENE_DESK_LIMIT);
     expect(slots.every((slot) => WORK_AND_STUCK.includes(slot.zoneId))).toBe(true);
     expect(slots.filter((slot) => slot.posture === 'blocked').every((slot) => slot.zoneId === 'blocked' || slot.zoneId === 'rejected')).toBe(true);
+  });
+});
+
+describe('review standing slots', () => {
+  const waiting = (taskId: string, at: string) => task({
+    taskId, phase: 'in_review', status: 'waiting_review', needsReview: true, statusUpdatedAt: at, operator: 'codex',
+  });
+
+  it('stands the robots of Review on the line instead of seating them at desks', () => {
+    const slots = characterSlots([waiting('OLD', '2026-10-10T00:00:00Z'), waiting('NEW', '2026-10-20T00:00:00Z')]);
+    expect(slots.map((slot) => slot.taskId)).toEqual(['OLD', 'NEW']);
+    for (const slot of slots) {
+      expect(slot.zoneId).toBe('review');
+      expect(slot.standing).toBe(true);
+      expect(slot.rotY).toBe(FACING_Y);
+      expect(slot.y).not.toBeCloseTo(SEAT_Y);
+    }
+    expect(slots[0].x).toBeGreaterThan(slots[1].x);
+  });
+
+  it('keeps every other room seated', () => {
+    const slots = characterSlots([task({ taskId: 'D', phase: 'assigned', status: 'running' })]);
+    expect(slots[0].standing).toBeFalsy();
+    expect(slots[0].y).toBeCloseTo(SEAT_Y);
+  });
+});
+
+describe('standing clips', () => {
+  it('loops idle, and reduced motion holds a still idle', () => {
+    expect(standClipCues(false)).toEqual([{ name: 'idle', timeScale: 1 }]);
+    expect(standClipCues(true)).toEqual([{ name: 'idle', timeScale: 0 }]);
   });
 });
 
