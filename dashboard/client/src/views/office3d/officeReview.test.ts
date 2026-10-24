@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { DecisionAction } from '../../../../shared/types';
+import { inBangkok } from '../../testing/inBangkok';
 import { DECOR_PLACEMENTS } from './officeDecor';
 import { ROOM_D, ROOM_W } from './officeLook';
 import {
@@ -69,17 +70,7 @@ describe('review age', () => {
 });
 
 describe('a date-only status change in Bangkok', () => {
-  // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
-  let savedTz: string | undefined;
-  beforeEach(() => {
-    savedTz = process.env.TZ;
-    process.env.TZ = 'Asia/Bangkok';
-    expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
-  });
-  afterEach(() => {
-    if (savedTz === undefined) delete process.env.TZ;
-    else process.env.TZ = savedTz;
-  });
+  inBangkok();
 
   it('ages from local midnight, as the server counts idle from midnight in the office time zone', () => {
     // 03:00 local on the 24th: from UTC midnight the 16th was 7.8 days ago, from local midnight 8.
