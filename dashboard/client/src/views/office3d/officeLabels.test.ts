@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   FOCUS_ZOOM,
   chipValue,
+  fitReadout,
   layoutNames,
+  layoutNamesChecked,
   pickFocus,
   placeCardClear,
   placeReadout,
@@ -209,6 +211,56 @@ describe('a tall readout never covers a room name (SPAR-52)', () => {
       const put = settled.get(item.id);
       if (put) expect(rectsOverlap(box(item, put), readout)).toBe(false);
     }
+  });
+});
+
+describe('a name stays with its own room; a readout that cannot clear it gets shorter (SPAR-52, option A)', () => {
+  const view = { w: 880, h: 800 };
+  // The Val.Failed room under DevOps: its name sits at the room's middle, the readout covers the whole room.
+  const room: Rect = { left: 520, top: 470, right: 700, bottom: 590 };
+  const valFailed = name('rejected', 610, 520, { w: 90, bounds: room });
+  const readout: Rect = { left: 400, top: 440, right: 760, bottom: 710 };
+  const touches = (a: Rect, b: Rect) => a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
+
+  it('never moves a name out of its own room box, and reports the name it could not clear', () => {
+    const { placed, stuck } = layoutNamesChecked([valFailed], view, [readout]);
+    const at = placed.get('rejected');
+    expect(at).toBeTruthy();
+    expect(touches(box(valFailed, at!), room)).toBe(true);
+    expect(stuck.has('rejected')).toBe(true);
+  });
+
+  it('steps a name aside inside its room when that clears the readout', () => {
+    const low: Rect = { left: 400, top: 540, right: 760, bottom: 710 };
+    const { placed, stuck } = layoutNamesChecked([valFailed], view, [low]);
+    const at = placed.get('rejected')!;
+    expect(stuck.size).toBe(0);
+    expect(rectsOverlap(box(valFailed, at), low)).toBe(false);
+    expect(touches(box(valFailed, at), room)).toBe(true);
+  });
+
+  it('shortens the readout, keeping its width and top edge, until it clears the name', () => {
+    const { placed } = layoutNamesChecked([valFailed], view, [readout]);
+    const nameBox = box(valFailed, placed.get('rejected')!);
+    const fit = fitReadout(readout, [nameBox]);
+    expect(rectsOverlap(fit.rect, nameBox)).toBe(false);
+    expect(fit.rect.left).toBe(readout.left);
+    expect(fit.rect.right).toBe(readout.right);
+    expect(fit.rect.bottom - fit.rect.top).toBeLessThan(readout.bottom - readout.top);
+    expect(fit.maxHeight).toBe(fit.rect.bottom - fit.rect.top);
+  });
+
+  it('leaves a readout alone, with no height cap, when no name is in the way', () => {
+    const far = { left: 0, top: 0, right: 90, bottom: 18 };
+    const fit = fitReadout(readout, [far]);
+    expect(fit.rect).toEqual(readout);
+    expect(fit.maxHeight).toBeNull();
+  });
+
+  it('keeps the taller side when the name is in the middle of the readout', () => {
+    const fit = fitReadout({ left: 0, top: 100, right: 360, bottom: 370 }, [{ left: 100, top: 130, right: 190, bottom: 148 }]);
+    expect(fit.rect.top).toBe(148 + 12);
+    expect(fit.rect.bottom).toBe(370);
   });
 });
 

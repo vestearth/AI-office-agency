@@ -50,6 +50,12 @@ export interface NameItem {
   busy: boolean;
   /** The fixed zone order, which settles ties. */
   order: number;
+  /** The room's own box on screen. A name that moves still touches it. */
+  bounds?: Rect;
+}
+
+function touches(a: Rect, b: Rect): boolean {
+  return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
 }
 
 /**
@@ -58,39 +64,76 @@ export interface NameItem {
  * placed name moves down or up by its own height until it is clear. The result depends only on
  * the anchors and the priority, so the same view always gives the same layout.
  *
- * `obstacles` (the placed readouts) are never covered: a name has no right to its anchor over a
- * readout. A name stepped around the usual way that is still covered goes just above or just below
- * the obstacle instead, whichever is nearer its anchor. Names move, they never hide.
+ * `obstacles` (the placed readouts) are never covered when a spot exists: a name steps around the
+ * usual way, then goes just above or below the obstacle, whichever is nearer its anchor. A name with
+ * `bounds` only takes spots that still touch its room. If none of those clears an obstacle the name
+ * stays at the in-room spot nearest its anchor that clears the other names, and is reported in
+ * `stuck`: the caller shortens the readout instead. Names move, they never hide.
  */
-export function layoutNames(
+export function layoutNamesChecked(
   items: readonly NameItem[],
   view: Size,
   obstacles: readonly Rect[] = [],
-): Map<string, { x: number; y: number }> {
+): { placed: Map<string, { x: number; y: number }>; stuck: Set<string> } {
   const placed = new Map<string, { x: number; y: number }>();
-  const taken: Rect[] = [...obstacles];
+  const stuck = new Set<string>();
+  const names: Rect[] = [];
   const ranked = items
     .filter((item) => item.cx >= 0 && item.cx <= view.w && item.y >= 0 && item.y <= view.h)
     .sort((a, b) => Number(b.busy) - Number(a.busy) || a.order - b.order || a.id.localeCompare(b.id));
   for (const item of ranked) {
     const left = item.cx - item.w / 2;
-    let chosen = { x: left, y: item.y };
     const tops = Array.from({ length: NAME_STEPS + 1 }, (_, step) => item.y + Math.ceil(step / 2) * item.h * (step % 2 === 1 ? 1 : -1));
     const around = obstacles
       .filter((box) => box.left < left + item.w && box.right > left)
       .flatMap((box) => [box.top - item.h, box.bottom])
       .sort((a, b) => Math.abs(a - item.y) - Math.abs(b - item.y) || a - b);
-    for (const top of [...tops, ...around]) {
-      const rect = { left, top, right: left + item.w, bottom: top + item.h };
-      if (!taken.some((other) => rectsOverlap(rect, other))) {
-        chosen = { x: left, y: top };
-        break;
-      }
+    const spots = [...tops, ...around].map((top) => ({ left, top, right: left + item.w, bottom: top + item.h }));
+    const inRoom = (rect: Rect) => !item.bounds || touches(rect, item.bounds);
+    const clearOf = (rect: Rect, others: readonly Rect[]) => !others.some((other) => rectsOverlap(rect, other));
+    let chosen = spots.find((rect) => inRoom(rect) && clearOf(rect, names) && clearOf(rect, obstacles));
+    if (!chosen) {
+      chosen = spots.find((rect) => inRoom(rect) && clearOf(rect, names));
+      if (chosen) stuck.add(item.id);
     }
-    placed.set(item.id, chosen);
-    taken.push({ left: chosen.x, top: chosen.y, right: chosen.x + item.w, bottom: chosen.y + item.h });
+    // No room for it inside its own box at all (two names fighting over a tiny room): the old nudge, which may leave it.
+    chosen ??= spots.find((rect) => clearOf(rect, names) && clearOf(rect, obstacles)) ?? spots[0];
+    placed.set(item.id, { x: chosen.left, y: chosen.top });
+    names.push(chosen);
   }
-  return placed;
+  return { placed, stuck };
+}
+
+export function layoutNames(
+  items: readonly NameItem[],
+  view: Size,
+  obstacles: readonly Rect[] = [],
+): Map<string, { x: number; y: number }> {
+  return layoutNamesChecked(items, view, obstacles).placed;
+}
+
+/** A readout is never made shorter than one line of text plus its padding; below that it is reported, not hidden. */
+const READOUT_MIN_H = 22;
+
+/**
+ * Shortens a readout that still covers a name: its width and its top edge stay, the bottom moves up,
+ * or, when the name sits in the upper part and the part below it is taller, the top moves down past it.
+ * The list inside keeps every line and scrolls (`.o3d-queue` has `overflow-y: auto`). `maxHeight` is the
+ * height to cap the element at, or null when nothing was in the way.
+ */
+export function fitReadout(rect: Rect, names: readonly Rect[]): { rect: Rect; maxHeight: number | null } {
+  let fit = { ...rect };
+  for (let pass = 0; pass < names.length + 1; pass += 1) {
+    const hit = names.find((name) => rectsOverlap(fit, name));
+    if (!hit) break;
+    const above = { ...fit, bottom: hit.top - READOUT_GAP };
+    const below = { ...fit, top: hit.bottom + READOUT_GAP };
+    const room = (r: Rect) => r.bottom - r.top;
+    fit = room(below) > room(above) ? below : above;
+    if (room(fit) < READOUT_MIN_H) fit = { ...fit, bottom: fit.top + READOUT_MIN_H };
+  }
+  const same = fit.top === rect.top && fit.bottom === rect.bottom;
+  return { rect: fit, maxHeight: same ? null : fit.bottom - fit.top };
 }
 
 export interface FocusRoom {
