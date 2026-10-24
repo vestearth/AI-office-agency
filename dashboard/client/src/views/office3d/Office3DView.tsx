@@ -13,6 +13,8 @@ import { EscalationBlock, EscalationReadout } from './OfficeEscalationViews';
 import { QuickDecisionPanel } from '../QuickDecisionPanel';
 import { ReviewBlock, ReviewReadoutView } from './OfficeReviewViews';
 import { reviewBoard, reviewClickIntent, reviewKindOf, reviewPanelStatus, reviewReadout, type ReviewVia } from './officeReview';
+import { debugCard, debugLines } from './officeDebug';
+import { DebugBlock, DebugReadout } from './OfficeDebugViews';
 import { READOUT_FADE_MS, chipValue } from './officeLabels';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { initialCatchUp, onStreamPhase } from './officeCatchUp';
@@ -106,7 +108,11 @@ const STYLE = `
 .o3d-eline .age { text-align: right; }
 .o3d-eline .why { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
 .o3d-eline em, .o3d-escalation-card em { font-style: normal; color: #8d96a3; }
-.o3d-escalation-card .why { color: #c9d4e3; overflow-wrap: anywhere; }
+.o3d-escalation-card .why, .o3d-debug-card .why { color: #c9d4e3; overflow-wrap: anywhere; }
+.o3d-debug .o3d-eline { grid-template-columns: 88px minmax(0, 1fr) 34px; }
+.o3d-round { display: inline-block; margin-right: 5px; padding: 0 4px; border: 1px solid rgba(216, 218, 221, 0.4); border-radius: 3px;
+  font-weight: normal; color: #d8dadd; }
+.o3d-round[data-loop="1"] { background: #fff5e3; border-color: #fff5e3; color: #0a0e14; }
 .o3d-card { position: absolute; left: 0; top: 0; z-index: 2; width: 220px; margin: 0; padding: 10px 12px;
   border-radius: 12px; color: #e6edf5; pointer-events: none;
   background: rgba(12, 18, 26, 0.72); border: 1px solid rgba(255,255,255,0.16);
@@ -247,6 +253,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const panelTask = panelTaskId ? tasks.find((task) => task.taskId === panelTaskId) ?? null : null;
   const panelReview = panelTaskId ? reviews.find((item) => item.taskId === panelTaskId) ?? null : null;
   const selectedEscalation = selectedTask ? escalationCard(selectedTask, Date.now()) : null;
+  const debug = useMemo(() => debugLines(tasks, Date.now()), [tasks]);
+  const selectedDebug = selectedTask ? debugCard(selectedTask, Date.now()) : null;
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -391,8 +399,9 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         <BlockedReadout queue={queue} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
         <ReviewReadoutView readout={reviewView} selectedTaskId={reviewSelectedId} onPick={(taskId) => pickReview(taskId, 'readout')} />
         {escalation.length > 0 && <EscalationReadout lines={escalation} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
+        {debug.length > 0 && <DebugReadout lines={debug} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
         {selection && (
-          <div className={selectedWait || selectedEscalation || reviewTask ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
+          <div className={selectedWait || selectedEscalation || reviewTask || selectedDebug ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
             {detail.tasks.length === 0 ? <p>{detail.emptyLabel}</p> : detail.tasks.slice(0, 3).map((task) => (
               <p key={task.taskId}>{officeTaskSummary(task)}</p>
@@ -407,7 +416,8 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
                 showMonitor={!selectedWait && !selectedEscalation}
               />
             )}
-            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!selectedEscalation} />}
+            {selectedTask && selectedDebug && <DebugBlock taskId={selectedTask.taskId} card={selectedDebug} />}
+            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!selectedEscalation && !selectedDebug} />}
           </div>
         )}
         {loading && <p className="o3d-banner" role="status">Loading tasks…</p>}

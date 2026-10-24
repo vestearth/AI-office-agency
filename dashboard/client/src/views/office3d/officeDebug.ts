@@ -1,4 +1,8 @@
+import { formatAge } from '../formatAge';
+import { boardReason } from './officeAborted';
+import { byWait, timeOf } from './officeBlocked';
 import { SCENE } from './officeLook';
+import type { OfficeTask } from './officeSelection';
 
 /** From this round on a task is looping: its tags brighten and its round badge is highlighted. */
 export const LOOP_ROUND = 3;
@@ -207,4 +211,137 @@ export function roundTagBoxes(rounds: number | null | undefined, deskX: number, 
     });
   }
   return out;
+}
+
+/** The readout line for a task the debugger handed to dev or dev-2. */
+export const COMPLETE_TEXT = 'debugger done · waiting for dev';
+
+const DAY_MS = 86_400_000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * How long a task has been in the room, from `debugEntry.at`. A timestamp uses `formatAge` (minutes,
+ * then hours). A date-only value counts whole days from local midnight, as `timeOf` reads it, and
+ * shows `today` or `Nd`: `formatAge` would read it as UTC midnight and show misleading hours.
+ * No usable time, no age.
+ */
+export function stayAge(at: string | null | undefined, now: number): string | null {
+  if (!at) return null;
+  if (DATE_ONLY.test(at)) {
+    const start = timeOf({ statusUpdatedAt: at });
+    if (start === null) return null;
+    const days = Math.max(0, Math.floor((now - start) / DAY_MS));
+    return days === 0 ? 'today' : `${days}d`;
+  }
+  return Number.isFinite(Date.parse(at)) ? formatAge(at, now) : null;
+}
+
+/**
+ * True when Earth's Changes button sent the task here, from structured fields only: the entry row is
+ * the orchestrator's, the latest decision is `request_changes`, it is applied, and it was decided no
+ * later than the entry. The Escalation room has the same shape of rule over `lastTransition` and
+ * `escalate`; the two could share one helper later.
+ */
+export function sentBackByEarth(task: Pick<OfficeTask, 'debugEntry' | 'latestDecision' | 'decisionPending'>): boolean {
+  const entry = task.debugEntry;
+  const decision = task.latestDecision;
+  if (!entry || !decision) return false;
+  if (entry.agent !== 'orchestrator' || decision.decision !== 'request_changes' || task.decisionPending !== false) return false;
+  const decidedAt = Date.parse(decision.decidedAt);
+  const enteredAt = entry.at ? Date.parse(entry.at) : NaN;
+  return Number.isFinite(decidedAt) && Number.isFinite(enteredAt) && decidedAt <= enteredAt;
+}
+
+export interface DebugLine {
+  taskId: string;
+  title: string;
+  kind: 'debugging' | 'complete';
+  /** The server's `debugRounds`, or null when it is 0 or unknown (no badge). */
+  rounds: number | null;
+  looping: boolean;
+  /** `7m`, `3h`, `today`, `4d`, or null with no entry time. */
+  age: string | null;
+  /** `sent back by reviewer`, `sent back by earth (Changes)`, the waiting-for-dev text, or null. */
+  who: string | null;
+  /** The reason as written, cut to two readout lines. */
+  reason: string | null;
+}
+
+export interface DebugCardModel {
+  heading: 'Debugging' | 'Debugger done';
+  rounds: number | null;
+  looping: boolean;
+  age: string | null;
+  who: string | null;
+  /** The full reason, whitespace folded. */
+  reason: string | null;
+}
+
+function clean(text: string | null | undefined): string | null {
+  const folded = (text ?? '').replace(/\s+/g, ' ').trim();
+  return folded === '' ? null : folded;
+}
+
+/**
+ * Who sent the task back and why, read from `debugEntry` only, so a bookkeeping row during the stay
+ * changes neither. The reason is shown as written; Earth's Changes decision shows Earth's note.
+ */
+function sentBack(task: OfficeTask): { who: string | null; reason: string | null } {
+  if (task.phase === 'debugging_complete') return { who: COMPLETE_TEXT, reason: null };
+  const entry = task.debugEntry;
+  if (!entry) return { who: null, reason: null };
+  if (sentBackByEarth(task)) return { who: `sent back by ${task.latestDecision!.actor} (Changes)`, reason: clean(task.latestDecision!.note) };
+  return { who: `sent back by ${entry.agent}`, reason: clean(entry.reason) };
+}
+
+function roundsOf(task: OfficeTask): number | null {
+  const rounds = task.debugRounds;
+  return typeof rounds === 'number' && Number.isFinite(rounds) && rounds >= 1 ? Math.floor(rounds) : null;
+}
+
+function entryTime(task: OfficeTask): number | null {
+  return task.debugEntry?.at ? timeOf({ statusUpdatedAt: task.debugEntry.at }) : null;
+}
+
+function inRoom(tasks: readonly OfficeTask[], phase: 'debugging' | 'debugging_complete'): OfficeTask[] {
+  return tasks
+    .filter((task) => task.phase === phase)
+    .map((task) => ({ task, at: entryTime(task) }))
+    .sort((a, b) => byWait({ at: a.at, taskId: a.task.taskId }, { at: b.at, taskId: b.task.taskId }))
+    .map(({ task }) => task);
+}
+
+/** One line per task in the room: tasks in debugging first, then the ones waiting for dev, each longest stay first. */
+export function debugLines(tasks: readonly OfficeTask[], now: number): DebugLine[] {
+  const line = (task: OfficeTask, kind: DebugLine['kind']): DebugLine => {
+    const back = sentBack(task);
+    return {
+      taskId: task.taskId,
+      title: task.title,
+      kind,
+      rounds: roundsOf(task),
+      looping: isLooping(roundsOf(task)),
+      age: stayAge(task.debugEntry?.at, now),
+      who: back.who,
+      reason: back.reason === null ? null : boardReason(back.reason),
+    };
+  };
+  return [
+    ...inRoom(tasks, 'debugging').map((task) => line(task, 'debugging')),
+    ...inRoom(tasks, 'debugging_complete').map((task) => line(task, 'complete')),
+  ];
+}
+
+/** What the selection card adds for a task in Debug Lab, or null for a task elsewhere. */
+export function debugCard(task: OfficeTask, now: number): DebugCardModel | null {
+  if (task.phase !== 'debugging' && task.phase !== 'debugging_complete') return null;
+  const back = sentBack(task);
+  return {
+    heading: task.phase === 'debugging' ? 'Debugging' : 'Debugger done',
+    rounds: roundsOf(task),
+    looping: isLooping(roundsOf(task)),
+    age: stayAge(task.debugEntry?.at, now),
+    who: back.who,
+    reason: back.reason,
+  };
 }
