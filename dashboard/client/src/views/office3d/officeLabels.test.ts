@@ -264,6 +264,50 @@ describe('a name stays with its own room; a readout that cannot clear it gets sh
   });
 });
 
+describe('review follow-ups for SPAR-52', () => {
+  const touches = (a: Rect, b: Rect) => a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
+
+  it('never puts a name off the stage; a name with no on-stage spot is reported as stuck', () => {
+    const view = { w: 900, h: 600 };
+    // The room box runs past the top edge, the readout hugs the top: above the readout is off the stage.
+    const room: Rect = { left: 430, top: -120, right: 640, bottom: 130 };
+    const item = name('devops', 530, 110, { w: 100, bounds: room });
+    const readout: Rect = { left: 300, top: 0, right: 660, bottom: 270 };
+    const { placed, stuck } = layoutNamesChecked([item], view, [readout]);
+    const at = placed.get('devops')!;
+    expect(at.y).toBeGreaterThanOrEqual(0);
+    expect(at.y + item.h).toBeLessThanOrEqual(view.h);
+    expect(touches(box(item, at), room)).toBe(true);
+    expect(stuck.has('devops')).toBe(true);
+  });
+
+  it('takes a spot slid along the room edge when all ten usual spots cover a name', () => {
+    const view = { w: 1000, h: 700 };
+    const focus: Rect = { left: 400, top: 300, right: 600, bottom: 400 };
+    const size = { w: 150, h: 100 };
+    const names: Rect[] = [
+      { left: 612, top: 370, right: 762, bottom: 388 },
+      { left: 238, top: 370, right: 388, bottom: 388 },
+      { left: 420, top: 420, right: 570, bottom: 438 },
+      { left: 420, top: 200, right: 570, bottom: 218 },
+    ];
+    const at = placeReadout({ size, view, focus, names, card: null, rooms: [] });
+    const readout = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    for (const name of names) expect(rectsOverlap(readout, name)).toBe(false);
+    expect(rectsOverlap(readout, focus)).toBe(false);
+  });
+
+  it('covers a name that can still move before it covers the focused room', () => {
+    const view = { w: 360, h: 360 };
+    const focus: Rect = { left: 80, top: 20, right: 280, bottom: 120 };
+    const size = { w: 360, h: 200 };
+    // Every spot either lies on the focused room or on this (large) name.
+    const names: Rect[] = [{ left: 0, top: 135, right: 360, bottom: 300 }];
+    const at = placeReadout({ size, view, focus, names, card: null, rooms: [] });
+    expect(rectsOverlap({ left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h }, focus)).toBe(false);
+  });
+});
+
 describe('chipValue', () => {
   const stats = new Map([
     ['devops', { count: 3 }],

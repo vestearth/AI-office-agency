@@ -66,7 +66,7 @@ function touches(a: Rect, b: Rect): boolean {
  *
  * `obstacles` (the placed readouts) are never covered when a spot exists: a name steps around the
  * usual way, then goes just above or below the obstacle, whichever is nearer its anchor. A name with
- * `bounds` only takes spots that still touch its room. If none of those clears an obstacle the name
+ * `bounds` only takes spots that still touch its room and lie on the stage (the stage clips, which would hide the name). If none of those clears an obstacle the name
  * stays at the in-room spot nearest its anchor that clears the other names, and is reported in
  * `stuck`: the caller shortens the readout instead. Names move, they never hide.
  */
@@ -89,7 +89,7 @@ export function layoutNamesChecked(
       .flatMap((box) => [box.top - item.h, box.bottom])
       .sort((a, b) => Math.abs(a - item.y) - Math.abs(b - item.y) || a - b);
     const spots = [...tops, ...around].map((top) => ({ left, top, right: left + item.w, bottom: top + item.h }));
-    const inRoom = (rect: Rect) => !item.bounds || touches(rect, item.bounds);
+    const inRoom = (rect: Rect) => (!item.bounds || touches(rect, item.bounds)) && rect.top >= 0 && rect.bottom <= view.h;
     const clearOf = (rect: Rect, others: readonly Rect[]) => !others.some((other) => rectsOverlap(rect, other));
     let chosen = spots.find((rect) => inRoom(rect) && clearOf(rect, names) && clearOf(rect, obstacles));
     if (!chosen) {
@@ -97,7 +97,10 @@ export function layoutNamesChecked(
       if (chosen) stuck.add(item.id);
     }
     // No room for it inside its own box at all (two names fighting over a tiny room): the old nudge, which may leave it.
-    chosen ??= spots.find((rect) => clearOf(rect, names) && clearOf(rect, obstacles)) ?? spots[0];
+    const onStage = (rect: Rect) => rect.top >= 0 && rect.bottom <= view.h;
+    chosen ??= spots.find((rect) => onStage(rect) && clearOf(rect, names) && clearOf(rect, obstacles))
+      ?? spots.find((rect) => clearOf(rect, names) && clearOf(rect, obstacles))
+      ?? spots[0];
     placed.set(item.id, { x: chosen.left, y: chosen.top });
     names.push(chosen);
   }
