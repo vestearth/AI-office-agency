@@ -34,7 +34,10 @@ async function settled(launcher: OfficeLauncher, key: string): Promise<OfficeLau
 }
 
 const alive = (pid: number) => {
-  try { process.kill(pid, 0); return true; } catch (err) { return (err as NodeJS.ErrnoException).code === 'EPERM'; }
+  try { process.kill(pid, 0); } catch (err) { return (err as NodeJS.ErrnoException).code === 'EPERM'; }
+  // A zombie has already exited. It stays until a parent reaps it, which the PID 1 of a
+  // container without an init never does, and kill(pid, 0) still succeeds on it (Linux only).
+  try { return !/^\d+ \(.*\) Z /s.test(fs.readFileSync(`/proc/${pid}/stat`, 'utf8')); } catch { return true; }
 };
 
 /** pids whose command line contains token. The wrapper's argv includes the same token, so an empty list means the wrapper and its children are gone. */
