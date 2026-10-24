@@ -23,6 +23,7 @@ import {
   CURSOR_EAR_TILT,
   FACING_Y,
   LIMB_COLOR,
+  MAX_ACTORS,
   OPERATOR_VISOR,
   resolveClipCues,
   resolveGaitClip,
@@ -62,8 +63,6 @@ import { ROOM_LAYOUT, desksForZone, sceneDesks, type OfficeTask, type OfficeZone
 
 const PARTS = ['leg-left', 'leg-right', 'torso', 'arm-left', 'arm-right', 'head'] as const;
 type PartName = (typeof PARTS)[number];
-/** Seated cast is 36 (24 at desks, 7 in the waiting room, 5 at the help desk). A few extra slots cover arrivals and departures without a new mesh. */
-const MAX_ACTORS = 44;
 const BODY_CAP = MAX_ACTORS * 12;
 const GLOW_CAP = MAX_ACTORS * 12;
 /** Envelopes at the counter plus boxes on their way to the heap. */

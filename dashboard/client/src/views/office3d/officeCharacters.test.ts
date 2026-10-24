@@ -16,6 +16,8 @@ import {
   SLOT_Z_OFFSET,
   UNKNOWN_VISOR_GAIN,
   VISOR_GAIN,
+  MAX_ACTORS,
+  SEATED_CAP,
   characterSlots,
   resolveClipCues,
   resolveGaitClip,
@@ -222,6 +224,45 @@ describe('character slots', () => {
     expect(slots.filter((slot) => slot.zoneId === 'escalation')).toHaveLength(5);
     expect(slots.every((slot) => WORK_AND_STUCK.includes(slot.zoneId))).toBe(true);
     expect(slots.filter((slot) => slot.posture === 'blocked').every((slot) => slot.zoneId === 'blocked' || slot.zoneId === 'rejected')).toBe(true);
+  });
+});
+
+describe('actor capacity', () => {
+  it('has room for a robot at every spot of every room, plus a few walking in or out', () => {
+    const tasks: OfficeTask[] = [];
+    const add = (zoneId: string, count: number, over: (index: number) => Partial<OfficeTask> = () => ({})) => {
+      for (let index = 0; index < count; index += 1) {
+        tasks.push(task({
+          taskId: `${zoneId}-full-${index}`,
+          phase: PHASE_BY_ZONE[zoneId],
+          status: 'running',
+          operator: CHARACTER_OPERATORS[index % CHARACTER_OPERATORS.length],
+          ...over(index),
+        }));
+      }
+    };
+    for (const zoneId of ['inbox', 'devops', 'dev', 'debug', 'rejected']) add(zoneId, SCENE_DESK_LIMIT + 2);
+    // Blocked: five wait on Earth, four on others. The help desk: the desk, two bench seats, two hand-offs.
+    add('blocked', 9, (index) => ({ waitsOn: [{ kind: index < 5 ? 'prod_run' : 'aws_permission' }] }));
+    for (let index = 0; index < 3; index += 1) tasks.push(task({ taskId: `esc-full-${index}`, phase: 'escalated', status: 'running' }));
+    for (let index = 0; index < 3; index += 1) tasks.push(task({ taskId: `esc-hand-${index}`, phase: 'free_roam_complete', status: 'running' }));
+    // Review: four waiting boxes, two at each decided place, two at the side.
+    add('review', 6, (index) => ({ needsReview: true, statusUpdatedAt: `2026-10-0${index + 1}T00:00:00Z` }));
+    for (const decision of ['approve', 'request_changes', 'escalate', 'reject'] as const) {
+      add('review', 3, (index) => ({
+        needsReview: false,
+        decisionPending: true,
+        latestDecision: { decision, actor: 'e', decidedAt: `2026-10-2${index}T00:00:00Z` },
+        taskId: `review-${decision}-${index}`,
+      }));
+    }
+    add('review', 3, (index) => ({ actionKind: 'completion_held', taskId: `review-other-${index}` }));
+    const slots = characterSlots(tasks);
+    expect(slots.filter((slot) => slot.zoneId === 'review')).toHaveLength(14);
+    expect(slots).toHaveLength(SEATED_CAP);
+    expect(SEATED_CAP).toBe(46);
+    expect(MAX_ACTORS).toBeGreaterThanOrEqual(SEATED_CAP + 8);
+    expect(slots.length + 8).toBeLessThanOrEqual(MAX_ACTORS);
   });
 });
 

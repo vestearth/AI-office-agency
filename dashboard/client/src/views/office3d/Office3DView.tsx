@@ -73,6 +73,7 @@ const STYLE = `
 .o3d-board p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .o3d-board .reason { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
 .o3d-queue { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 360px; max-width: 360px; margin: 0; padding: 4px 6px 5px;
+  max-height: min(300px, 60%); overflow-y: auto;
   background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(216, 218, 221, 0.35); border-radius: 4px; color: #e6edf5; font-size: 10px; line-height: 1.3; }
 .o3d-queue .head { margin: 0 0 2px; font-size: 10px; letter-spacing: 0.3px; color: #e6edf5; }
 .o3d-queue ul { list-style: none; margin: 0 0 4px; padding: 0; display: block; }
