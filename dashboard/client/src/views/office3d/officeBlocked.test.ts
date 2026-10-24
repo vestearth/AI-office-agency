@@ -155,6 +155,20 @@ describe('waiting on you across rooms', () => {
     expect(queueLines(buildWaitQueue([task('FREE', 'assigned', { status: 'running' })], NOW))).toHaveLength(0);
   });
 
+  it('reads a date-only statusUpdatedAt as local midnight, the basis of the side panel\'s Oldest wait', () => {
+    // 01:00 local on the 24th: a date-only value read as UTC midnight would give 8 days in Bangkok.
+    const early = new Date(2026, 9, 24, 1).getTime();
+    const queue = buildWaitQueue([task('DATE-ONLY', 'blocked', { waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: '2026-10-15' })], early);
+    expect(queue.earth[0].days).toBe(9);
+    const late = new Date(2026, 9, 24, 23).getTime();
+    expect(buildWaitQueue([task('DATE-ONLY', 'blocked', { waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: '2026-10-15' })], late).earth[0].days).toBe(9);
+  });
+
+  it('keeps a full timestamp as the instant it names', () => {
+    const queue = buildWaitQueue([task('STAMP', 'blocked', { waitsOn: [{ kind: 'prod_run' }], statusUpdatedAt: '2026-10-15T00:00:00Z' })], Date.parse('2026-10-24T00:00:00Z'));
+    expect(queue.earth[0].days).toBe(9);
+  });
+
   it('measures the wait in whole days from statusUpdatedAt', () => {
     const queue = buildWaitQueue(live(), NOW);
     const days = (taskId: string) => queue.earth.find((line) => line.taskId === taskId)?.days;
