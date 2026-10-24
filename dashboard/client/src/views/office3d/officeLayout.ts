@@ -9,8 +9,10 @@ import {
   deskLocalX,
   type DeskRowMap,
 } from './officeLook';
+import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
+import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
-import { REVIEW } from './officeReview';
+import { REVIEW, reviewBoard } from './officeReview';
 import { RECEPTION, deskZ } from './officeReception';
 import { ROOM_LAYOUT, desksForZone, sceneDesks, tasksInZone, type OfficeSelection, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
@@ -49,6 +51,8 @@ export interface OfficePoses {
   alertEdge: Pose[];
   desk: Pose[];
   chair: Pose[];
+  /** Invisible per-seat click boxes on the waiting room's bench. */
+  benchHit: Pose[];
   screenOn: Pose[];
   screenOff: Pose[];
   lamp: Pose[];
@@ -59,7 +63,7 @@ export interface OfficePoses {
 }
 
 const SCREENS = new Set(['dev', 'debug', 'blocked', 'rejected']);
-const LAMPS = new Set(['inbox', 'escalation']);
+const LAMPS = new Set(['inbox']);
 
 interface Hit {
   zoneId: string;
@@ -139,7 +143,7 @@ export function buildOfficePoses(
 ): OfficePoses {
   const out: OfficePoses = {
     floorSteady: [], floorPulse: [], wallBack: [], wallSide: [], glass: [], glassEdge: [], alertEdge: [],
-    desk: [], chair: [], screenOn: [], screenOff: [], lamp: [], plant: [], rackBody: [], rackLed: [],
+    desk: [], chair: [], benchHit: [], screenOn: [], screenOff: [], lamp: [], plant: [], rackBody: [], rackLed: [],
     neon: neonRuns(stats),
   };
   for (const zone of ZONES) {
@@ -170,8 +174,8 @@ export function buildOfficePoses(
         out.alertEdge.push(edge(layout.x + side * (ROOM_W / 2), FLOOR_TOP + WALL_H, layout.z, 0.1, 0.05, ROOM_D, zone.id, tone, roomHot));
       }
     }
-    // Nobody sits in Done (lounge), Aborted (discard heap) or Review (inspection line), so none draws desks.
-    const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'review';
+    // Nobody sits in Done (lounge) or Aborted (discard heap); Blocked and Escalation have their own seats and Review stands its robots on the inspection line, so none of them draws a desk row.
+    const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'blocked' || zone.id === 'escalation' || zone.id === 'review';
     const liveDesks = deskless ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
     const row = deskless ? undefined : rows?.[zone.id];
     const desks = row
@@ -202,6 +206,58 @@ export function buildOfficePoses(
         }));
       }
     });
+    if (zone.id === 'blocked') {
+      const seating = blockedSeating(tasks);
+      BLOCKED.chairs.forEach((spot, index) => {
+        const taskId = seating.chairs[index] ?? null;
+        out.chair.push(pose(layout.x + spot.x, FLOOR_TOP, layout.z + spot.z, zone.id, SCENE.metal,
+          taskId ? hotDesk(zone.id, taskId, selection, hover) : roomHot, {
+            kind: taskId ? 'desk' : 'room', taskId, rotY: Math.PI, sx: 1.15, sy: 1.15, sz: 1.15,
+          }));
+      });
+      BLOCKED.bench.forEach((spot, index) => {
+        const taskId = seating.bench[index] ?? null;
+        out.benchHit.push(pose(layout.x + spot.x, FLOOR_TOP + 0.2, layout.z + spot.z, zone.id, '#ffffff',
+          taskId ? hotDesk(zone.id, taskId, selection, hover) : roomHot, {
+            kind: taskId ? 'desk' : 'room', taskId, sx: 0.58, sy: 0.4, sz: 0.5,
+          }));
+      });
+    }
+    if (zone.id === 'escalation') {
+      const seating = escalationSeating(tasks);
+      const deskTask = seating.desk;
+      const kind = deskTask ? 'desk' : 'room';
+      const deskHot = deskTask ? hotDesk(zone.id, deskTask, selection, hover) : roomHot;
+      const x = layout.x + ESCALATION.desk.x;
+      const z = layout.z + ESCALATION.desk.z;
+      const big = ESCALATION.desk.scale;
+      out.desk.push(pose(x, FLOOR_TOP, z, zone.id, SCENE.wood, deskHot, { kind, taskId: deskTask, sx: big, sy: big, sz: big }));
+      out.chair.push(pose(layout.x + ESCALATION.farChair.x, FLOOR_TOP, layout.z + ESCALATION.farChair.z, zone.id, SCENE.metal, deskHot, {
+        kind, taskId: deskTask, rotY: 0, sx: 1.15, sy: 1.15, sz: 1.15,
+      }));
+      const screen = pose(layout.x + ESCALATION.screen.x, FLOOR_TOP + 0.34 * big, layout.z + ESCALATION.screen.z, zone.id,
+        deskTask ? tone : SCENE.screenOff, deskHot, {
+          kind, taskId: deskTask, rotY: ESCALATION.screen.rotY, sx: ESCALATION.screen.scale, sy: ESCALATION.screen.scale, sz: ESCALATION.screen.scale,
+        });
+      (deskTask ? out.screenOn : out.screenOff).push(screen);
+      // The desk lamp stays on the per-room lamp instances, so it glows only while this room holds a task.
+      out.lamp.push(pose(layout.x + ESCALATION.lamp.x, FLOOR_TOP + ESCALATION.desk.top, layout.z + ESCALATION.lamp.z, zone.id, SCENE.shade, deskHot, {
+        kind, taskId: deskTask, sx: ESCALATION.lamp.scale, sy: ESCALATION.lamp.scale, sz: ESCALATION.lamp.scale,
+      }));
+      out.plant.push(pose(layout.x + ESCALATION.plant.x, FLOOR_TOP, layout.z + ESCALATION.plant.z, zone.id, SCENE.foliage, roomHot, { sx: 1.15, sy: 1.15, sz: 1.15 }));
+      ESCALATION.bench.forEach((spot, index) => {
+        const taskId = seating.bench[index] ?? null;
+        out.benchHit.push(pose(layout.x + spot.x, FLOOR_TOP + 0.2, layout.z + spot.z, zone.id, '#ffffff',
+          taskId ? hotDesk(zone.id, taskId, selection, hover) : roomHot, {
+            kind: taskId ? 'desk' : 'room', taskId, sx: 0.58, sy: 0.4, sz: 0.5,
+          }));
+      });
+      seating.standing.forEach((taskId, index) => {
+        const spot = ESCALATION.stand[index];
+        out.benchHit.push(pose(layout.x + spot.x, FLOOR_TOP + 0.45, layout.z + spot.z, zone.id, '#ffffff',
+          hotDesk(zone.id, taskId, selection, hover), { kind: 'desk', taskId, sx: 0.5, sy: 0.9, sz: 0.5 }));
+      });
+    }
     if (zone.id === 'inbox') {
       out.plant.push(pose(
         layout.x + RECEPTION.plant.x,
@@ -237,6 +293,12 @@ export function buildOfficePoses(
         rotY: 0, sx: scale, sy: scale, sz: scale,
       });
       (on ? out.screenOn : out.screenOff).push(screen);
+      // A task that is not waiting for a decision has no box: its standing spot is the click target.
+      for (const entry of reviewBoard(tasks, new Date(0)).others) {
+        if (!entry.spot) continue;
+        out.benchHit.push(pose(layout.x + entry.spot.robot.x, FLOOR_TOP + 0.45, layout.z + entry.spot.robot.z, zone.id, '#ffffff',
+          hotDesk(zone.id, entry.task.taskId, selection, hover), { kind: 'desk', taskId: entry.task.taskId, sx: 0.5, sy: 0.9, sz: 0.5 }));
+      }
     }
     if (zone.id === 'devops') {
       const rackX = layout.x + 1.15;
@@ -249,6 +311,22 @@ export function buildOfficePoses(
     }
   }
   return out;
+}
+
+/** The queue board's lit bars, left to right, one per task waiting on Earth. */
+export function barPoses(lit: number): Pose[] {
+  const layout = ROOM_LAYOUT.blocked;
+  const { bars } = BLOCKED;
+  const count = Math.min(BAR_CAP, Math.max(0, Math.floor(lit)));
+  return Array.from({ length: count }, (_, index) => pose(
+    layout.x + BLOCKED.board.x + (index - (BAR_CAP - 1) / 2) * bars.pitch,
+    FLOOR_TOP + bars.y,
+    layout.z + bars.z,
+    'blocked',
+    BAR_COLOR,
+    false,
+    { sx: bars.w, sy: bars.h, sz: bars.d },
+  ));
 }
 
 export function selectionAnchor(

@@ -6,6 +6,7 @@ import {
   Box3,
   BoxGeometry,
   BufferGeometry,
+  CylinderGeometry,
   Mesh,
   MeshStandardMaterial,
   Object3D,
@@ -13,6 +14,8 @@ import {
   type Material,
 } from 'three';
 import { ABORTED } from './officeAborted';
+import { BLOCKED } from './officeBlocked';
+import { ESCALATION } from './officeEscalation';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { LOUNGE, LOUNGE_LIGHT } from './officeLounge';
 import { RECEPTION } from './officeReception';
@@ -23,7 +26,10 @@ export type DecorBucket = 'wood' | 'metal' | 'fabric' | 'shade' | 'loungeShade';
 
 /** The lounge floor lamp follows the Done light rule, not the DevOps shade. */
 export function placedDecorBucket(zoneId: string, material: DecorBucket): DecorBucket {
-  return material === 'shade' && zoneId === 'done' ? 'loungeShade' : material;
+  if (material !== 'shade') return material;
+  if (zoneId === 'done') return 'loungeShade';
+  // The help desk's floor lamp must not glow with DevOps: its shade joins the unlit fabric bucket.
+  return zoneId === 'escalation' ? 'fabric' : material;
 }
 
 export interface DecorPlacement {
@@ -35,14 +41,14 @@ export interface DecorPlacement {
   z: number;
   rotY: number;
   scale: number;
+  /** Per-axis stretch on top of `scale`, for a model that is the wrong shape (the waiting room's bench). */
+  stretch?: readonly [number, number, number];
 }
 
 /**
  * Back-wall band (local z about -1.5 to -0.5) so pieces sit behind the desk row
  * (desks at z 0.35) and behind monitors. The near wall is +x from this camera,
- * so pieces stay at local x <= ~1. Review's meeting set stays left of the wall
- * screen. DevOps lamp sits opposite the code racks. Review has no models: its conveyor, gate, rack,
- * shelf and bin are boxes added below.
+ * so pieces stay at local x <= ~1. DevOps lamp sits opposite the code racks.
  */
 export const DECOR_PLACEMENTS: DecorPlacement[] = [
   ...RECEPTION.counters.map((item) => ({ ...item, zoneId: 'inbox' })),
@@ -68,16 +74,99 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
 
   { file: 'lampRoundFloor', zoneId: 'devops', x: -1.45, y: 0, z: -1.15, rotY: 0, scale: 1.15 },
 
-  { file: 'coatRackStanding', zoneId: 'escalation', x: -1.45, y: 0, z: -1.35, rotY: 0, scale: 1.1 },
-  { file: 'sideTable', zoneId: 'escalation', x: 0.15, y: 0, z: -1.42, rotY: 0, scale: 1.15 },
+  { file: 'chair', zoneId: 'escalation', x: ESCALATION.earthChair.x, y: 0, z: ESCALATION.earthChair.z, rotY: Math.PI, scale: 1.2 },
+  { file: 'cabinetBedDrawer', zoneId: 'escalation', x: ESCALATION.cabinet.x, y: 0, z: ESCALATION.cabinet.z, rotY: 0, scale: 1.35 },
+  { file: 'bookcaseClosed', zoneId: 'escalation', x: ESCALATION.bookcase.x, y: 0, z: ESCALATION.bookcase.z, rotY: 0, scale: 1.05 },
+  { file: 'lampRoundFloor', zoneId: 'escalation', x: ESCALATION.floorLamp.x, y: 0, z: ESCALATION.floorLamp.z, rotY: 0, scale: 1.15 },
+  { file: 'benchCushionLow', zoneId: 'escalation', x: ESCALATION.benchFrame.x, y: 0, z: ESCALATION.benchFrame.z, rotY: 0, scale: 1, stretch: ESCALATION.benchFrame.stretch },
 
-  { file: 'cardboardBoxClosed', zoneId: 'blocked', x: -1.15, y: 0, z: -1.46, rotY: 0.2, scale: 1.45 },
-  { file: 'cardboardBoxClosed', zoneId: 'blocked', x: -1.12, y: 0.41, z: -1.44, rotY: -0.25, scale: 1.2 },
-  { file: 'cardboardBoxOpen', zoneId: 'blocked', x: 0.45, y: 0, z: -1.35, rotY: 0.35, scale: 1.3 },
+  { file: 'benchCushionLow', zoneId: 'blocked', x: BLOCKED.benchFrame.x, y: 0, z: BLOCKED.benchFrame.z, rotY: 0, scale: 1, stretch: BLOCKED.benchFrame.stretch },
 
   { file: 'trashcan', zoneId: 'rejected', x: 0.35, y: 0, z: -1.32, rotY: 0, scale: 1.2 },
   { file: 'cardboardBoxOpen', zoneId: 'rejected', x: -1.3, y: 0, z: -1.4, rotY: 0.2, scale: 1.3 },
 ];
+
+function flat(geometry: BufferGeometry): BufferGeometry {
+  const plain = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (plain !== geometry) geometry.dispose();
+  plain.deleteAttribute('uv');
+  return plain;
+}
+
+function boxAt(w: number, h: number, d: number, x: number, y: number, z: number): BufferGeometry {
+  return flat(new BoxGeometry(w, h, d)).translate(x, y, z);
+}
+
+/**
+ * The waiting room's queue board, wall clock and closed door: simple shapes that join the merged
+ * decor buckets at no draw call. Room-local numbers come from `BLOCKED`; the result is in world space.
+ */
+export function blockedFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>> {
+  const layout = ROOM_LAYOUT.blocked;
+  const at = (x: number, y: number, z: number): [number, number, number] => [layout.x + x, FLOOR_TOP + y, layout.z + z];
+  const { board, clock, door } = BLOCKED;
+  const rim = flat(new CylinderGeometry(clock.r, clock.r, clock.d, 20)).rotateX(Math.PI / 2).translate(...at(clock.x, clock.y, clock.z));
+  const face = flat(new CylinderGeometry(clock.r * 0.82, clock.r * 0.82, clock.d, 20))
+    .rotateX(Math.PI / 2)
+    .translate(...at(clock.x, clock.y, clock.z + 0.012));
+  return {
+    metal: [
+      boxAt(board.w, board.h, board.d, ...at(board.x, board.y, board.z)),
+      face,
+      boxAt(door.w * 0.6, 0.05, 0.05, ...at(door.x + 0.04, door.y, door.z + door.d * 0.32)),
+    ],
+    wood: [
+      rim,
+      boxAt(clock.r * 0.08, clock.r * 0.62, clock.d, ...at(clock.x, clock.y + clock.r * 0.3, clock.z + clock.d * 0.9)),
+      boxAt(clock.r * 0.5, clock.r * 0.08, clock.d, ...at(clock.x + clock.r * 0.22, clock.y, clock.z + clock.d * 0.9)),
+      boxAt(door.w, door.h, door.d, ...at(door.x, door.y, door.z)),
+    ],
+  };
+}
+
+/**
+ * The help desk's rug, call button, phone, incident board (notes and strings, no text) and the
+ * beacon's bracket: simple shapes that join the merged decor buckets at no draw call. They can only
+ * take the three decor colors (wood, metal, fabric). Room-local numbers come from `ESCALATION`;
+ * the result is in world space.
+ */
+export function escalationFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>> {
+  const layout = ROOM_LAYOUT.escalation;
+  const at = (x: number, y: number, z: number): [number, number, number] => [layout.x + x, FLOOR_TOP + y, layout.z + z];
+  const { rug, desk, button, phone, board, beacon } = ESCALATION;
+  const top = desk.top;
+  const buttonBase = flat(new CylinderGeometry(button.r * 1.35, button.r * 1.35, button.h * 0.5, 14)).translate(...at(button.x, top + button.h * 0.25, button.z));
+  const buttonCap = flat(new CylinderGeometry(button.r, button.r, button.h, 14)).translate(...at(button.x, top + button.h * 0.5 + 0.012, button.z));
+  const noteFace = board.x + board.w / 2 + 0.012;
+  const note = (dz: number, dy: number): BufferGeometry => boxAt(0.012, 0.11, 0.13, ...at(noteFace, board.y + dy, board.z + dz));
+  const string = (dz: number, dy: number, length: number, tilt: number): BufferGeometry => flat(new BoxGeometry(0.008, 0.012, length))
+    .rotateX(tilt)
+    .translate(...at(noteFace + 0.012, board.y + dy, board.z + dz));
+  return {
+    fabric: [
+      boxAt(rug.w, rug.h, rug.d, ...at(ESCALATION.rug.x, rug.h / 2, rug.z)),
+      string(-0.12, 0.03, 0.62, 0.62),
+      string(0.14, 0.02, 0.58, -0.7),
+      string(0.0, -0.1, 0.9, 0.12),
+    ],
+    metal: [
+      boxAt(board.w, board.h, board.d, ...at(board.x, board.y, board.z)),
+      buttonBase,
+      boxAt(phone.w, phone.h, phone.d, ...at(phone.x, top + phone.h / 2, phone.z)),
+      boxAt(phone.w * 0.62, phone.h * 0.9, phone.d * 0.36, ...at(phone.x, top + phone.h + 0.015, phone.z - 0.03)),
+      boxAt(0.14, 0.14, 0.07, ...at(beacon.x, beacon.y - 0.02, beacon.z - 0.05)),
+    ],
+    wood: [
+      buttonCap,
+      note(-0.38, 0.17),
+      note(-0.14, 0.1),
+      note(0.16, 0.18),
+      note(0.4, 0.08),
+      note(-0.3, -0.12),
+      note(0.3, -0.14),
+    ],
+  };
+}
 
 export type DecorGeometries = Partial<Record<DecorBucket, BufferGeometry>>;
 
@@ -155,7 +244,8 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
     if (!layout || !parts) throw new Error(`Missing decor ${placement.file} in ${placement.zoneId}`);
     stamp.position.set(layout.x + placement.x, FLOOR_TOP + placement.y, layout.z + placement.z);
     stamp.rotation.set(0, placement.rotY, 0);
-    stamp.scale.setScalar(placement.scale);
+    const [kx, ky, kz] = placement.stretch ?? [1, 1, 1];
+    stamp.scale.set(placement.scale * kx, placement.scale * ky, placement.scale * kz);
     stamp.updateMatrix();
     for (const [raw, geometries] of parts) {
       const name = placedDecorBucket(placement.zoneId, raw);
@@ -175,13 +265,16 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
   slab.deleteAttribute('uv');
   slab.translate(boardLayout.x + board.x, FLOOR_TOP + board.y, boardLayout.z + board.z);
   buckets.set('wood', [...(buckets.get('wood') ?? []), slab]);
+  for (const [name, shapes] of Object.entries(escalationFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
+    buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
+  }
+  for (const [name, shapes] of Object.entries(blockedFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
+    buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
+  }
   // The Review conveyor, gate, rack, shelf and bin are plain boxes too, in the same three buckets.
   const reviewLayout = ROOM_LAYOUT.review;
   for (const item of REVIEW.props) {
-    const part = new BoxGeometry(item.w, item.h, item.d).toNonIndexed();
-    part.deleteAttribute('uv');
-    part.translate(reviewLayout.x + item.x, FLOOR_TOP + item.y, reviewLayout.z + item.z);
-    buckets.set(item.bucket, [...(buckets.get(item.bucket) ?? []), part]);
+    buckets.set(item.bucket, [...(buckets.get(item.bucket) ?? []), boxAt(item.w, item.h, item.d, reviewLayout.x + item.x, FLOOR_TOP + item.y, reviewLayout.z + item.z)]);
   }
   const merged = {} as DecorGeometries;
   for (const [name, list] of buckets) {

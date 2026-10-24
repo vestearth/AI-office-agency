@@ -21,7 +21,6 @@ import {
   resolveGaitClip,
   resolveNamedClip,
   seatClipCues,
-  standClipCues,
   visorGain,
 } from './officeCharacters';
 import { CHARACTER_OPERATORS, characterOperator } from './officeOperator';
@@ -186,7 +185,7 @@ describe('character slots', () => {
     expect(inbox?.rotY).toBe(FACING_Y);
   });
 
-  it('stops at 32 characters when every drawn desk is full', () => {
+  it('stops at 36 characters when every drawn desk, waiting-room seat and help-desk spot is full', () => {
     const tasks: OfficeTask[] = [];
     for (const zoneId of [...WORK_AND_STUCK, 'done', 'aborted']) {
       for (let index = 0; index < SCENE_DESK_LIMIT + 1; index += 1) {
@@ -196,13 +195,31 @@ describe('character slots', () => {
           status: zoneId === 'done' ? 'completed' : zoneId === 'aborted' ? 'cancelled' : 'running',
           operator: CHARACTER_OPERATORS[index % CHARACTER_OPERATORS.length],
           // Review has a line, not desks: four tasks waiting for a decision fill it.
-          needsReview: zoneId === 'review',
-          statusUpdatedAt: `2026-10-1${index}T00:00:00Z`,
+          ...(zoneId === 'review' ? { needsReview: true, statusUpdatedAt: `2026-10-1${index}T00:00:00Z` } : {}),
+          // The waiting room seats by who it waits on: five wait on Earth, four on others.
+          ...(zoneId === 'blocked' ? { waitsOn: [{ kind: index < 5 ? 'prod_run' : 'aws_permission' }] } : {}),
         }));
       }
     }
+    for (let index = SCENE_DESK_LIMIT + 1; index < 9; index += 1) {
+      tasks.push(task({
+        taskId: `blocked-${index}`,
+        phase: PHASE_BY_ZONE.blocked,
+        status: 'running',
+        waitsOn: [{ kind: 'aws_permission' }],
+      }));
+    }
+    // Three hand-offs for the help desk's two standing spots.
+    for (let index = 0; index < 3; index += 1) {
+      tasks.push(task({ taskId: `escalation-handoff-${index}`, phase: 'free_roam_complete', status: 'running' }));
+    }
     const slots = characterSlots(tasks);
-    expect(slots).toHaveLength(WORK_AND_STUCK.length * SCENE_DESK_LIMIT);
+    const others = WORK_AND_STUCK.filter((zoneId) => zoneId !== 'blocked' && zoneId !== 'escalation');
+    // Blocked has its own seats: four chairs for the Earth queue and three on the bench.
+    // The help desk has five: the desk, two bench seats and two standing spots.
+    expect(slots).toHaveLength(others.length * SCENE_DESK_LIMIT + 7 + 5);
+    expect(slots.filter((slot) => slot.zoneId === 'blocked')).toHaveLength(7);
+    expect(slots.filter((slot) => slot.zoneId === 'escalation')).toHaveLength(5);
     expect(slots.every((slot) => WORK_AND_STUCK.includes(slot.zoneId))).toBe(true);
     expect(slots.filter((slot) => slot.posture === 'blocked').every((slot) => slot.zoneId === 'blocked' || slot.zoneId === 'rejected')).toBe(true);
   });
@@ -218,24 +235,16 @@ describe('review standing slots', () => {
     expect(slots.map((slot) => slot.taskId)).toEqual(['OLD', 'NEW']);
     for (const slot of slots) {
       expect(slot.zoneId).toBe('review');
-      expect(slot.standing).toBe(true);
-      expect(slot.rotY).toBe(FACING_Y);
+      expect(slot).toMatchObject({ stance: 'stand', posture: 'standing', rotY: FACING_Y });
       expect(slot.y).not.toBeCloseTo(SEAT_Y);
     }
     expect(slots[0].x).toBeGreaterThan(slots[1].x);
   });
 
-  it('keeps every other room seated', () => {
+  it('keeps every desk room seated', () => {
     const slots = characterSlots([task({ taskId: 'D', phase: 'assigned', status: 'running' })]);
-    expect(slots[0].standing).toBeFalsy();
+    expect(slots[0].stance).toBe('sit');
     expect(slots[0].y).toBeCloseTo(SEAT_Y);
-  });
-});
-
-describe('standing clips', () => {
-  it('loops idle, and reduced motion holds a still idle', () => {
-    expect(standClipCues(false)).toEqual([{ name: 'idle', timeScale: 1 }]);
-    expect(standClipCues(true)).toEqual([{ name: 'idle', timeScale: 0 }]);
   });
 });
 

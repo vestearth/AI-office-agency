@@ -3,6 +3,8 @@ import { phaseLabel, runStatusLabel } from '../../../../shared/statusLabels';
 import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type ZoneStat, type ZoneTask } from '../commandZones';
 import type { DeskRowMap } from './officeLook';
 import { characterOperator, lastOperatorLabel } from './officeOperator';
+import { blockedSeating, buildWaitQueue, queueLines } from './officeBlocked';
+import { escalationSeating } from './officeEscalation';
 import { reviewOrder } from './officeReview';
 
 /**
@@ -15,10 +17,15 @@ export interface OfficeTask extends ZoneTask {
   title: string;
   /** Last history operator. Legacy `gemini` is stored as `antigravity`. */
   operator?: string;
-  /** Review room: the server's action kind, decision state, idle flag and gate counts (SPAR-47). */
+  /** Read-model fields the Blocked room classifies by. Never parsed from text. */
+  waitsOn?: ReviewSummary['waitsOn'];
+  isReleaseTrain?: ReviewSummary['isReleaseTrain'];
   actionKind?: ReviewSummary['actionKind'];
-  decisionPending?: boolean;
+  recommendedAction?: ReviewSummary['recommendedAction'];
+  /** Latest human decision and whether it is still waiting to be applied (the Escalation room reads both). */
   latestDecision?: ReviewSummary['latestDecision'];
+  decisionPending?: ReviewSummary['decisionPending'];
+  /** Review room: the server's idle flag (past its threshold) and the completion-gate counts. */
   idle?: ReviewSummary['idle'];
   gates?: ReviewSummary['gates'];
 }
@@ -38,6 +45,8 @@ export interface OfficeDesk {
 
 export interface OfficeTaskLine {
   taskId: string;
+  /** Room name when the line is a Blocked-room entry whose task sits in another room. */
+  roomTag?: string;
   title: string;
   statusLabel: string;
   phaseLabel: string;
@@ -67,8 +76,7 @@ export const ROOM_LAYOUT: Record<string, { x: number; z: number }> = {
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 export function officeTasksFromApi(
-  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'>
-    & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'actionKind' | 'decisionPending' | 'latestDecision' | 'idle' | 'gates'>>>,
+  reviews: Array<Pick<ReviewSummary, 'taskId' | 'title' | 'phase' | 'needsReview'> & Partial<Pick<ReviewSummary, 'lastTransition' | 'statusUpdatedAt' | 'waitsOn' | 'isReleaseTrain' | 'actionKind' | 'recommendedAction' | 'latestDecision' | 'decisionPending' | 'idle' | 'gates'>>>,
   runs: Array<Pick<RunSummary, 'id' | 'title' | 'status' | 'currentAgent' | 'updatedAt' | 'currentConductor'>>,
 ): OfficeTask[] {
   const runById = new Map(runs.map((run) => [run.id, run]));
@@ -85,9 +93,12 @@ export function officeTasksFromApi(
       operator: characterOperator(run?.currentConductor),
       lastTransition: review.lastTransition,
       statusUpdatedAt: review.statusUpdatedAt,
+      waitsOn: review.waitsOn,
+      isReleaseTrain: review.isReleaseTrain,
       actionKind: review.actionKind,
-      decisionPending: review.decisionPending,
+      recommendedAction: review.recommendedAction,
       latestDecision: review.latestDecision,
+      decisionPending: review.decisionPending,
       idle: review.idle,
       gates: review.gates,
     };
@@ -117,6 +128,28 @@ export function sceneDesks(desks: OfficeDesk[]): OfficeDesk[] {
   return occupied.slice(0, SCENE_DESK_LIMIT);
 }
 
+/** The Blocked room's seats instead of desks: the Earth queue's chairs, then the bench. */
+function blockedSeats(tasks: OfficeTask[]): OfficeDesk[] {
+  const byId = new Map(tasks.map((task) => [task.taskId, task]));
+  const seated = blockedSeating(tasks);
+  const desks = [...seated.chairs, ...seated.bench].map((taskId) => ({
+    key: taskId,
+    zoneId: 'blocked',
+    taskId,
+    task: byId.get(taskId) ?? null,
+  }));
+  return desks.length > 0 ? desks : [{ key: 'blocked:empty', zoneId: 'blocked', taskId: null, task: null }];
+}
+
+/** The help desk's seats instead of desks: the desk, the bench, then the standing spots. */
+function escalationSeats(tasks: OfficeTask[]): OfficeDesk[] {
+  const byId = new Map(tasks.map((task) => [task.taskId, task]));
+  const seated = escalationSeating(tasks);
+  const order = [...(seated.desk ? [seated.desk] : []), ...seated.bench, ...seated.standing];
+  const desks = order.map((taskId) => ({ key: taskId, zoneId: 'escalation', taskId, task: byId.get(taskId) ?? null }));
+  return desks.length > 0 ? desks : [{ key: 'escalation:empty', zoneId: 'escalation', taskId: null, task: null }];
+}
+
 /** Desks the side list and the keyboard walk. A held row wins over the live count. */
 export function officeDesks(
   zoneId: string,
@@ -124,6 +157,8 @@ export function officeDesks(
   stats?: OfficeZoneStats,
   rows?: DeskRowMap | null,
 ): OfficeDesk[] {
+  if (zoneId === 'blocked') return blockedSeats(tasks);
+  if (zoneId === 'escalation') return escalationSeats(tasks);
   const row = rows?.[zoneId];
   if (!row) return sceneDesks(desksForZone(zoneId, tasks, stats));
   const byId = new Map(tasks.map((task) => [task.taskId, task]));
@@ -147,7 +182,8 @@ function lineOf(task: OfficeTask): OfficeTaskLine {
 
 /** One line in the selection card: task, status, and the last operator. */
 export function officeTaskSummary(task: OfficeTaskLine): string {
-  return `${task.taskId} · ${task.statusLabel} · ${lastOperatorLabel(task.operator)}`;
+  const base = `${task.taskId} · ${task.statusLabel} · ${lastOperatorLabel(task.operator)}`;
+  return task.roomTag ? `${base} · ${task.roomTag}` : base;
 }
 
 /** What the detail pane shows for the current room or desk. */
@@ -160,6 +196,15 @@ export function describeOfficeSelection(
     return { heading: '3D Office', emptyLabel: 'Select a room or a desk.', tasks: [] };
   }
   const label = ZONE_BY_ID.get(selection.zoneId)?.label ?? selection.zoneId;
+  if (selection.kind === 'room' && selection.zoneId === 'blocked') {
+    // The waiting room lists its queue in readout order: waiting on Earth from every room, then the others.
+    const byId = new Map(tasks.map((task) => [task.taskId, task]));
+    const lines = queueLines(buildWaitQueue(tasks, Date.now())).flatMap((entry) => {
+      const task = byId.get(entry.taskId);
+      return task ? [{ ...lineOf(task), ...(entry.roomTag ? { roomTag: entry.roomTag } : {}) }] : [];
+    });
+    return { heading: label, emptyLabel: 'No tasks in this room.', tasks: lines };
+  }
   if (selection.kind === 'room') {
     const zone = ZONE_BY_ID.get(selection.zoneId);
     const found = tasksInZone(selection.zoneId, tasks, stats);

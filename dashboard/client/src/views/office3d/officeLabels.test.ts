@@ -4,6 +4,7 @@ import {
   chipValue,
   layoutNames,
   pickFocus,
+  placeCardClear,
   placeReadout,
   rectsOverlap,
   visibleReadouts,
@@ -156,18 +157,18 @@ describe('placeReadout', () => {
 
 describe('chipValue', () => {
   const stats = new Map([
-    ['review', { count: 3 }],
+    ['devops', { count: 3 }],
     ['done', { count: 537 }],
     ['aborted', { count: 12 }],
   ]);
-  const input = { stats, closedToday: 4, abortedTotal: 9, reviewWaiting: 2 };
+  const input = { stats, closedToday: 4, abortedTotal: 9, waitingOnEarth: 0, reviewWaiting: 2 };
 
   it('counts the tasks in an open room', () => {
-    expect(chipValue('dev', { ...input, stats: new Map([['dev', { count: 3 }]]) })).toBe(3);
+    expect(chipValue('devops', input)).toBe(3);
   });
 
   it('counts only the tasks still waiting for a decision in Review, and hides at zero', () => {
-    expect(chipValue('review', input)).toBe(2);
+    expect(chipValue('review', { ...input, stats: new Map([...stats, ['review', { count: 3 }]]) })).toBe(2);
     expect(chipValue('review', { ...input, reviewWaiting: 0 })).toBeNull();
   });
 
@@ -184,6 +185,17 @@ describe('chipValue', () => {
     expect(chipValue('done', { ...input, closedToday: 0 })).toBeNull();
     expect(chipValue('aborted', { ...input, abortedTotal: 0 })).toBeNull();
   });
+
+  it('counts the tasks waiting on Earth for Blocked, from every room, not the tasks in the room', () => {
+    const withBlocked = { ...input, stats: new Map([...stats, ['blocked', { count: 8 }]]), waitingOnEarth: 6 };
+    expect(chipValue('blocked', withBlocked)).toBe(6);
+    expect(chipValue('devops', withBlocked)).toBe(3);
+  });
+
+  it('hides the Blocked chip at zero waiting on Earth, even with tasks in the room', () => {
+    const waitingOnOthers = { ...input, stats: new Map([...stats, ['blocked', { count: 2 }]]), waitingOnEarth: 0 };
+    expect(chipValue('blocked', waitingOnOthers)).toBeNull();
+  });
 });
 
 describe('visibleReadouts', () => {
@@ -192,11 +204,8 @@ describe('visibleReadouts', () => {
     expect([...visibleReadouts({ focus: 'aborted', selection: null, tvHot: false })]).toEqual(['aborted']);
   });
 
-  it('shows the Review readout when Review is focused', () => {
+  it('shows the Review readout when Review is focused, and keeps it while a task in Review is selected', () => {
     expect([...visibleReadouts({ focus: 'review', selection: null, tvHot: false })]).toEqual(['review']);
-  });
-
-  it('keeps the Review readout when a task in Review is selected, and hides it for the room', () => {
     const task = { kind: 'desk' as const, zoneId: 'review', taskId: 'TASK-EAR-390' };
     expect([...visibleReadouts({ focus: 'review', selection: task, tvHot: false })]).toEqual(['review']);
     expect(visibleReadouts({ focus: 'review', selection: { kind: 'room' as const, zoneId: 'review' }, tvHot: false }).size).toBe(0);
@@ -221,5 +230,54 @@ describe('visibleReadouts', () => {
     const selection = { kind: 'desk' as const, zoneId: 'done', taskId: 'TASK-1' };
     expect([...visibleReadouts({ focus: null, selection, tvHot: true })]).toEqual(['done']);
     expect([...visibleReadouts({ focus: 'done', selection, tvHot: true })]).toEqual(['done']);
+  });
+
+  it('shows the Blocked readout when that room is focused', () => {
+    expect([...visibleReadouts({ focus: 'blocked', selection: null, tvHot: false })]).toEqual(['blocked']);
+  });
+
+  it('hides the Blocked readout only while the Blocked room itself is selected', () => {
+    const room = { kind: 'room' as const, zoneId: 'blocked' };
+    expect(visibleReadouts({ focus: 'blocked', selection: room, tvHot: false }).size).toBe(0);
+  });
+
+  it('keeps the Blocked readout while a task is selected, in Blocked or in another room', () => {
+    const seat = { kind: 'desk' as const, zoneId: 'blocked', taskId: 'TASK-EAR-402' };
+    const away = { kind: 'desk' as const, zoneId: 'dev', taskId: 'TASK-EAR-406' };
+    expect([...visibleReadouts({ focus: 'blocked', selection: seat, tvHot: false })]).toEqual(['blocked']);
+    expect([...visibleReadouts({ focus: 'blocked', selection: away, tvHot: false })]).toEqual(['blocked']);
+  });
+
+  it('still hides a Done or Aborted readout for a desk selected in that focused room', () => {
+    const desk = { kind: 'desk' as const, zoneId: 'aborted', taskId: 'T' };
+    expect(visibleReadouts({ focus: 'aborted', selection: desk, tvHot: false }).size).toBe(0);
+  });
+});
+
+describe('placeCardClear', () => {
+  const view = { w: 900, h: 600 };
+  const size = { w: 250, h: 160 };
+  const anchor: Rect = { left: 300, top: 200, right: 520, bottom: 380 };
+
+  it('takes the usual spot beside the room when nothing is in the way', () => {
+    const at = placeCardClear({ anchor, view, size, avoid: [] });
+    expect(at.x).toBe(anchor.right + 12);
+    expect(at.y).toBe(anchor.top);
+  });
+
+  it('moves off a readout that sits where the card would go', () => {
+    const readout: Rect = { left: 520, top: 180, right: 840, bottom: 420 };
+    const at = placeCardClear({ anchor, view, size, avoid: [readout] });
+    const card: Rect = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    expect(rectsOverlap(card, readout)).toBe(false);
+  });
+
+  it('stays inside the stage and covers the least when nothing is clear', () => {
+    const everywhere: Rect = { left: 0, top: 0, right: view.w, bottom: view.h };
+    const at = placeCardClear({ anchor, view, size, avoid: [everywhere] });
+    expect(at.x).toBeGreaterThanOrEqual(0);
+    expect(at.y).toBeGreaterThanOrEqual(0);
+    expect(at.x + size.w).toBeLessThanOrEqual(view.w);
+    expect(at.y + size.h).toBeLessThanOrEqual(view.h);
   });
 });

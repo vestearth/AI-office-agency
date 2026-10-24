@@ -1,3 +1,4 @@
+import { placeBeside } from './officeLook';
 import type { OfficeSelection } from './officeSelection';
 
 export interface Rect {
@@ -21,7 +22,9 @@ export const FOCUS_MARGIN = 0.06;
 /** Readouts fade over this long. Reduced motion has no fade. */
 export const READOUT_FADE_MS = 150;
 /** Rooms with a readout of their own. Each room's issue adds itself here. */
-export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'review'];
+export const READOUT_ROOMS: readonly string[] = ['done', 'aborted', 'blocked', 'escalation', 'review'];
+/** Readouts that are lists of clickable tasks: they stay while one of their tasks is selected. */
+export const LIST_READOUTS: readonly string[] = ['blocked', 'escalation', 'review'];
 
 const NAME_STEPS = 8;
 const READOUT_GAP = 12;
@@ -169,33 +172,32 @@ export function placeReadout({
 
 /**
  * The number in a room's name chip, or null when there is none. Open rooms count their tasks, Done
- * counts tasks closed today (not the all-time total), Aborted counts every aborted task and Review
- * counts only the tasks still waiting for a decision.
+ * counts tasks closed today (not the all-time total), Aborted counts every aborted task, and Blocked
+ * counts the tasks waiting on Earth from every room (zero hides it, even with tasks waiting on others), and
+ * Review counts only the tasks still waiting for a decision.
  */
 export function chipValue(
   zoneId: string,
-  input: {
-    stats: ReadonlyMap<string, { count: number }>;
-    closedToday: number;
-    abortedTotal: number;
-    /** Review tasks still waiting for a decision. */
-    reviewWaiting: number;
-  },
+  input: { stats: ReadonlyMap<string, { count: number }>; closedToday: number; abortedTotal: number; waitingOnEarth: number; reviewWaiting: number },
 ): number | null {
   const value = zoneId === 'done'
     ? input.closedToday
     : zoneId === 'aborted'
       ? input.abortedTotal
-      : zoneId === 'review'
-        ? input.reviewWaiting
-        : input.stats.get(zoneId)?.count ?? 0;
+      : zoneId === 'blocked'
+        ? input.waitingOnEarth
+        : zoneId === 'review'
+          ? input.reviewWaiting
+          : input.stats.get(zoneId)?.count ?? 0;
   return value > 0 ? value : null;
 }
 
 /**
- * The rooms whose readout shows. The focused room's readout shows unless that room itself is selected,
- * because the card carries the details; a selected task in it keeps the readout. A selected Done task keeps SPAR-41's behaviour: the
- * Done readout shows, highlighted, at any zoom.
+ * The rooms whose readout shows. The focused room's readout shows unless that room is the selected
+ * room, because the card carries the details. The Blocked and Escalation readouts are the exception:
+ * they hide only for the room selection itself and stay, with the selected line highlighted, while
+ * one of their tasks is selected. A selected Done task keeps SPAR-41's behaviour: the Done readout shows, highlighted, at
+ * any zoom.
  */
 export function visibleReadouts({
   focus,
@@ -203,13 +205,60 @@ export function visibleReadouts({
   tvHot,
 }: {
   focus: string | null;
-  selection: Pick<OfficeSelection, 'kind' | 'zoneId'> | null;
+  selection: (Pick<OfficeSelection, 'zoneId'> & { kind?: OfficeSelection['kind'] }) | null;
   tvHot: boolean;
 }): Set<string> {
   const shown = new Set<string>();
-  // Only selecting the room itself hides its readout. A selected task (a Review line or box) keeps it.
-  const roomSelected = selection?.kind === 'room' && selection.zoneId === focus;
-  if (focus && READOUT_ROOMS.includes(focus) && !roomSelected) shown.add(focus);
+  if (focus && READOUT_ROOMS.includes(focus)) {
+    const covered = selection?.zoneId === focus && !(LIST_READOUTS.includes(focus) && selection.kind === 'desk');
+    if (!covered) shown.add(focus);
+  }
   if (tvHot) shown.add('done');
   return shown;
+}
+
+/**
+ * Top-left for the selection card when readouts are already placed. The usual spot beside the
+ * anchor wins if it is clear; otherwise the candidate (beside, then above and below) that covers the
+ * least of `avoid`, the first listed on a tie. The card always stays inside the stage.
+ */
+export function placeCardClear({
+  anchor,
+  view,
+  size,
+  avoid,
+}: {
+  anchor: Rect;
+  view: Size;
+  size: Size;
+  avoid: readonly Rect[];
+}): { x: number; y: number } {
+  const clamp = (x: number, y: number) => ({
+    x: Math.min(Math.max(0, view.w - size.w), Math.max(0, x)),
+    y: Math.min(Math.max(0, view.h - size.h), Math.max(0, y)),
+  });
+  const gap = READOUT_GAP;
+  const candidates = [
+    placeBeside(anchor, view.w, view.h, size.w, size.h, gap),
+    clamp(anchor.right + gap, anchor.top),
+    clamp(anchor.left - gap - size.w, anchor.top),
+    clamp(anchor.right + gap, anchor.bottom - size.h),
+    clamp(anchor.left - gap - size.w, anchor.bottom - size.h),
+    clamp(anchor.left, anchor.bottom + gap),
+    clamp(anchor.left, anchor.top - gap - size.h),
+    clamp(view.w - size.w, view.h - size.h),
+    clamp(0, view.h - size.h),
+  ];
+  let best = candidates[0];
+  let bestCover = Infinity;
+  for (const at of candidates) {
+    const rect = { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    const cover = avoid.reduce((sum, other) => sum + overlapArea(rect, other), 0);
+    if (cover < bestCover) {
+      best = at;
+      bestCover = cover;
+      if (cover === 0) break;
+    }
+  }
+  return best;
 }

@@ -260,6 +260,9 @@ export function reviewStanding(tasks: readonly OfficeTask[]): ReviewStandingSlot
 
 export interface ReadoutLine {
   taskId: string;
+  /** What the line says after the task id (age, decision, or the Attention label). */
+  detail: string;
+  /** The whole line as plain text. */
   text: string;
   /** `over 7d` on a waiting task past its threshold. */
   badge: string | null;
@@ -293,27 +296,27 @@ function heldGates(task: OfficeTask): string | null {
 }
 
 export function reviewReadout(board: ReviewBoard, _now: Date): ReviewReadout {
-  const waiting = board.waiting.map((item): ReadoutLine => ({
-    taskId: item.task.taskId,
-    text: `${item.task.taskId} · ${item.ageDays == null ? '–' : `${item.ageDays}d`}`,
-    badge: item.overdue ? `over ${item.overdue.thresholdDays}d` : null,
-    clickable: true,
-  }));
-  const decided = board.decided.map((item): ReadoutLine => {
-    const gates = heldGates(item.task);
-    return {
-      taskId: item.task.taskId,
-      text: [item.task.taskId, 'decided', item.decision, gates].filter(Boolean).join(' · '),
-      badge: null,
-      clickable: true,
-    };
+  const line = (taskId: string, detail: string, badge: string | null, clickable: boolean): ReadoutLine => ({
+    taskId, detail, text: `${taskId} · ${detail}`, badge, clickable,
   });
-  const others = board.others.map((item): ReadoutLine => ({
-    taskId: item.task.taskId,
-    text: `${item.task.taskId} · ${(item.task.actionKind && OTHER_LABEL[item.task.actionKind]) || 'Needs attention'}`,
-    badge: null,
-    clickable: false,
-  }));
+  const waiting = board.waiting.map((item) => line(
+    item.task.taskId,
+    item.ageDays == null ? '–' : `${item.ageDays}d`,
+    item.overdue ? `over ${item.overdue.thresholdDays}d` : null,
+    true,
+  ));
+  const decided = board.decided.map((item) => line(
+    item.task.taskId,
+    ['decided', item.decision, heldGates(item.task)].filter(Boolean).join(' · '),
+    null,
+    true,
+  ));
+  const others = board.others.map((item) => line(
+    item.task.taskId,
+    (item.task.actionKind && OTHER_LABEL[item.task.actionKind]) || 'Needs attention',
+    null,
+    false,
+  ));
   return {
     header: `awaiting review · ${board.waitingCount}`,
     waiting,

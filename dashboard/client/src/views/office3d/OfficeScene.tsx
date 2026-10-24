@@ -23,9 +23,12 @@ import { ZONES } from '../commandZones';
 import { OfficeCharacterView } from './OfficeCharacterView';
 import { DecorMeshes, loadDecorGeometries, type DecorGeometries } from './officeDecor';
 import { SCENE, FLOOR_TOP, ROOM_D, ROOM_W, WALL_H, WALL_T, placeBeside, type DeskRowMap, type ScreenBox } from './officeLook';
-import { READOUT_ROOMS, layoutNames, pickFocus, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
+import { LIST_READOUTS, READOUT_ROOMS, layoutNames, pickFocus, placeCardClear, placeReadout, visibleReadouts, type NameItem } from './officeLabels';
 import { buildOfficePoses, neonRuns, selectionAnchor, type NeonRun, type Pose } from './officeLayout';
 import { heapPieceCount } from './officeAborted';
+import { BAR_COLOR, boardBars } from './officeBlocked';
+import { QueueBars } from './officeBlockedView';
+import { EscalationBeacon } from './officeEscalationBeacon';
 import { AbortedHeap } from './officeAbortedView';
 import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
 import { LoungeMeshes } from './officeLoungeView';
@@ -377,43 +380,49 @@ function ProjectOverlays({
     focus.current = pickFocus({ zoom: camera.zoom, view, rooms: centres, prev: focus.current });
     const shown = visibleReadouts({ focus: focus.current, selection, tvHot });
 
-    // The card keeps its own placement; readouts then step around it.
-    let cardBox: ScreenBox | null = null;
-    const selected = card.current;
-    const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
-    if (selected && layout) {
-      let next: { x: number; y: number } | null = null;
-      if (selection?.zoneId === 'done' && selection.kind === 'desk') {
-        const anchor = selectionAnchor(selection, tasks, stats, rows);
-        if (anchor) {
-          const point = project(anchor[0], anchor[1], anchor[2]);
-          next = placeBeside(
-            { left: point.x - 16, top: point.y - 16, right: point.x + 16, bottom: point.y + 16 },
-            viewW,
-            viewH,
-            selected.w,
-            selected.h,
-          );
-        }
-      }
-      next ??= placeBeside(roomBox(layout), viewW, viewH, selected.w, selected.h);
-      selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
-      cardBox = { left: next.x, top: next.y, right: next.x + selected.w, bottom: next.y + selected.h };
-    }
-
-    const taken = [...nameBoxes];
-    for (const roomId of READOUT_ROOMS) {
+    const placeFor = (roomId: string, taken: ScreenBox[], cardBox: ScreenBox | null): ScreenBox | null => {
       const el = host.querySelector<HTMLElement>(`[data-readout="${roomId}"]`);
-      if (!el) continue;
+      if (!el) return null;
       const own = boxes.get(roomId);
       const visible = shown.has(roomId);
       setShown(el, visible && own != null);
-      if (!visible || !own || el.offsetWidth <= 0) continue;
+      if (!visible || !own || el.offsetWidth <= 0) return null;
       const size = { w: el.offsetWidth, h: el.offsetHeight };
       const others = ZONES.flatMap((zone) => (zone.id !== roomId && boxes.get(zone.id)) || []);
       const at = placeReadout({ size, view, focus: own, names: taken, card: cardBox, rooms: others });
       el.style.transform = `translate(${at.x}px, ${at.y}px)`;
-      taken.push({ left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h });
+      return { left: at.x, top: at.y, right: at.x + size.w, bottom: at.y + size.h };
+    };
+
+    // The card keeps its own placement and readouts step around it, except a task-list readout (Blocked,
+    // Escalation) while a task is selected: that list stays put and the card is placed clear of it.
+    const taken = [...nameBoxes];
+    const first = selection ? LIST_READOUTS.find((roomId) => shown.has(roomId)) ?? null : null;
+    const firstBox = first ? placeFor(first, taken, null) : null;
+    if (firstBox) taken.push(firstBox);
+    let cardBox: ScreenBox | null = null;
+    const selected = card.current;
+    const layout = selection ? ROOM_LAYOUT[selection.zoneId] : undefined;
+    if (selected && layout) {
+      let anchorBox: ScreenBox = roomBox(layout);
+      if (selection?.zoneId === 'done' && selection.kind === 'desk') {
+        const anchor = selectionAnchor(selection, tasks, stats, rows);
+        if (anchor) {
+          const point = project(anchor[0], anchor[1], anchor[2]);
+          anchorBox = { left: point.x - 16, top: point.y - 16, right: point.x + 16, bottom: point.y + 16 };
+        }
+      }
+      const next = firstBox
+        ? placeCardClear({ anchor: anchorBox, view, size: { w: selected.w, h: selected.h }, avoid: [firstBox] })
+        : placeBeside(anchorBox, viewW, viewH, selected.w, selected.h);
+      selected.el.style.transform = `translate(${next.x}px, ${next.y}px)`;
+      cardBox = { left: next.x, top: next.y, right: next.x + selected.w, bottom: next.y + selected.h };
+    }
+
+    for (const roomId of READOUT_ROOMS) {
+      if (roomId === first) continue;
+      const box = placeFor(roomId, taken, cardBox);
+      if (box) taken.push(box);
     }
   });
   return null;
@@ -437,6 +446,8 @@ export function OfficeScene({
   tableTaskId = null,
   streamOpen,
   awaitingReload,
+  waitingOnEarth = 0,
+  escalationLit = false,
   reviewBoard,
   onReviewPick,
 }: {
@@ -460,6 +471,10 @@ export function OfficeScene({
   tableTaskId?: string | null;
   streamOpen: boolean;
   awaitingReload: boolean;
+  /** Tasks waiting on Earth from every room. One bar of the Blocked queue board per task. */
+  waitingOnEarth?: number;
+  /** At least one task is escalated: the help desk's beacon is on. */
+  escalationLit?: boolean;
   /** The Review room's boxes and tags, derived once in the view so the readout and the scene agree. */
   reviewBoard: ReviewBoard;
   /** A Review box was clicked. */
@@ -485,6 +500,10 @@ export function OfficeScene({
     wallScreen: statusMaterial(REVIEW_WALL_EMISSIVE, '#0e0c0a'),
     screenOff: statusMaterial(0.04),
     led: statusMaterial(0.7),
+    // Lit bars of the queue board. Warm neutral white, never the amber status color.
+    bars: new MeshStandardMaterial({ color: '#ffffff', emissive: BAR_COLOR, emissiveIntensity: 0.3, roughness: 0.6, metalness: 0 }),
+    // Click boxes only. An invisible material is skipped by the renderer but still hit by the raycaster.
+    hit: new MeshStandardMaterial({ visible: false }),
     paint: new MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, metalness: 0.04 }),
     shade: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 1.4, roughness: 0.45 }),
     shadeDark: new MeshStandardMaterial({ color: SCENE.shade, emissive: SCENE.shade, emissiveIntensity: 0, roughness: 0.45 }),
@@ -644,6 +663,9 @@ export function OfficeScene({
       <Instances geometry={part('foliage')} material={mats.paint} poses={poses.plant} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.paint} poses={poses.rackBody} onPick={pick} onHover={setHover} />
       <Instances geometry={geoms.rack} material={mats.led} poses={poses.rackLed} onPick={pick} onHover={setHover} />
+      <Instances geometry={geoms.edge} material={mats.hit} poses={poses.benchHit} onPick={pick} onHover={setHover} />
+      <QueueBars lit={boardBars(waitingOnEarth)} geometry={geoms.rack} material={mats.bars} reducedMotion={reducedMotion} />
+      <EscalationBeacon lit={escalationLit} animate={animate && !reducedMotion} />
       {decor && (
         <DecorMeshes
           geometries={decor}

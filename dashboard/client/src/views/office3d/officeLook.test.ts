@@ -40,8 +40,8 @@ describe('office layout', () => {
     expect(runs.every((run) => !run.bright)).toBe(true);
     const poses = buildOfficePoses([], stats, null, null);
     expect(poses.glass).toHaveLength(2);
-    expect(poses.plant).toHaveLength(1);
-    expect(poses.plant[0].zoneId).toBe('inbox');
+    // The Inbox plant and the help desk's plant.
+    expect(poses.plant.map((plant) => plant.zoneId)).toEqual(['inbox', 'escalation']);
     expect(poses.rackBody).toHaveLength(3);
     expect(poses.rackBody[0].zoneId).toBe('devops');
     expect(poses.screenOn).toHaveLength(0);

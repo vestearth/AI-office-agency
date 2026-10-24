@@ -4,10 +4,15 @@ import { apiFetchJson } from '../../api';
 import { readDashboardStream, subscribeDashboardStream } from '../../dashboardStream';
 import { ZONE_BY_ID, ZONES, summarizeZones, zonePreview } from '../commandZones';
 import { sparkPolylinePoints } from '../spark';
-import { navigateTo } from '../../navigation';
-import { QuickDecisionPanel } from '../QuickDecisionPanel';
 import { SCENE, type DeskRowMap } from './officeLook';
 import { abortedBoard, boardReason } from './officeAborted';
+import { buildWaitQueue, waitCard } from './officeBlocked';
+import { BlockedReadout, WaitBlock } from './OfficeWaitViews';
+import { beaconLit, escalationCard, escalationLines } from './officeEscalation';
+import { EscalationBlock, EscalationReadout } from './OfficeEscalationViews';
+import { QuickDecisionPanel } from '../QuickDecisionPanel';
+import { ReviewBlock, ReviewReadoutView } from './OfficeReviewViews';
+import { reviewBoard, reviewClickIntent, reviewKindOf, reviewPanelStatus, reviewReadout, type ReviewVia } from './officeReview';
 import { READOUT_FADE_MS, chipValue } from './officeLabels';
 import { loungeReadout, msUntilNextLocalMidnight } from './officeLounge';
 import { initialCatchUp, onStreamPhase } from './officeCatchUp';
@@ -15,7 +20,6 @@ import { officeSnapshotSettled } from './officeMove';
 import { OfficeLiveBadge } from './officeLive';
 import { OfficeDetail, OfficeRoomList } from './OfficeSelectionPanel';
 import { OfficeScene } from './OfficeScene';
-import { reviewBoard, reviewClickIntent, reviewPanelStatus, reviewReadout, type ReviewVia } from './officeReview';
 import {
   commitOfficeKey,
   describeOfficeSelection,
@@ -68,27 +72,45 @@ const STYLE = `
   color: #d8dadd; pointer-events: none; font-size: 10px; line-height: 1.3; }
 .o3d-board p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .o3d-board .reason { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
+.o3d-queue { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 360px; max-width: 360px; margin: 0; padding: 4px 6px 5px;
+  background: rgba(8, 12, 18, 0.86); border: 1px solid rgba(216, 218, 221, 0.35); border-radius: 4px; color: #e6edf5; font-size: 10px; line-height: 1.3; }
+.o3d-queue .head { margin: 0 0 2px; font-size: 10px; letter-spacing: 0.3px; color: #e6edf5; }
+.o3d-queue ul { list-style: none; margin: 0 0 4px; padding: 0; display: block; }
+.o3d-queue li { display: block; padding: 0; background: none; border: 0; }
+.o3d-queue .dim, .o3d-queue .dim .id { color: #8d96a3; }
+.o3d-qline { width: 100%; display: grid; grid-template-columns: 88px minmax(0, 1fr) 26px auto; gap: 6px; align-items: baseline; box-sizing: border-box;
+  padding: 1px 4px; background: none; border: 1px solid transparent; border-radius: 3px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.o3d-qline:hover { background: rgba(243, 236, 223, 0.08); }
+.o3d-qline:focus-visible { outline: 2px solid #c9d4e3; outline-offset: 1px; }
+.o3d-qline[data-on="1"] { background: rgba(243, 236, 223, 0.16); border-color: rgba(243, 236, 223, 0.55); }
+.o3d-qline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o3d-qline .age { text-align: right; }
+.o3d-qline .room { color: #aeb2b8; }
+.o3d-card.live { pointer-events: auto; width: 250px; }
+.o3d-badge { padding: 0 4px; border: 1px solid rgba(243, 236, 223, 0.55); border-radius: 3px; color: #f3ecdf; }
+.o3d-wait { display: grid; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.14); }
+.o3d-wait p { margin: 0; }
+.o3d-wait .lead { color: #e6edf5; }
+.o3d-wait .chain { display: grid; gap: 4px; }
+.o3d-wait button { justify-self: start; font-size: 11px; }
+.o3d-wait code { color: #c9d4e3; }
+.o3d-escalation .head { color: #e6edf5; }
+.o3d-eline { width: 100%; display: grid; grid-template-columns: 88px minmax(0, 1fr) 26px; gap: 1px 6px; align-items: baseline; box-sizing: border-box;
+  padding: 2px 4px; background: none; border: 1px solid transparent; border-radius: 3px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.o3d-eline:hover { background: rgba(243, 236, 223, 0.08); }
+.o3d-eline:focus-visible { outline: 2px solid #c9d4e3; outline-offset: 1px; }
+.o3d-eline[data-on="1"] { background: rgba(243, 236, 223, 0.16); border-color: rgba(243, 236, 223, 0.55); }
+.o3d-eline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o3d-eline .from { color: #aeb2b8; }
+.o3d-eline .age { text-align: right; }
+.o3d-eline .why { grid-column: 1 / -1; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #aeb2b8; }
+.o3d-eline em, .o3d-escalation-card em { font-style: normal; color: #8d96a3; }
+.o3d-escalation-card .why { color: #c9d4e3; overflow-wrap: anywhere; }
 .o3d-card { position: absolute; left: 0; top: 0; z-index: 2; width: 220px; margin: 0; padding: 10px 12px;
   border-radius: 12px; color: #e6edf5; pointer-events: none;
   background: rgba(12, 18, 26, 0.72); border: 1px solid rgba(255,255,255,0.16);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.o3d-rv { position: absolute; left: 0; top: 0; z-index: 1; box-sizing: border-box; width: 230px; max-height: 300px; overflow-y: auto; margin: 0; padding: 4px 6px;
-  background: rgba(8, 12, 18, 0.9); border: 1px solid rgba(216, 218, 221, 0.35); border-radius: 4px; color: #d8dadd; font-size: 10px; line-height: 1.3; }
-.o3d-rv p { margin: 0; }
-.o3d-rv .rv-head { color: #f3ecdf; font-weight: 600; }
-.o3d-rv .rv-sub { margin-top: 4px; color: #8e949c; }
-.o3d-rv .rv-foot { margin-top: 4px; color: #8e949c; font-style: italic; }
-.o3d-rv .rv-line { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; box-sizing: border-box; margin: 0; padding: 2px 3px;
-  font: inherit; color: inherit; text-align: left; background: none; border: 0; border-radius: 3px; cursor: pointer; }
-.o3d-rv .rv-line:hover, .o3d-rv .rv-line.on { background: rgba(243, 236, 223, 0.12); }
-.o3d-rv .rv-line:focus-visible { outline: 2px solid #f3ecdf; outline-offset: -1px; }
-.o3d-rv .rv-badge { flex: none; padding: 0 4px; border: 1px solid rgba(243, 236, 223, 0.55); border-radius: 3px; color: #f3ecdf; font-style: normal; }
 .o3d-card strong { display: block; margin-bottom: 6px; font-size: 14px; }
-.o3d-card-actions { margin-top: 6px; pointer-events: auto; }
-.o3d-card-actions button { font: inherit; font-size: 12px; color: #e6edf5; background: rgba(243, 236, 223, 0.14); border: 1px solid rgba(243, 236, 223, 0.5);
-  border-radius: 6px; padding: 4px 8px; cursor: pointer; }
-.o3d-card-actions button:hover { background: rgba(243, 236, 223, 0.24); }
-.o3d-card-actions button:focus-visible { outline: 2px solid #f3ecdf; outline-offset: 2px; }
 .o3d-card p { margin: 0 0 4px; font-size: 12px; color: #c9d4e3; }
 .o3d-office { margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid #1e2733; color: #e6edf5; }
 .o3d-office p { margin: 0 0 4px; font-size: 13px; }
@@ -208,9 +230,22 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     return loungeReadout(flow, ordered.map((task) => task.taskId), now);
   }, [flow, tasks, stats, now]);
   const board = useMemo(() => abortedBoard(tasks), [tasks]);
-  // Ages count from the moment the data was read, the way the server counted `idle`.
+  // Review ages count from the moment the data was read, the way the server counted `idle`.
   const review = useMemo(() => reviewBoard(tasks, reviewNow), [tasks, reviewNow]);
   const reviewView = useMemo(() => reviewReadout(review, reviewNow), [review, reviewNow]);
+  // Days are the age at this load; the order never depends on the clock.
+  const queue = useMemo(() => buildWaitQueue(tasks, Date.now()), [tasks]);
+  const selectedTask = selection?.kind === 'desk' && selection.taskId
+    ? tasks.find((task) => task.taskId === selection.taskId) ?? null
+    : null;
+  const selectedWait = selectedTask ? waitCard(selectedTask, queue) : null;
+  const escalation = useMemo(() => escalationLines(tasks, Date.now()), [tasks]);
+  const reviewSelectedId = selection?.kind === 'desk' && selection.zoneId === 'review' ? selection.taskId : null;
+  const reviewTask = reviewSelectedId ? tasks.find((task) => task.taskId === reviewSelectedId) ?? null : null;
+  const reviewDecides = reviewTask != null && reviewClickIntent(reviewTask, 'card') === 'panel';
+  const panelTask = panelTaskId ? tasks.find((task) => task.taskId === panelTaskId) ?? null : null;
+  const panelReview = panelTaskId ? reviews.find((item) => item.taskId === panelTaskId) ?? null : null;
+  const selectedEscalation = selectedTask ? escalationCard(selectedTask, Date.now()) : null;
   const detail = describeOfficeSelection(selection, tasks, stats);
   const tvHot = selection?.kind === 'desk'
     && selection.zoneId === 'done'
@@ -276,22 +311,22 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
     setSelection(next);
   }, [selectedTaskId, tasks]);
 
-  // A box or a readout line selects the task and, for one that waits on a decision, opens the panel.
+  // A Review box or readout line selects the task and, for one that waits on a decision, opens the panel.
   const pickReview = (taskId: string, via: ReviewVia) => {
     const task = tasksRef.current.find((item) => item.taskId === taskId);
-    if (!task) return;
-    const next: OfficeSelection = { kind: 'desk', zoneId: 'review', taskId };
+    const next = deskSelectionForTask(taskId, tasksRef.current);
+    if (!task || !next) return;
     selectionRef.current = next;
     setSelection(next);
     if (reviewClickIntent(task, via) === 'panel') setPanelTaskId(taskId);
   };
 
-  const cardTask = selection?.kind === 'desk' && selection.zoneId === 'review' && selection.taskId
-    ? tasks.find((item) => item.taskId === selection.taskId) ?? null
-    : null;
-  const cardDecides = cardTask != null && reviewClickIntent(cardTask, 'card') === 'panel';
-  const panelTask = panelTaskId ? tasks.find((item) => item.taskId === panelTaskId) ?? null : null;
-  const panelReview = panelTaskId ? reviews.find((item) => item.taskId === panelTaskId) ?? null : null;
+  const pickTask = (taskId: string) => {
+    const next = deskSelectionForTask(taskId, tasksRef.current);
+    if (!next) return;
+    selectionRef.current = next;
+    setSelection(next);
+  };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     const next = commitOfficeKey(selectionRef.current, event.key, tasksRef.current, event.currentTarget, deskRowsRef.current);
@@ -327,15 +362,15 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             tableTaskId={readout.tableTaskId}
             streamOpen={streamOpen}
             awaitingReload={awaitingReload}
+            waitingOnEarth={queue.earth.length}
+            escalationLit={beaconLit(tasks)}
             reviewBoard={review}
             onReviewPick={(taskId) => pickReview(taskId, 'box')}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
         {ZONES.map((zone) => {
-          const chip = chipValue(zone.id, {
-            stats, closedToday: readout.closed ?? 0, abortedTotal: board.count, reviewWaiting: review.waitingCount,
-          });
+          const chip = chipValue(zone.id, { stats, closedToday: readout.closed ?? 0, abortedTotal: board.count, waitingOnEarth: queue.earth.length, reviewWaiting: review.waitingCount });
           return (
             <p key={zone.id} className="o3d-label" data-label={zone.id} data-chip={chip ?? undefined} aria-hidden="true">
               {zone.label}
@@ -352,44 +387,26 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
           {board.latestId && <p>{board.latestId}</p>}
           {board.reason && <p className="reason">{boardReason(board.reason)}</p>}
         </div>
-        <div className="o3d-rv o3d-readout" data-review-readout data-readout="review">
-          <p className="rv-head">{reviewView.header}</p>
-          {[...reviewView.waiting, ...reviewView.decided].map((line) => (
-            <button type="button" key={line.taskId} className={`rv-line${selection?.kind === 'desk' && selection.taskId === line.taskId ? ' on' : ''}`}
-              data-task={line.taskId} onClick={() => pickReview(line.taskId, 'readout')}>
-              <span>{line.text}</span>
-              {line.badge && <em className="rv-badge">{line.badge}</em>}
-            </button>
-          ))}
-          {reviewView.othersHeading && <p className="rv-sub">{reviewView.othersHeading}</p>}
-          {reviewView.others.map((line) => (
-            <button type="button" key={line.taskId} className={`rv-line${selection?.kind === 'desk' && selection.taskId === line.taskId ? ' on' : ''}`}
-              data-task={line.taskId} onClick={() => pickReview(line.taskId, 'readout')}>
-              <span>{line.text}</span>
-            </button>
-          ))}
-          {reviewView.footer && <p className="rv-foot">{reviewView.footer}</p>}
-        </div>
+        <BlockedReadout queue={queue} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
+        <ReviewReadoutView readout={reviewView} selectedTaskId={reviewSelectedId} onPick={(taskId) => pickReview(taskId, 'readout')} />
+        {escalation.length > 0 && <EscalationReadout lines={escalation} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
         {selection && (
-          <div className="o3d-card" data-card role="region" aria-label={detail.heading}>
+          <div className={selectedWait || selectedEscalation || reviewTask ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
             {detail.tasks.length === 0 ? <p>{detail.emptyLabel}</p> : detail.tasks.slice(0, 3).map((task) => (
               <p key={task.taskId}>{officeTaskSummary(task)}</p>
             ))}
             {detail.tasks.length > 3 && <p>+{detail.tasks.length - 3} more</p>}
-            {cardTask && (
-              <div className="o3d-card-actions">
-                {cardDecides ? (
-                  <button type="button" onClick={() => setPanelTaskId(cardTask.taskId)} aria-label={`Review and decide ${cardTask.taskId}`}>
-                    Review &amp; decide
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => navigateTo('monitor', cardTask.taskId)} aria-label={`Open ${cardTask.taskId} in Monitor`}>
-                    Open in Monitor
-                  </button>
-                )}
-              </div>
+            {selectedTask && selectedEscalation && <EscalationBlock taskId={selectedTask.taskId} card={selectedEscalation} />}
+            {reviewTask && (
+              <ReviewBlock
+                taskId={reviewTask.taskId}
+                decides={reviewDecides}
+                onDecide={() => setPanelTaskId(reviewTask.taskId)}
+                showMonitor={!selectedWait && !selectedEscalation}
+              />
             )}
+            {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!selectedEscalation} />}
           </div>
         )}
         {loading && <p className="o3d-banner" role="status">Loading tasks…</p>}
