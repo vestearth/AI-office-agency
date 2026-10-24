@@ -46,3 +46,19 @@ describe('Review room furniture', () => {
     expect(inReview(posesFor([]).screenOn)).toEqual([]);
   });
 });
+
+describe('Review standing spots of tasks that are not waiting for a decision', () => {
+  const other = (taskId: string, actionKind: OfficeTask['actionKind']): OfficeTask => ({
+    taskId, title: taskId, phase: 'review', status: 'waiting_review', needsReview: false, actionKind, statusUpdatedAt: '2026-10-20T00:00:00Z',
+  });
+
+  it('gives each spot a click box for its task, at most two, and none for a waiting or decided task', () => {
+    const tasks = [
+      review('W'), other('X1', 'completion_held'), other('X2', 'authorization_required'), other('X3', 'workflow_exception'),
+      { ...review('D'), needsReview: false, decisionPending: true, latestDecision: { decision: 'reject' as const, actor: 'e', decidedAt: '2026-10-24T00:00:00Z' } },
+    ];
+    const hits = inReview(posesFor(tasks).benchHit);
+    expect(hits.map((hit) => hit.taskId)).toEqual(['X1', 'X2']);
+    for (const hit of hits) expect(hit.kind).toBe('desk');
+  });
+});

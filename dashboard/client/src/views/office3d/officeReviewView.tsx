@@ -20,7 +20,7 @@ import { ROOM_LAYOUT } from './officeSelection';
 const dummy = new Object3D();
 const tint = new Color();
 /** Cardboard box at about 0.4 wide on the belt. */
-const BOX_SCALE = 0.95;
+const BOX_SCALE = 1.1;
 /** Boxes the room can show: the line plus two at each of the four decided places. */
 const BOX_CAP = REVIEW_LINE_CAP + 4 * REVIEW_SPOT_CAP;
 /** A box lifted onto the rack, shelf or bin rises this far at mid-slide. */

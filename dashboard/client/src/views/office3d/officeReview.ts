@@ -13,15 +13,16 @@ export const BOX_SLIDE_SECONDS = 0.9;
 export const REVIEW_TAG_COLOR = '#f3ecdf';
 
 const DAY_MS = 86_400_000;
-/** Belt surface above the floor slab. Boxes on the line rest here. */
-const BELT_TOP = 0.17;
-const RACK_TOP = 0.285;
-const SHELF_TOP = 0.305;
+/**
+ * Belt, rack and shelf stand at waist height so a robot beside the line does not hide a box from the
+ * default camera (about 32 degrees down): the box sits above the robot's sight line to the camera.
+ */
+const BELT_TOP = 0.5;
+const RACK_TOP = 0.5;
+const SHELF_TOP = 0.5;
 const BIN_FLOOR = 0.04;
 /** Tag origin above the box it hangs over. */
-const TAG_RISE = 0.34;
-/** A robot stands in front of its box, a little to the camera's left, so the box shows beside it. */
-const LINE_STAND_SHIFT = 0.22;
+const TAG_RISE = 0.5;
 
 export type PropBucket = 'wood' | 'metal' | 'fabric';
 
@@ -49,38 +50,40 @@ const prop = (bucket: PropBucket, x: number, y: number, z: number, w: number, h:
 export const REVIEW = {
   belt: { z: -1.38 },
   gate: { x: 0.95, z: -1.38 },
-  /** Waiting boxes from the gate back to the start of the line. */
+  /** Waiting boxes from the gate back to the start of the line, and the robot in front of each. */
   lineX: [0.5, -0.1, -0.7, -1.3],
+  lineRobot: [{ x: 0.5, z: -0.84 }, { x: -0.1, z: -0.84 }, { x: -0.7, z: -0.84 }, { x: -1.3, z: -0.84 }],
   approve: [
-    { box: { x: 1.22, z: -1.38 }, robot: { x: 1.0, z: -0.7 } },
-    { box: { x: 1.78, z: -1.38 }, robot: { x: 1.56, z: -0.7 } },
+    { box: { x: 1.22, z: -1.38 }, robot: { x: 1.15, z: -0.8 } },
+    { box: { x: 1.78, z: -1.38 }, robot: { x: 1.72, z: -0.8 } },
   ],
   changes: [
-    { box: { x: -1.78, z: -0.2 }, robot: { x: -1.2, z: 0 } },
-    { box: { x: -1.78, z: 0.2 }, robot: { x: -1.2, z: 0.7 } },
+    { box: { x: -1.78, z: -0.2 }, robot: { x: -1.23, z: -0.26 } },
+    { box: { x: -1.78, z: 0.2 }, robot: { x: -1.33, z: 0.52 } },
   ],
   shelf: [
-    { box: { x: 0.65, z: -0.35 }, robot: { x: 0.55, z: 0.4 } },
-    { box: { x: 1.05, z: -0.35 }, robot: { x: 1.15, z: 0.4 } },
+    { box: { x: 0.65, z: -0.35 }, robot: { x: 0.34, z: 0.21 } },
+    { box: { x: 1.05, z: -0.35 }, robot: { x: 1.0, z: 0.11 } },
   ],
   bin: [
-    { box: { x: 1.62, z: 0.45 }, robot: { x: 1.75, z: 1.2 } },
-    { box: { x: 1.85, z: 0.68 }, robot: { x: 1.15, z: 1.15 } },
+    { box: { x: 1.62, z: 0.45 }, robot: { x: 1.13, z: 0.74 } },
+    { box: { x: 1.85, z: 0.68 }, robot: { x: 1.69, z: 1.15 } },
   ],
   side: [{ x: -0.6, z: 1.2 }, { x: 0.1, z: 1.2 }],
-  /** Panel on the gate header. The back-wall screen it replaces was 2.3 times a desk screen. */
-  panel: { y: 0.46, z: -1.03, scale: 0.9 },
+  /** Panel on the front post of the gate. The back-wall screen it replaces was 2.3 times a desk screen. */
+  panel: { y: 0.8, z: -1.06, scale: 0.9 },
   props: [
-    prop('metal', 0.025, 0.1, -1.38, 3.95, 0.12, 0.5),
-    prop('fabric', 0.025, 0.165, -1.38, 3.9, 0.01, 0.34),
-    prop('metal', 0.95, 0.25, -1.66, 0.06, 0.5, 0.06),
-    prop('metal', 0.95, 0.25, -1.1, 0.06, 0.5, 0.06),
-    prop('metal', 0.95, 0.52, -1.38, 0.08, 0.06, 0.62),
-    prop('wood', -1.78, 0.26, 0, 0.4, 0.05, 0.9),
-    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => prop('wood', -1.78 + sx * 0.15, 0.12, sz * 0.4, 0.05, 0.24, 0.05))),
-    prop('wood', 0.85, 0.28, -0.35, 0.95, 0.05, 0.4),
-    prop('wood', 0.45, 0.13, -0.35, 0.05, 0.26, 0.36),
-    prop('wood', 1.25, 0.13, -0.35, 0.05, 0.26, 0.36),
+    prop('metal', 0.025, 0.47, -1.38, 3.95, 0.06, 0.5),
+    prop('fabric', 0.025, 0.505, -1.38, 3.9, 0.01, 0.34),
+    ...[-1.9, 0, 1.9].flatMap((x) => [-1.55, -1.2].map((z) => prop('metal', x, 0.22, z, 0.06, 0.44, 0.06))),
+    prop('metal', 0.95, 0.475, -1.66, 0.06, 0.95, 0.06),
+    prop('metal', 0.95, 0.475, -1.1, 0.06, 0.95, 0.06),
+    prop('metal', 0.95, 0.97, -1.38, 0.08, 0.06, 0.62),
+    prop('wood', -1.78, 0.475, 0, 0.4, 0.05, 0.9),
+    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => prop('wood', -1.78 + sx * 0.15, 0.225, sz * 0.4, 0.05, 0.45, 0.05))),
+    prop('wood', 0.85, 0.475, -0.35, 0.95, 0.05, 0.4),
+    prop('wood', 0.45, 0.225, -0.35, 0.05, 0.45, 0.36),
+    prop('wood', 1.25, 0.225, -0.35, 0.05, 0.45, 0.36),
     prop('metal', 1.75, 0.015, 0.55, 0.62, 0.03, 0.6),
     prop('metal', 1.75, 0.14, 0.835, 0.62, 0.26, 0.03),
     prop('metal', 1.75, 0.14, 0.265, 0.62, 0.26, 0.03),
@@ -205,7 +208,7 @@ export function reviewBoard(tasks: readonly OfficeTask[], now: Date): ReviewBoar
       kind: 'line',
       index,
       box: { x, y: BELT_TOP, z: REVIEW.belt.z, rotY: turn(index) },
-      robot: { x: x - LINE_STAND_SHIFT, z: -0.85 },
+      robot: REVIEW.lineRobot[index],
     };
   });
   const used = new Map<DecisionAction, number>();

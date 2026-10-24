@@ -322,6 +322,48 @@ describe('standing places', () => {
   });
 });
 
+describe('visibility from the default camera', () => {
+  // The default camera looks from +x +z at about 32 degrees down (OfficeScene: position 24, 20, 20.5 off the aim).
+  const lateral = (x: number, z: number) => 0.648 * x - 0.76 * z;
+  const depth = (x: number, z: number) => 0.76 * x + 0.65 * z;
+  const RISE = 0.62;
+  const ROBOT_HALF = 0.36;
+  const ROBOT_TOP = 0.92;
+  const BOX_MID = 0.14;
+
+  const full: OfficeTask[] = [
+    ...['A', 'B', 'C', 'D'].map((id, index) => waiting(id, 9 - index)),
+    ...(['approve', 'request_changes', 'escalate', 'reject'] as const).flatMap((decision) => [
+      decided(`${decision}-1`, decision, { latestDecision: { decision, actor: 'e', decidedAt: ago(0, 3) } }),
+      decided(`${decision}-2`, decision, { latestDecision: { decision, actor: 'e', decidedAt: ago(0, 2) } }),
+    ]),
+    other('X1', 'completion_held'),
+    other('X2', 'workflow_exception'),
+  ];
+
+  it('never hides a box behind a robot, with every spot taken', () => {
+    const board = reviewBoard(full, NOW);
+    const entries = [...board.waiting, ...board.decided, ...board.others].filter((entry) => entry.spot);
+    const boxes = entries.flatMap((entry) => (entry.spot!.box ? [{ id: entry.task.taskId, ...entry.spot!.box }] : []));
+    const hidden: string[] = [];
+    for (const box of boxes) {
+      for (const entry of entries) {
+        const robot = entry.spot!.robot;
+        const ahead = depth(robot.x, robot.z) - depth(box.x, box.z);
+        if (ahead <= 0 || Math.abs(lateral(robot.x, robot.z) - lateral(box.x, box.z)) >= ROBOT_HALF) continue;
+        if (box.y + BOX_MID + RISE * ahead < ROBOT_TOP) hidden.push(`${box.id} behind ${entry.task.taskId}`);
+      }
+    }
+    expect(hidden).toEqual([]);
+  });
+
+  it('stands the waiting boxes on a belt at waist height so a robot beside the line does not cover them', () => {
+    const board = reviewBoard(full, NOW);
+    const heights = board.waiting.flatMap((entry) => (entry.spot?.box ? [entry.spot.box.y] : []));
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(0.45);
+  });
+});
+
 describe('the room', () => {
   it('no longer carries the decor table and chairs', () => {
     expect(DECOR_PLACEMENTS.filter((item) => item.zoneId === 'review')).toEqual([]);
