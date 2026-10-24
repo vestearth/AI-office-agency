@@ -9,6 +9,7 @@ import type {
 } from '@shared/types';
 import { DecisionStore } from './decisionStore';
 import { GateViewService, globalGateViews, hasCompletionGates } from './gateView';
+import { officeMs } from './officeTime';
 import { TASK_ID_PATTERN } from '../pathSecurity';
 
 // Exact enum membership — these mirror the producer schemas. We match by exact
@@ -410,9 +411,10 @@ function waitingReason(phase: RunPhase, blockedOn: string[], waitingFor: string[
   return waitingFor.length > 0 ? `${head}; waiting for: ${waitingFor.join('; ')}.` : `${head}.`;
 }
 
+/** A date-only updated_at is midnight in the office's time zone, as Flow's oldest wait reads it. */
 function updatedAtMs(value: unknown): number {
   if (value instanceof Date) return value.getTime();
-  return typeof value === 'string' ? Date.parse(value) : NaN;
+  return typeof value === 'string' ? officeMs(value) : NaN;
 }
 
 /**

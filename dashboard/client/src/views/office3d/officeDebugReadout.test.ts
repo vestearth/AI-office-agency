@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DecisionRecord, ReviewSummary } from '../../../../shared/types';
 import { summarizeZones } from '../commandZones';
 import { COMPLETE_TEXT, debugCard, debugLines, sentBackByEarth, stayAge } from './officeDebug';
@@ -46,6 +46,18 @@ const fromEarth = (over: Partial<OfficeTask> = {}): OfficeTask => inLab('C-1', {
 });
 
 describe('how long a task has been in Debug Lab', () => {
+  // npm test pins TZ=UTC, where local and UTC midnight coincide and a UTC reading would pass too.
+  let savedTz: string | undefined;
+  beforeEach(() => {
+    savedTz = process.env.TZ;
+    process.env.TZ = 'Asia/Bangkok';
+    expect(new Date(2026, 9, 24).getTimezoneOffset()).toBe(-420);
+  });
+  afterEach(() => {
+    if (savedTz === undefined) delete process.env.TZ;
+    else process.env.TZ = savedTz;
+  });
+
   it('uses minutes, then hours, for a timestamped entry', () => {
     expect(stayAge('2026-10-24T00:53:00Z', NOW)).toBe('7m');
     expect(stayAge('2026-10-23T22:00:00Z', NOW)).toBe('3h');
@@ -53,8 +65,10 @@ describe('how long a task has been in Debug Lab', () => {
 
   it('shows today or whole days for a date-only entry, counted from local midnight', () => {
     expect(stayAge('2026-10-24', NOW)).toBe('today');
-    expect(stayAge('2026-10-24', Date.parse('2026-10-24T23:30:00Z'))).toBe('today');
+    expect(stayAge('2026-10-24', new Date(2026, 9, 24, 23, 30).getTime())).toBe('today');
     expect(stayAge('2026-10-23', NOW)).toBe('1d');
+    // 01:00 local: read as UTC midnight, yesterday's date would still be today in Bangkok.
+    expect(stayAge('2026-10-23', new Date(2026, 9, 24, 1).getTime())).toBe('1d');
     expect(stayAge('2026-07-13', NOW)).toBe('103d');
   });
 
