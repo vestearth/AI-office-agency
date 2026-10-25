@@ -696,16 +696,36 @@ describe('the room', () => {
 
   it('keeps its own colors muted and out of the status palette', () => {
     const status = new Set(Object.values(ZONE_COLORS).map((color) => color.toLowerCase()));
-    // The selection halo is the one bright piece, on purpose: it says which note is picked.
-    const { halo, ...rest } = DEVBAY_COLORS;
-    const colors = [...DEVBAY_TINTED.map((piece) => piece.color), ...Object.values(rest).flat()].filter((value): value is string => typeof value === 'string');
-    expect(halo).toBe('#c9d4e3');
+    const colors = [...DEVBAY_TINTED.map((piece) => piece.color), ...Object.values(DEVBAY_COLORS).flat()].filter((value): value is string => typeof value === 'string');
     for (const color of colors) expect(status.has(color.toLowerCase()), color).toBe(false);
     for (const color of colors) {
       const channels = [1, 3, 5].map((at) => parseInt(color.slice(at, at + 2), 16));
       // Under the bloom threshold: the brightest channel of any piece stays dim.
       expect(Math.max(...channels), color).toBeLessThanOrEqual(0xd0);
     }
+  });
+
+  it('is a white board, with the notes, the dots and the selection halo still readable on it', () => {
+    const linear = (channel: number) => {
+      const value = channel / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (color: string) => {
+      const [r, g, b] = [1, 3, 5].map((at) => linear(parseInt(color.slice(at, at + 2), 16)));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (a: string, b: string) => {
+      const [low, high] = [luminance(a), luminance(b)].sort((x, y) => x - y);
+      return (high + 0.05) / (low + 0.05);
+    };
+    const { face, paper, paperStack, inkOn, inkOff, halo } = DEVBAY_COLORS;
+    // The room light is green and strong, so only lightness separates the pieces; the bloom cap keeps the face off pure white.
+    expect(luminance(face), face).toBeGreaterThanOrEqual(0.35);
+    expect(contrast(paper, face), paper).toBeGreaterThanOrEqual(1.45);
+    expect(contrast(paperStack, face), paperStack).toBeGreaterThanOrEqual(1.45);
+    expect(contrast(halo, face), halo).toBeGreaterThanOrEqual(3);
+    expect(contrast(inkOn, paper), inkOn).toBeGreaterThanOrEqual(3);
+    expect(contrast(inkOff, paper), inkOff).toBeGreaterThanOrEqual(1.4);
   });
 
   it('keeps every piece inside the room, under the wall top and past x 1.2 only where a desk is', () => {

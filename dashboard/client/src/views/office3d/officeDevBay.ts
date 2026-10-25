@@ -132,14 +132,14 @@ export const DEVBAY = {
 
 /** Muted tones for the pieces that need their own color. None of them is a status color or a glow. */
 export const DEVBAY_COLORS = {
-  face: '#3c4045',
-  divider: '#3a3e43',
-  headers: ['#8f9ba3', '#9ca796', '#ada38b', '#9d8f86', '#969aa2', '#74767b'],
-  paper: '#cbc3ab',
-  paperStack: '#aca48c',
+  face: '#a9aeb3',
+  divider: '#868c92',
+  headers: ['#70797f', '#7a8275', '#877f6c', '#7a7069', '#75787e', '#5a5c60'],
+  paper: '#9c8a52',
+  paperStack: '#85763f',
   inkOn: '#1d1f23',
-  inkOff: '#948c76',
-  halo: '#c9d4e3',
+  inkOff: '#c2b27a',
+  halo: '#2f3a46',
   marker: ['#5b6670', '#7a5f55', '#4f6a58'],
   jug: '#4d6670',
   drawer: '#5a636d',
