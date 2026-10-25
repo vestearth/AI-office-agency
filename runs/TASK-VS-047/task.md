@@ -91,7 +91,12 @@ Production incident on 2026-10-25. A high-volume merchant could not renew its pa
   - **Staging:** run `40206897296` succeeded. `slip-api-staging:153` runs `staging-sha-9f17c06`. It booted at 15:29:01Z, the target is healthy, and no ERROR or panic was logged.
   - **Prod:** run `40207835692` succeeded. `slip-api-production:110` runs `production-sha-a60568d` with 5 of 5 tasks (autoscaled), the rollout completed at 15:48:26Z, and all targets are healthy.
   - **Rollback:** `slip-api-production:109`.
-- **Overview 200 not yet confirmed:** this merchant made no overview call between the deploy and 15:49Z. Its last overview calls were at 10:22–10:28Z, all 500, before #89.
+- **Overview confirmed on prod (ev-010):** Earth opened the branch overview on app.up-slip.com at 16:13Z. Task `06b8cc4e393c` (td 110) logged:
+  - `overview_month`: timed out after 3s and was logged
+  - `overview_week`: timed out after 3s and was logged
+  - `overview_recent`: `count verifications … context deadline exceeded` after 10s and was logged
+  - Then `GET …/overview` returned **200** in 16,030 ms (16:13:28Z).
+  - Before #89, the last overview calls (10:22–10:28Z) were all 500.
 
 ## Outcome
 

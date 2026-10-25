@@ -63,6 +63,12 @@ history:
     10:25:01Z'
   at: '2026-10-25T15:49:35Z'
   operator: claude
+- phase: assigned
+  agent: devops
+  reason: Overview 200 confirmed on prod td 110 at 16:13:28Z (Earth opened the page);
+    ev-010
+  at: '2026-10-25T16:14:23Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
@@ -78,8 +84,7 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-10-25T09:49:40Z'
     evidence_refs: []
-next_action: 'Both fixes on prod (slip-api-production:110, production-sha-a60568d).
-  Merchant renewed 10:24:58Z; verifies 200 since 10:25:01Z. Pending: confirm overview
-  returns 200 for merchant 84006774 on the next real call, then knowledge closeout.
-  Follow-up: usage/count aggregation for high-volume branches; migrations TestGooseSQLFiles
-  count (63 vs 64) on main.'
+next_action: 'Both fixes on prod and confirmed: package detail, API channel and overview
+  return 200 for merchant 84006774 (overview 200 in ~16s, ev-010); merchant renewed
+  10:24:58Z. Remaining: knowledge closeout; follow-ups for usage/count aggregation
+  on high-volume branches and the migrations TestGooseSQLFiles count on main.'
