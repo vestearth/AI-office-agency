@@ -236,6 +236,7 @@ properties:
       - total
       - resolved
       - passable
+      - items
     properties:
       readable:
         type: boolean
@@ -248,3 +249,23 @@ properties:
       passable:
         type: integer
         minimum: 0
+      items:
+        description: >
+          The gates in completion_gates order (SPAR-53): name, stored status
+          (pending | pass | na) and the done guard's resolved. [] when the view
+          is unreadable.
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required:
+            - name
+            - status
+            - resolved
+          properties:
+            name:
+              type: string
+            status:
+              type: string
+            resolved:
+              type: boolean

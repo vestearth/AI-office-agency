@@ -372,6 +372,7 @@ export function buildReviewSummary(
         total: gateView.summary.total,
         resolved: gateView.summary.resolved,
         passable: gateView.summary.passable,
+        items: gateView.gates.map((gate) => ({ name: gate.name, status: gate.status, resolved: gate.resolved })),
       },
     } : {}),
   };

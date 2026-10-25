@@ -258,7 +258,7 @@ test('a bound gate that only waits for a grant is authorization_required, with t
     r.recommendedAction,
     'ruby scripts/record-authorization.rb TASK-EAR-1 grant --action deploy_staging --scope <scope> --actor <you> --via <channel> --reason "<why>"',
   );
-  assert.deepEqual(r.gates, { readable: true, total: 1, resolved: 0, passable: 0 });
+  assert.deepEqual(r.gates, { readable: true, total: 1, resolved: 0, passable: 0, items: [{ name: 'deploy', status: 'pending', resolved: false }] });
 });
 
 test('several gates waiting for grants are all named', () => {
@@ -289,7 +289,7 @@ test('an unreadable gate view is gates_unreadable, with the problem', () => {
   assert.equal(r.actionKind, 'gates_unreadable');
   assert.equal(r.actionReason, 'Gate state cannot be read: completion_gates is not a map.');
   assert.equal(r.recommendedAction, 'Run ./run-agent.sh status TASK-9 and repair status.yaml / authorization.yaml through their writers.');
-  assert.deepEqual(r.gates, { readable: false, total: 0, resolved: 0, passable: 0 });
+  assert.deepEqual(r.gates, { readable: false, total: 0, resolved: 0, passable: 0, items: [] });
 });
 
 test('an unreadable authorization ledger is gates_unreadable, whether the gate is pending or passed', () => {
@@ -453,7 +453,7 @@ test('all gates resolved after an approval is no longer completion_held', () => 
   const view = gateView([{ name: 'smoke', status: 'pass', resolved: true, passable: false, detail: '' }]);
   const r = buildReviewSummary('T', { phase: 'in_review' }, { review_verdict: 'approved' }, null, null, view);
   assert.equal(r.actionKind, 'awaiting_review');
-  assert.deepEqual(r.gates, { readable: true, total: 1, resolved: 1, passable: 0 });
+  assert.deepEqual(r.gates, { readable: true, total: 1, resolved: 1, passable: 0, items: [{ name: 'smoke', status: 'pass', resolved: true }] });
 });
 
 // Review Focus: the real script and the real writers, end to end.
@@ -479,7 +479,7 @@ test('a grant recorded between two reads changes the kind: nothing is cached', a
   office(runsDir, 'record-authorization.rb', 'TASK-001', 'grant', '--action', 'deploy_staging', '--scope', 'staging', '--actor', 'operator', '--via', 'chat', '--reason', 'ok');
   const after = (await service.getReviewSummaries())[0];
   assert.equal(after.actionKind, null);
-  assert.deepEqual(after.gates, { readable: true, total: 1, resolved: 0, passable: 1 });
+  assert.deepEqual(after.gates, { readable: true, total: 1, resolved: 0, passable: 1, items: [{ name: 'deploy', status: 'pending', resolved: false }] });
 });
 
 test('25 gated tasks read at once all come back readable', async () => {
@@ -494,7 +494,7 @@ test('25 gated tasks read at once all come back readable', async () => {
   const summaries = await service.getReviewSummaries();
   assert.equal(summaries.length, 25);
   for (const summary of summaries) {
-    assert.deepEqual(summary.gates, { readable: true, total: 1, resolved: 0, passable: 1 }, summary.taskId);
+    assert.deepEqual(summary.gates, { readable: true, total: 1, resolved: 0, passable: 1, items: [{ name: 'smoke', status: 'pending', resolved: false }] }, summary.taskId);
   }
 });
 
@@ -502,11 +502,11 @@ test('a finished task is never flagged by gates, even when its gate state cannot
   const ledger = gateView([{ name: 'deploy', status: 'pass', passable: false, unresolvedReason: 'authorization ledger unreadable' }]);
   const done = buildReviewSummary('T', { phase: 'done' }, { review_verdict: 'approved' }, null, null, ledger);
   assert.equal(done.actionKind, null);
-  assert.deepEqual(done.gates, { readable: true, total: 1, resolved: 0, passable: 0 });
+  assert.deepEqual(done.gates, { readable: true, total: 1, resolved: 0, passable: 0, items: [{ name: 'deploy', status: 'pass', resolved: false }] });
   const broken = gateView([], { readable: false, problem: 'completion_gates is not a map' });
   const aborted = buildReviewSummary('T', { phase: 'aborted' }, null, null, null, broken);
   assert.equal(aborted.actionKind, null);
-  assert.deepEqual(aborted.gates, { readable: false, total: 0, resolved: 0, passable: 0 });
+  assert.deepEqual(aborted.gates, { readable: false, total: 0, resolved: 0, passable: 0, items: [] });
 });
 
 // --- Stale work: blocks whose blockers finished, and idle tasks ---
@@ -844,4 +844,32 @@ test('getReviewSummaries flags a still-open task another run\'s task.md supersed
   assert.equal(byId['TASK-VS-040'].actionKind, 'awaiting_review', 'the superseding task is untouched');
   assert.equal(byId['TASK-EAR-999'], undefined);
   await fs.rm(runsDir, { recursive: true, force: true });
+});
+
+test('gates.items follows the completion_gates order, with status and resolved as the done guard derives them', () => {
+  const view = gateView([
+    { name: 'implementation_verification', status: 'pass', resolved: true, passable: false },
+    { name: 'deploy_staging', status: 'na', resolved: true, passable: false },
+    { name: 'knowledge_closeout', status: 'pending', resolved: false },
+    { name: 'deploy_production', status: 'pending', resolved: false },
+  ]);
+  const r = buildReviewSummary('T', { phase: 'assigned' }, null, null, null, view);
+  assert.deepEqual(r.gates?.items, [
+    { name: 'implementation_verification', status: 'pass', resolved: true },
+    { name: 'deploy_staging', status: 'na', resolved: true },
+    { name: 'knowledge_closeout', status: 'pending', resolved: false },
+    { name: 'deploy_production', status: 'pending', resolved: false },
+  ]);
+});
+
+test('gates.items carries only name, status and resolved', () => {
+  const view = gateView([{ name: 'smoke', status: 'pending', requiresAuthorization: 'deploy_staging', detail: 'x' }]);
+  const r = buildReviewSummary('T', { phase: 'assigned' }, null, null, null, view);
+  assert.deepEqual(Object.keys(r.gates?.items[0] ?? {}).sort(), ['name', 'resolved', 'status']);
+});
+
+test('an unreadable gate view keeps items as an empty list', () => {
+  const view = gateView([], { readable: false, problem: 'completion_gates is not a map' });
+  const r = buildReviewSummary('T', { phase: 'assigned' }, null, null, null, view);
+  assert.deepEqual(r.gates?.items, []);
 });
