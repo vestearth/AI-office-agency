@@ -86,7 +86,18 @@ Production incident on 2026-10-25. A high-volume merchant could not renew its pa
   - **ev-007 (RED):** `origin/main` `36c1e8a` plus the updated test only. `TestOverviewLoadsWhenRecentVerificationsTimeOut` FAILS with `count verifications: context deadline exceeded`.
   - **ev-008 (GREEN):** all 6 degrade and overview tests PASS.
   - **ev-009:** vet and build pass. The full suite passes except the pre-existing `migrations` failure (ev-005).
-- **Not done yet:** merge #89 and promote main→staging→prod. Each step needs Earth's go-ahead.
+- **Deploy (Earth-approved):**
+  - Merged #89 into `main` as `6362929`. #90 promoted `main` → `staging` as `9f17c06`, and #91 promoted `staging` → `prod` as `a60568d`. Each promotion PR contained only the 2 hotfix files, and prod kept its prod-only task-definition file.
+  - **Staging:** run `40206897296` succeeded. `slip-api-staging:153` runs `staging-sha-9f17c06`. It booted at 15:29:01Z, the target is healthy, and no ERROR or panic was logged.
+  - **Prod:** run `40207835692` succeeded. `slip-api-production:110` runs `production-sha-a60568d` with 5 of 5 tasks (autoscaled), the rollout completed at 15:48:26Z, and all targets are healthy.
+  - **Rollback:** `slip-api-production:109`.
+- **Overview 200 not yet confirmed:** this merchant made no overview call between the deploy and 15:49Z. Its last overview calls were at 10:22–10:28Z, all 500, before #89.
+
+## Outcome
+
+- The merchant renewed at **10:24:58Z (17:24:58 Bangkok)**: `POST /v1/packages/purchase` returned 201 from the merchant's IP `27.130.63.68`. That was 3 minutes after fix 1 reached prod.
+- The last 403 came at 10:24:57Z and the first verify 200 at 10:25:01Z. The outage on this branch lasted about **4h13m**, from 06:12:15Z to 10:25:01Z.
+- From 15:24 to 15:26Z, verifies returned 729 × 200, 13 × 409 duplicate and 11 × 422.
 
 ## Follow-ups (not in this task)
 
