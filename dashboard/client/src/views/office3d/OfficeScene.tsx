@@ -29,6 +29,8 @@ import { heapPieceCount } from './officeAborted';
 import { BAR_COLOR, boardBars } from './officeBlocked';
 import { QueueBars } from './officeBlockedView';
 import { ReleaseBoardLights } from './officeDevopsView';
+import { createBoardBus } from './officeDevBay';
+import { DevBayNotes } from './officeDevBayView';
 import { EscalationBeacon } from './officeEscalationBeacon';
 import { AbortedHeap } from './officeAbortedView';
 import { LOUNGE, LOUNGE_LAMP_EMISSIVE } from './officeLounge';
@@ -499,6 +501,7 @@ export function OfficeScene({
   escalationLit = false,
   reviewBoard,
   onReviewPick,
+  onBayPick,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -528,7 +531,11 @@ export function OfficeScene({
   reviewBoard: ReviewBoard;
   /** A Review box was clicked. */
   onReviewPick: (taskId: string) => void;
+  /** A Dev Bay sticky note was clicked. */
+  onBayPick: (taskId: string) => void;
 }) {
+  // How the whiteboard and the Dev Bay robots talk: a gate that resolved, and the robot that walks to show it.
+  const bayBus = useMemo(() => createBoardBus(), []);
   const [hover, setHover] = React.useState<Pose | null>(null);
   const [parts, setParts] = React.useState<OfficeParts | null>(null);
   const [decor, setDecor] = React.useState<DecorGeometries | null>(null);
@@ -723,6 +730,18 @@ export function OfficeScene({
         streamOpen={streamOpen}
         awaitingReload={awaitingReload}
       />
+      <DevBayNotes
+        tasks={tasks}
+        geometry={geoms.rack}
+        material={mats.paint}
+        selectedTaskId={selection?.kind === 'desk' ? selection.taskId : null}
+        onPick={onBayPick}
+        animate={animate}
+        reducedMotion={reducedMotion}
+        streamOpen={streamOpen}
+        awaitingReload={awaitingReload}
+        bus={bayBus}
+      />
       <EscalationBeacon lit={escalationLit} animate={animate && !reducedMotion} />
       {decor && (
         <DecorMeshes
@@ -748,7 +767,7 @@ export function OfficeScene({
         selectedTaskId={selection?.kind === 'desk' && selection.zoneId === 'review' ? selection.taskId : null}
         onPick={onReviewPick}
       />
-      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} awaitingReload={awaitingReload} onDeskRows={onDeskRows} />
+      <OfficeCharacterView tasks={tasks} stats={stats} animate={animate} reducedMotion={reducedMotion} settled={settled} streamOpen={streamOpen} awaitingReload={awaitingReload} onDeskRows={onDeskRows} bus={bayBus} />
       <Studio animate={animate} flicker={mats.screen} wallScreen={mats.wallScreen} led={mats.led} neon={mats.neon} />
       <CameraRig reducedMotion={reducedMotion} />
       <ProjectOverlays root={labelRoot} selection={selection} tasks={tasks} stats={stats} rows={deskRows} tvHot={tvHot} />

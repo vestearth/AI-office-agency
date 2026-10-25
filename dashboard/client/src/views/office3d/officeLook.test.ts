@@ -40,8 +40,8 @@ describe('office layout', () => {
     expect(runs.every((run) => !run.bright)).toBe(true);
     const poses = buildOfficePoses([], stats, null, null);
     expect(poses.glass).toHaveLength(2);
-    // The Inbox plant, the help desk's plant, the control room's plant and the QA lab's plant.
-    expect(poses.plant.map((plant) => plant.zoneId)).toEqual(['inbox', 'escalation', 'devops', 'rejected']);
+    // The Inbox plant, the help desk's plant, the control room's plant, Dev Bay's two plants and the QA lab's plant.
+    expect(poses.plant.map((plant) => plant.zoneId)).toEqual(['inbox', 'escalation', 'devops', 'dev', 'dev', 'rejected']);
     // DevOps keeps its original three-tier rack (the room's other pieces ride the same mesh).
     const original = poses.rackBody.filter((pose) => pose.zoneId === 'devops' && pose.sx === 0.72 && pose.sz === 0.32 && Math.abs(pose.x - (ROOM_LAYOUT.devops.x + 1.15)) < 1e-9);
     expect(original.map((pose) => pose.y)).toEqual([0, 1, 2].map((tier) => FLOOR_TOP + 0.18 + tier * 0.38));

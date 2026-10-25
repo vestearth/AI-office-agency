@@ -10,8 +10,10 @@ import { buildWaitQueue, waitCard } from './officeBlocked';
 import { BlockedReadout, WaitBlock } from './OfficeWaitViews';
 import { beaconLit, escalationCard, escalationLines } from './officeEscalation';
 import { EscalationBlock, EscalationReadout } from './OfficeEscalationViews';
-import { devopsCard, devopsLines, gatesCard, trainRows } from './officeDevops';
+import { devopsCard, devopsLines, trainRows } from './officeDevops';
 import { DevopsReadout, GatesBlock } from './OfficeDevopsViews';
+import { bayLines, boardLayout, gatesCardFor } from './officeDevBay';
+import { DevBayReadout } from './OfficeDevBayViews';
 import { valFailedCard, valFailedLines } from './officeValFailed';
 import { QuickDecisionPanel } from '../QuickDecisionPanel';
 import { ReviewBlock, ReviewReadoutView } from './OfficeReviewViews';
@@ -118,6 +120,17 @@ const STYLE = `
 .o3d-train .strip i[data-lit="1"] { background: #f3ecdf; }
 .o3d-train .gates { text-align: right; }
 .o3d-gates-card .lead { font-weight: 650; }
+.o3d-gate-list { list-style: none; margin: 2px 0 4px; padding: 0; display: grid; gap: 1px; font-size: 11px; }
+.o3d-gate-list li { display: flex; justify-content: space-between; gap: 8px; }
+.o3d-gate-list .name { overflow-wrap: anywhere; }
+.o3d-gate-list .state { color: #aeb2b8; }
+.o3d-gate-list li[data-state="pass"] .state { color: #f3ecdf; }
+.o3d-bayline { grid-template-columns: 88px 58px auto minmax(0, 1fr); }
+.o3d-bayline .role { color: #aeb2b8; }
+.o3d-bayline .strip { display: inline-flex; gap: 2px; align-items: center; }
+.o3d-bayline .strip i { display: block; width: 9px; height: 6px; border-radius: 1px; background: rgba(174, 178, 184, 0.22); }
+.o3d-bayline .strip i[data-lit="1"] { background: #f3ecdf; }
+.o3d-devbay .counts { color: #aeb2b8; }
 .o3d-debug .o3d-eline { grid-template-columns: 88px minmax(0, 1fr) 34px; }
 .o3d-round { display: inline-block; margin-right: 5px; padding: 0 4px; border: 1px solid rgba(216, 218, 221, 0.4); border-radius: 3px;
   font-weight: normal; color: #d8dadd; }
@@ -268,7 +281,9 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
   const devopsTasks = useMemo(() => devopsLines(tasks, Date.now()), [tasks]);
   const trains = useMemo(() => trainRows(tasks), [tasks]);
   const selectedDevops = selectedTask ? devopsCard(selectedTask, Date.now()) : null;
-  const selectedGates = selectedTask ? gatesCard(selectedTask) : null;
+  const selectedGates = selectedTask ? gatesCardFor(selectedTask) : null;
+  const bay = useMemo(() => bayLines(tasks), [tasks]);
+  const bayCounts = useMemo(() => boardLayout(tasks).counts, [tasks]);
   // One Open in Monitor per card: the room blocks carry it, otherwise the gates block, otherwise the wait block.
   const roomBlock = selectedEscalation != null || selectedDebug != null || selectedDevops != null;
   const detail = describeOfficeSelection(selection, tasks, stats);
@@ -391,6 +406,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             escalationLit={beaconLit(tasks)}
             reviewBoard={review}
             onReviewPick={(taskId) => pickReview(taskId, 'box')}
+            onBayPick={pickTask}
           />
         </SceneBoundary>
         <OfficeLiveBadge failed={error != null} loadedAt={loadedAt} />
@@ -420,6 +436,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
         {(devopsTasks.length > 0 || trains.length > 0) && (
           <DevopsReadout lines={devopsTasks} trains={trains} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />
         )}
+        {bay.length > 0 && <DevBayReadout lines={bay} counts={bayCounts} selectedTaskId={selectedTask?.taskId ?? null} onPick={pickTask} />}
         {selection && (
           <div className={selectedWait || selectedEscalation || reviewTask || selectedDebug || selectedDevops || selectedGates ? 'o3d-card live' : 'o3d-card'} data-card role="region" aria-label={detail.heading}>
             <strong>{detail.heading}</strong>
@@ -438,7 +455,7 @@ export default function Office3DView({ selectedTaskId = null }: { selectedTaskId
             )}
             {selectedTask && selectedDebug && <DebugBlock taskId={selectedTask.taskId} card={selectedDebug} />}
             {selectedTask && selectedDevops && <EscalationBlock taskId={selectedTask.taskId} card={selectedDevops} />}
-            {selectedTask && selectedGates && <GatesBlock taskId={selectedTask.taskId} text={selectedGates.text} showMonitor={!roomBlock} />}
+            {selectedTask && selectedGates && <GatesBlock taskId={selectedTask.taskId} text={selectedGates.text} items={selectedGates.items} showMonitor={!roomBlock} />}
             {selectedTask && selectedWait && <WaitBlock taskId={selectedTask.taskId} card={selectedWait} onGoTo={pickTask} showMonitor={!roomBlock && !selectedGates} />}
           </div>
         )}

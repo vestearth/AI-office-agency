@@ -29,7 +29,7 @@ combine contracted enums via explicit, server-owned rules — never via text.
 | `lastTransition` | last `status.yaml` → `history[]` entry whose `phase` is an `a -> b` transition (gate updates skipped): `agent`, `phase`, `reason` (shown verbatim, never classified), `at` | [status.schema.yaml](../schemas/status.schema.yaml) `history` |
 | `debugRounds` | count of `status.yaml` → `history[]` transitions whose target is `debugging` and whose source is not `debugging` (gate updates skipped), over all history in any order; `0` if none. Reads the `phase` field only | [status.schema.yaml](../schemas/status.schema.yaml) `history` |
 | `debugEntry` | the latest of the `debugRounds` entry rows by time (the `lastTransition` ordering), same shape and `reason` contract as `lastTransition`; a later `debugging -> debugging` row does not replace it; `null` if none | [status.schema.yaml](../schemas/status.schema.yaml) `history` |
-| `gates` | `CompletionGuard.gate_view` over `status.yaml` → `completion_gates` (+ `authorization.yaml`), via `scripts/gate-view-json.rb`; absent without `completion_gates` | [completion-gates.md](completion-gates.md) |
+| `gates` | `CompletionGuard.gate_view` over `status.yaml` → `completion_gates` (+ `authorization.yaml`), via `scripts/gate-view-json.rb`; absent without `completion_gates`; `gates.items` is `{ name, status, resolved }[]` in `completion_gates` order (`[]` when unreadable) | [completion-gates.md](completion-gates.md) |
 
 Values that don't match the enum **exactly** are dropped to `null` — no
 substring/fuzzy matching, no guessing. A typo or a future enum value never

@@ -6,6 +6,7 @@ import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, pickDropSpot } 
 import { SIT_SECONDS, loungeSeatWorld, lowestFreeLoungeSeat } from './officeLounge';
 import { INBOX_AISLE_Z, PICKUP_SECONDS, PICKUP_SPOTS, SIDE_LANE_X, receptionWorld } from './officeReception';
 import { BLOCKED } from './officeBlocked';
+import { boardStand } from './officeDevBay';
 import { ESCALATION, PRESS_SECONDS, escalationSpotOf } from './officeEscalation';
 import { ROOM_LAYOUT, SCENE_DESK_LIMIT, desksForZone, sceneDesks, type OfficeTask, type OfficeZoneStats } from './officeSelection';
 
@@ -16,12 +17,14 @@ export const SPRINT_SPEED = 8;
 export const SPRINT_DISTANCE = 16;
 export const CELEBRATE_SECONDS = 1.5;
 export const VANISH_SECONDS = 0.4;
+/** How long a robot works at the whiteboard before it walks back. About one second plus the note's slide. */
+export const BOARD_SECONDS = 1.1;
 export { SIT_SECONDS, PICKUP_SECONDS, THROW_SECONDS, PRESS_SECONDS };
 
 export interface MovePoint {
   x: number;
   z: number;
-  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw' | 'inside' | 'press';
+  role: 'seat' | 'door' | 'aisle' | 'pickup' | 'throw' | 'inside' | 'press' | 'board';
 }
 
 export interface CharacterPlace {
@@ -40,7 +43,7 @@ export interface CharacterPlace {
 
 export interface MovePlan {
   taskId: string;
-  action: 'stay' | 'enter' | 'walk' | 'shift' | 'leave' | 'vanish' | 'overflow' | 'instant';
+  action: 'stay' | 'enter' | 'walk' | 'shift' | 'leave' | 'vanish' | 'overflow' | 'instant' | 'board';
   gait: 'walk' | 'sprint' | 'none';
   celebrate: boolean;
   vanish: boolean;
@@ -206,7 +209,8 @@ function polylineLength(points: MovePoint[]): number {
 export function planTravelSeconds(plan: MovePlan): number {
   const pauses = plan.points.filter((point) => point.role === 'pickup').length * PICKUP_SECONDS
     + plan.points.filter((point) => point.role === 'throw').length * THROW_SECONDS
-    + plan.points.filter((point) => point.role === 'press').length * PRESS_SECONDS;
+    + plan.points.filter((point) => point.role === 'press').length * PRESS_SECONDS
+    + plan.points.filter((point) => point.role === 'board').length * BOARD_SECONDS;
   if (plan.gait === 'none') return pauses;
   const speed = plan.gait === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
   return polylineLength(plan.points) / speed + pauses;
@@ -446,6 +450,35 @@ export function needsReceptionPickup(
   if (!prev && next.drawn && Boolean(next.seat)) return true;
   if (!prev && !next.drawn && !next.terminal && next.zoneId !== 'inbox') return true;
   return Boolean(prev && !prev.drawn && !prev.terminal && next.drawn && next.seat && next.zoneId === 'inbox');
+}
+
+/**
+ * A Dev Bay robot walks to the whiteboard and back when its task's gate resolves: forward out of its workstation,
+ * along the room's front, up the centre aisle, along the lane in front of the board to the column the note belongs
+ * in, and the same way home. It walks even where a longer route would sprint. Null for a task that has no seat in
+ * Dev Bay: the room never borrows another task's robot.
+ */
+export function planBoardWalk(place: CharacterPlace, column: number): MovePlan | null {
+  if (place.zoneId !== 'dev' || !place.drawn || !place.seat) return null;
+  const layout = ROOM_LAYOUT.dev;
+  const front = roomFront('dev');
+  const stand = boardStand(column);
+  const aisle = { x: layout.x, z: layout.z + stand.z };
+  const there: MovePoint[] = [
+    seatPoint(place.seat),
+    { x: place.seat.x, z: front.z, role: 'aisle' },
+    { x: front.x, z: front.z, role: 'aisle' },
+    { x: aisle.x, z: aisle.z, role: 'inside' },
+    { x: layout.x + stand.x, z: aisle.z, role: 'board' },
+  ];
+  const back: MovePoint[] = [
+    { x: aisle.x, z: aisle.z, role: 'inside' },
+    { x: front.x, z: front.z, role: 'aisle' },
+    { x: place.seat.x, z: front.z, role: 'aisle' },
+    seatPoint(place.seat),
+  ];
+  const plan = withGait(place.taskId, 'board', [...there, ...back], { celebrate: false, vanish: false });
+  return { ...plan, gait: plan.gait === 'none' ? 'none' : 'walk' };
 }
 
 /**

@@ -11,6 +11,7 @@ import {
 } from './officeLook';
 import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
 import { DEBUG_LAB, roundTagBoxes } from './officeDebug';
+import { DEVBAY, DEVBAY_DESK_SCALE, DEVBAY_TINTED, bayWorkstations, workstationX } from './officeDevBay';
 import { BOARD_SEGMENTS, DEVOPS, DEVOPS_COLORS, DEVOPS_TINTED, boardRows, segmentSlot, trainRows } from './officeDevops';
 import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
@@ -182,13 +183,19 @@ export function buildOfficePoses(
     const deskless = zone.id === 'done' || zone.id === 'aborted' || zone.id === 'blocked' || zone.id === 'escalation' || zone.id === 'review';
     const liveDesks = deskless ? [] : sceneDesks(desksForZone(zone.id, tasks, stats));
     const row = deskless ? undefined : rows?.[zone.id];
-    const desks = row
-      ? row.map((slot) => ({ taskId: slot.taskId, localX: slot.localX }))
-      : liveDesks.map((desk, index) => ({
-          taskId: desk.taskId,
-          localX: deskLocalX(index, liveDesks.length),
-        }));
-    const deskScale = 1.15;
+    // Dev Bay always draws its four fixed workstations, the empty ones with a dark monitor and no robot.
+    const bayRow = zone.id === 'dev' && !(row && row.length > 0)
+      ? bayWorkstations(liveDesks.flatMap((desk) => (desk.taskId ? [desk.taskId] : [])))
+      : null;
+    const desks = bayRow
+      ? bayRow.map((slot) => ({ taskId: slot.taskId, localX: slot.localX }))
+      : row
+        ? row.map((slot) => ({ taskId: slot.taskId, localX: slot.localX }))
+        : liveDesks.map((desk, index) => ({
+            taskId: desk.taskId,
+            localX: deskLocalX(index, liveDesks.length),
+          }));
+    const deskScale = zone.id === 'dev' ? DEVBAY_DESK_SCALE : 1.15;
     desks.forEach((desk) => {
       const x = layout.x + desk.localX;
       const z = layout.z + deskZ(zone.id);
@@ -334,6 +341,21 @@ export function buildOfficePoses(
         { sx: 1.15, sy: 1.15, sz: 1.15 },
       ));
     }
+    if (zone.id === 'dev') {
+      // The whiteboard's face, column strips and dividers, the marker tray, the filing drawers, the cooler's jug,
+      // the window glass and the mugs need their own color, so they ride the rack mesh (per-instance color, no
+      // glow): no new draw call. The notes and dots are their own mesh, see `DevBayNotes`.
+      for (const piece of DEVBAY_TINTED) {
+        out.rackBody.push(pose(layout.x + piece.x, FLOOR_TOP + piece.y, layout.z + piece.z, zone.id, piece.color, false, {
+          sx: piece.w, sy: piece.h, sz: piece.d,
+        }));
+      }
+      for (const spot of DEVBAY.plants) {
+        out.plant.push(pose(layout.x + spot.x, FLOOR_TOP, layout.z + spot.z, zone.id, SCENE.foliage, roomHot, {
+          sx: DEVBAY.plantScale, sy: DEVBAY.plantScale, sz: DEVBAY.plantScale,
+        }));
+      }
+    }
     if (zone.id === 'devops') {
       const on = (stat?.count ?? 0) > 0;
       // Both racks keep the room's rule: their LEDs take the room tone while DevOps holds a task and go dark otherwise.
@@ -427,5 +449,6 @@ export function selectionAnchor(
   if (slot) return [layout.x + slot.localX, 0.9, deskAnchorZ];
   const desks = sceneDesks(desksForZone(selection.zoneId, tasks, stats));
   const index = Math.max(0, desks.findIndex((desk) => desk.taskId === selection.taskId));
+  if (selection.zoneId === 'dev') return [layout.x + workstationX(index), 0.9, deskAnchorZ];
   return [layout.x + deskLocalX(index, desks.length), 0.9, deskAnchorZ];
 }

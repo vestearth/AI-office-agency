@@ -205,7 +205,7 @@ export function litSegments(resolved: number, total: number): number {
   return Math.min(BOARD_SEGMENTS - 1, Math.floor((BOARD_SEGMENTS * done) / total));
 }
 
-function trainRow(item: OfficeTask): TrainRow {
+export function trainRow(item: OfficeTask): TrainRow {
   const gates = item.gates;
   const base = { taskId: item.taskId, title: item.title };
   if (!gates) return { ...base, state: 'none', resolved: 0, total: 0, lit: 0, slots: BOARD_SEGMENTS };
@@ -224,11 +224,16 @@ function isOpenTrain(item: OfficeTask): boolean {
   return zone != null && zone.kind !== 'terminal';
 }
 
+/** Task number order, so TASK-9 comes before TASK-10. The order never depends on dates, so nothing moves for them. */
+export function byTaskId(a: { taskId: string }, b: { taskId: string }): number {
+  return a.taskId.localeCompare(b.taskId, 'en', { numeric: true });
+}
+
 /** Every open release train, by task id. The order never depends on dates, so a row never moves. */
 export function trainRows(tasks: readonly OfficeTask[]): TrainRow[] {
   return tasks
     .filter(isOpenTrain)
-    .sort((a, b) => a.taskId.localeCompare(b.taskId, 'en', { numeric: true }))
+    .sort(byTaskId)
     .map(trainRow);
 }
 
