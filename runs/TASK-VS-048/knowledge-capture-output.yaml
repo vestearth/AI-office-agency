@@ -1,0 +1,580 @@
+---
+task_id: TASK-VS-048
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26.md"
+summary: >-
+  Proposal only. TASK-VS-048 moved slip-api merchant usage and dashboard reads to
+  an hourly rollup (verification_usage_hourly). A row trigger on verifications
+  maintains it, a covered_from watermark tracks coverage, and an advisory-locked
+  backfill rebuilds history after a 5-minute quiet window. It runs on prod as
+  slip-api-production:111 (32cd203) since 2026-10-25 19:47Z (2026-10-26 ICT).
+  The code was read at 9d21286 in the TASK-VS-048 worktree; the coordinator
+  reports 9d21286 is an ancestor of origin/prod 32cd203. No vault note covers
+  the rollup. Proposals: (1) create a VerifySlip project note; (2) propose
+  ADR-VS-0002 (Status: Proposed); (3) propose a shared 40 Lessons note on
+  migrations that claim one number, with two slip-api cases in four days:
+  060 (7cc0e51 -> 2e303ea, TASK-VS-047 ev-013/ev-014) and 065 (#92 vs #85,
+  #85 renumbered to 066 in d80825e, not merged); (4) small Project Map and ADR
+  Register edits. Prod numbers come from ev-009..ev-012. Open points: (a) the
+  backfill end state is an open question. The last log is "paused" at
+  covered_from 2026-09-25T03:00Z (ev-009). Prod logged 13,974 verify-200 lines
+  between 2026-09-22T07:38Z and 2026-09-24T09:10Z (ev-013), before covered_from.
+  Either those rows were deleted (no record says so), or the step for
+  [2026-09-24T09:00Z, 2026-09-25T03:00Z) returns zero silently on every retry.
+  Readers stay exact either way. Follow-up: log skipped 40001/23505 steps.
+  (b) ev-011 and ev-012 refine task.md's RDS figures. (c) The validator was not
+  run: this agent has no shell.
+sources:
+- "ai-dev-office/runs/TASK-VS-048/task.md"
+- "ai-dev-office/runs/TASK-VS-048/decision-memo.md"
+- "ai-dev-office/runs/TASK-VS-048/status.yaml"
+- "ai-dev-office/runs/TASK-VS-048/evidence.yaml"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-002.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-004.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-005.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-006.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-007.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-008.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-009.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-010.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-011.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-012.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/ev-013.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/manual-local-bench-reads.log"
+- "ai-dev-office/runs/TASK-VS-048/evidence/manual-local-bench-insert.log"
+- "ai-dev-office/runs/TASK-VS-047/evidence.yaml"
+- "ai-dev-office/runs/TASK-VS-047/evidence/ev-013.log"
+- "ai-dev-office/runs/TASK-VS-047/evidence/ev-014.log"
+- "ai-dev-office/runs/TASK-VS-049/task.md"
+- "slip-api/migrations/065_verification_usage_hourly.sql"
+- "slip-api/internal/repositories/verification_usage_hourly.go"
+- "slip-api/cmd/main.go"
+- "slip-api/configs/config.go"
+- "slip-api/migrations/run.go"
+- "slip-api/migrations/run_test.go"
+- "slip-api/.github/workflows/deploy.yml"
+- "slip-api/.github/workflows/deploy-production.yml"
+- "github.com/pressly/goose/v3@v3.24.3/provider_collect.go (Go module cache)"
+- "github.com/pressly/goose/v3@v3.24.3/provider_options.go (Go module cache)"
+- "knowledge-base/Knowledge Base/10 Projects/VerifySlip/Project Map.md"
+- "knowledge-base/Knowledge Base/10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24.md"
+- "knowledge-base/Knowledge Base/30 ADR/ADR Register.md"
+- "knowledge-base/Knowledge Base/10 Projects/Games Labs Missions/Missions Admin Wiring — Session Summary (2026-06-29).md"
+recommended_action: create_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: "2026-10-25"
+  task_id: TASK-VS-048
+  evidence_refs: [ev-002, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012, ev-013]
+  repo_origin: SparqLab/slip-api
+  repo_sha: 9d2128617d2fc2593afa26cfb4304ef1830e402c
+  confidence: high
+note_patch: |
+  # Primary: create `Knowledge Base/10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26.md`
+
+  Action: create_note (no existing note covers the rollup). Evidence refs: TASK-VS-048
+  ev-002, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012 and ev-013.
+
+  ---
+  freshness: current
+  verified_at: 2026-10-25
+  task_id: TASK-VS-048
+  evidence_refs: [ev-002, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012, ev-013]
+  repo_origin: SparqLab/slip-api
+  repo_sha: 9d2128617d2fc2593afa26cfb4304ef1830e402c
+  confidence: high
+  ---
+
+  # VerifySlip — Merchant Usage Hourly Rollup (2026-10-26)
+
+  > From **TASK-VS-048**. slip-api merchant usage and dashboard reads sum an hourly rollup
+  > instead of scanning raw `verifications`. This has been on prod since
+  > `slip-api-production:111` (`production-sha-32cd203`), 2026-10-26 02:47 ICT
+  > (2026-10-25 19:47Z). Times below are UTC. Recheck `origin/prod` and the live task
+  > definition before repeating any number here. **The backfill end state is an open
+  > question** (see Open).
+
+  ## Why
+
+  - Branch `816d9bc9-…` (merchant `84006774-…`) writes about 590k verifications a day
+    (about 400 a minute), so a 30-day window is about 17M rows.
+  - Seven readers in `internal/repositories/verification.go` aggregated raw rows over the
+    whole range: `UsageByUser`, `MonthlyUsageByUser`, `CountByUser`,
+    `MerchantDashboardSlips`, `MerchantDashboardDaily`, `MerchantDashboardBranchCounts` and
+    `MerchantDashboardBreakdown`.
+    - Most of them exceeded the 3 s repository `queryTimeout`.
+    - `CountByUser` exceeded its 10 s floor.
+  - Prod effect, from a 24 h census to 2026-10-25 about 16:30Z:
+    - `/v1/usage`, `/v1/usage/monthly` and `/v1/merchants/{id}/dashboard/summary*` returned
+      500 at about 3.0 s.
+    - Overview, channels/api and branch-packages/{id} showed empty usage (the TASK-VS-047
+      fallback). Overview took about 16 s.
+
+  ## Design
+
+  The decision and the rejected alternatives are in the ADR-VS-0002 proposal.
+
+  - **`verification_usage_hourly`**
+    - Primary key `(user_id, merchant_id, branch_id, hour, channel, status, outcome_reason)`.
+    - Counters `verification_count` and `amount_total`. `amount_total` sums only `amount`
+      values that parse as numbers.
+    - `fillfactor = 70`, plus an index on `hour`.
+    - No foreign keys: they would add KEY SHARE locks to every verify.
+  - **`verification_usage_hourly_state`**: a single row holding `covered_from`, the first UTC
+    hour from which the rollup holds every row. A CHECK keeps it on a whole hour.
+  - **Trigger:** `verification_usage_hourly_sync` runs `verification_usage_hourly_apply()`.
+    - It fires `AFTER INSERT OR DELETE OR UPDATE OF user_id, merchant_id, branch_id,
+      created_at, channel, status, outcome_reason, amount`, once per row.
+    - The rollup hour is `date_trunc('hour', created_at, 'UTC')`.
+  - **Why hours:** readers mix UTC days, Bangkok days and Bangkok months. Both zones are
+    whole-hour offsets with no DST, so every bucket is a union of UTC hours. A daily rollup
+    keyed on one zone could not answer the other.
+  - **Readers** (`usageRowsSQL` / `splitUsageRange` in `verification_usage_hourly.go`):
+    - Whole covered hours come from the rollup.
+    - Raw `verifications` answers the rest: the edges before the first and after the last
+      whole hour, anything below `covered_from`, and any hour that holds a dashboard window
+      edge.
+    - Results equal the old SQL: 18/18 oracle cases (ev-005). So reads stay exact wherever
+      `covered_from` sits.
+    - If the state table is missing (42P01) or has no row, coverage is zero and every read is
+      raw, as before the change.
+  - **Migration 065 seed:** `covered_from = GREATEST(current hour, hour of MAX(created_at)) +
+    1 h`, set under `lock_timeout = 1s` and `statement_timeout = 1s`. If it cannot get the
+    lock within 1 s, the boot fails and ECS retries it.
+
+  ## Backfill
+
+  - `runUsageRollupBackfillLoop` in `cmd/main.go` runs in every API task and calls
+    `BackfillUsageHour`.
+  - Each step:
+    1. Takes `pg_try_advisory_xact_lock(hashtext('verification-usage-hourly-backfill'))` in a
+       lock-only transaction.
+    2. Opens one REPEATABLE READ transaction and finds the newest verification below
+       `covered_from`. Its hour is `h`.
+    3. Skips the step unless `h + 1h + 5 min <= now`. This is the 5-minute quiet window.
+    4. Deletes rollup rows in `[h, covered_from)`.
+    5. Inserts the raw aggregate for that range.
+    6. Sets `covered_from = h`.
+  - Empty gaps are skipped in one step.
+  - **Tasks take turns.** Only the task holding the lock steps, and the others try again once
+    a minute. A racing insert (40001 or 23505) is treated as "not this time".
+  - **Data fixes:** a trigger UPDATE or DELETE takes the same advisory lock **shared**, so a
+    data fix and a backfill step exclude each other. Review found the double count this
+    prevents. RED: ev-004. Regression test: `TestBackfillUsageHourDoesNotRaceDataFixes`.
+  - **Env:**
+    - `USAGE_BACKFILL_ENABLED` (default `true`). `false` stops the loop. Coverage stays where
+      it is, and reads stay exact but read more raw.
+    - `USAGE_BACKFILL_PAUSE` (default `1s`) between steps that advance.
+
+  ### Reading the backfill logs (`/ecs/slip-api-*`)
+
+  - `verification usage backfill progress` (Info) is logged every 24 hours **this task**
+    rebuilt, with `hours_rebuilt` and `covered_from`.
+  - `verification usage backfill paused` means a step did nothing after this task had rebuilt
+    at least one hour. It resets this task's `hours_rebuilt` to 0. **"paused" does not mean
+    "done".**
+  - `verification usage backfill step failed; retrying` (Warn) is logged only for errors other
+    than 40001/23505. The next try comes a minute later.
+  - `hours_rebuilt` counts per task and resets on every pause, so do not add it up across log
+    streams. `covered_from` is the global progress.
+  - **Worked example (ev-009):** three task streams interleave. At 20:12:55Z one task logs
+    `progress` at 96 hours and then `paused` at 96 a second later, while another task
+    continues from there.
+  - **Silence is not completion.** `BackfillUsageHour` returns zero with **no log line** in
+    five cases:
+    1. the lock was not won;
+    2. there is no state row;
+    3. no row is below `covered_from` (`newest == nil`, the only case that means done);
+    4. the hour is too recent;
+    5. a 40001 or 23505 error.
+  - **Authoritative state** (read-only):
+    - `SELECT covered_from FROM verification_usage_hourly_state;`
+    - `SELECT MAX(created_at) FROM verifications WHERE created_at < '<covered_from>';`
+
+    NULL from the second query means history is covered.
+  - **First step timing:** the first step can start only 5 minutes after the cutover hour ends.
+    - On prod: migration at 19:47:37Z, so `covered_from` started at 20:00Z, and the first
+      step ran just after 20:05:00Z for hour 19:00Z.
+    - The first log line, at 20:05:30Z, already shows 24 rebuilt hours.
+    - Worst case: about 65 minutes after the migration, when a deploy lands just after the
+      hour.
+
+  ## Production rollout (2026-10-25 UTC, 2026-10-26 ICT)
+
+  - **Promotion:** PR SparqLab/slip-api#95 (staging `c5e5c45` → prod `32cd203`, together with
+    TASK-VS-049). Deploy run `40227467094`; `slip-api-production:111` at 3/3, rollout
+    COMPLETED.
+  - **Migration (ev-009):** `goose: OK up 065_verification_usage_hourly.sql (77ms)` at
+    19:47:37Z, then `goose: migrated database to version 65`. On staging it took 143 ms.
+  - **Backfill (ev-009):**
+    - 42 log lines from three tasks, and no `step failed`.
+    - `covered_from` passed 30 days (`2026-09-25T03:00Z`) at 20:17:50Z, about 13 minutes
+      after the first step; the memo estimated 15–25 minutes.
+    - The last line is `paused` at 20:17:51Z, with the same `covered_from`.
+    - No backfill line followed up to the query at 20:55:34Z.
+    - That does **not** show history is covered (see Open).
+  - **Verify insert latency** (`slip_verify` 200, all branches, 47-minute windows, ev-010):
+
+    | Window | n | p50 | p95 | p99 | max | 5xx |
+    |---|---|---|---|---|---|---|
+    | before 18:58–19:45Z | 8,395 | 195 ms | 446 ms | 740 ms | 3,478 ms | 0 |
+    | after 19:47–20:34Z (trigger on) | 7,231 | 194 ms | 443 ms | 661 ms | 3,265 ms | 0 |
+
+    The multi-second tail was there before the trigger.
+  - **RDS `upslip-postgres-prod`**, 5-minute max, 19:10–20:30Z:
+    - **ReadIOPS (ev-011):** baseline 13.5–22. Backfill buckets 20:05Z, 20:10Z and 20:15Z read
+      981, 757 and 514 (cold history reads). It was 22 again by 20:20Z.
+    - A separate 919 bucket at 19:45Z covers the rolling deploy and migration, before the
+      backfill. Its cause was not identified.
+    - **WriteLatency (ev-012):** 3.2–3.7 ms in the backfill buckets, against 3.2–4.2 ms
+      before, so unchanged.
+    - The 19:45Z deploy bucket peaked at 29.4 ms and the 20:25Z bucket at 8.1 ms.
+  - **Merchant `84006774` after the backfill** (all 200):
+
+    | Endpoint | After | Before |
+    |---|---|---|
+    | overview | 51–56 ms | about 16 s |
+    | channels/api | 63–209 ms | 6.4 s |
+    | branch-packages/{id} | 52 ms | 3 s |
+    | `/v1/usage` | 20–43 ms | 500 |
+    | `/v1/usage/monthly` | 21–30 ms | 500 |
+
+    Source: ev-007.
+  - **Dashboard** (`summary`, `-today`, `-total`, `-daily`, `-breakdown`, `credits`): 48 calls
+    took 4–461 ms. The first load took 454–461 ms, and every later call took at most 209 ms.
+    Before the deploy these returned 500 at 3 s. Source: ev-008.
+  - The `/v1/branch-packages/history` 200s in ev-007 come from TASK-VS-049 (a bounded page),
+    not from this change.
+
+  ## Rollback and repair
+
+  - **App rollback:** return to `slip-api-production:110`.
+    - Old code never reads the rollup.
+    - **The trigger stays and keeps the rollup current**, so rolling forward again needs no
+      new backfill.
+  - **Schema rollback:** `goose down` one version. It drops the trigger, the function and
+    both tables under `lock_timeout = 1s`, because `DROP TRIGGER` takes ACCESS EXCLUSIVE. New
+    code then reads raw.
+  - **Repair:** set `covered_from` higher, to a whole hour. The backfill rebuilds everything
+    below it.
+  - **Not counted by the trigger:** TRUNCATE, a disabled trigger, and
+    `session_replication_role = replica`. After any of these, raise `covered_from` above the
+    affected hours.
+
+  ## Constraints for future changes
+
+  - A new app UPDATE of a counted column fires the trigger and takes the shared advisory
+    lock. The counted columns are `status`, `outcome_reason`, `channel`, `amount`,
+    `created_at` and the three ids. Today the only app UPDATE (`idempotency_key`) is outside
+    that list.
+  - A bulk data fix on `verifications` pays the PL/pgSQL trigger for every row and waits for
+    any running backfill step.
+  - A new usage reader must use `usageRowsSQL`, or the same edge splitting. A raw GROUP BY
+    over a long range brings the timeouts back.
+  - On the write path, `SaveWithQuota` locks `branch_packages`, then `verifications`, then
+    the rollup row. Keep that order: it is why the trigger cannot deadlock.
+
+  ## Open / not covered
+
+  - **Open question: backfill end state (ev-009, ev-013).**
+    - **What is known:**
+      - The last backfill log is `paused` at `covered_from` `2026-09-25T03:00Z`, at
+        20:17:51Z, with no progress in the next 37 minutes (ev-009).
+      - Prod logged 13,974 verify-200 lines between 2026-09-22T07:38Z and
+        2026-09-24T09:10Z (ev-013), all before `covered_from`. Merchant `6f798b3c` sent
+        13,827 of them; that is the 2026-09-24 load test in
+        [[10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24|Verify Capacity 600–1200 Per Minute]].
+    - **Two explanations remain:**
+      - those rows were deleted from `verifications`, which no record says happened; or
+      - the step for `[2026-09-24T09:00Z, 2026-09-25T03:00Z)` returns zero silently on
+        every retry (case 1 or 5 above).
+    - **Readers stay exact either way:** hours below `covered_from` are read from raw
+      `verifications`. ev-013 counts log lines, not rows, and the row count was not queried.
+    - **To close it:** run the two read-only queries above. Do not describe history as fully
+      covered until the second query returns NULL.
+    - **Follow-up:** log when a backfill step is skipped for 40001/23505, so a stalled
+      backfill shows in the logs instead of looking like completion.
+  - The `/v1/admin/verifications` count (13 × 500 at 10 s) and the email-alert and
+    daily-digest timeouts belong to separate tasks.
+  - The validity of `verifications_created_id_idx` was not queried on prod. The migration
+    succeeded, which needed that index for the MAX.
+  - On staging, the endpoints and the trigger under real inserts were not exercised. There
+    was no merchant traffic and no staging merchant JWT.
+
+  ## Sources
+
+  Sources:
+  - slip-api/migrations/065_verification_usage_hourly.sql
+  - slip-api/internal/repositories/verification_usage_hourly.go
+  - slip-api/internal/repositories/verification_usage_hourly_test.go
+  - slip-api/internal/repositories/verification_usage_rollup_test.go
+  - slip-api/cmd/main.go
+  - slip-api/configs/config.go
+  - ai-dev-office/runs/TASK-VS-048/task.md
+  - ai-dev-office/runs/TASK-VS-048/decision-memo.md
+  - ai-dev-office/runs/TASK-VS-048/status.yaml
+
+  Source: https://github.com/SparqLab/slip-api/pull/92
+  Source: https://github.com/SparqLab/slip-api/pull/95
+
+  Evidence (TASK-VS-048):
+  - ev-002 and ev-004: RED;
+  - ev-005: old-vs-new oracle;
+  - ev-006: GREEN;
+  - ev-007 and ev-008: prod request logs;
+  - ev-009: goose and backfill logs;
+  - ev-010: verify latency;
+  - ev-011 and ev-012: RDS ReadIOPS and WriteLatency;
+  - ev-013: verify-200 log lines before `covered_from`.
+
+  Raw logs stay in the gitignored run folder.
+
+  ## Related
+
+  - [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]
+  - [[30 ADR/ADR-VS-0002 Merchant Usage Reads From A Trigger-Maintained Hourly Rollup|ADR-VS-0002]] (if filed)
+  - [[10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15|Admin Scoped Verification Count Indexes]] (index approach; the admin count path is still open)
+  - [[10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24|Verify Capacity 600–1200 Per Minute]] (3 s queryTimeout; per-branch `branch_packages` serialization; the 2026-09-24 load test behind ev-013)
+  - [[40 Lessons/Replicas That Migrate On Boot Need A Cross-Replica Lock|Replicas That Migrate On Boot Need A Cross-Replica Lock]]
+
+  ---
+
+  # Secondary: propose `Knowledge Base/30 ADR/ADR-VS-0002 Merchant Usage Reads From A Trigger-Maintained Hourly Rollup.md`
+
+  - **Action:** create_note with `Status: Proposed`. The human decides whether this earns an
+    ADR or whether the project note's Design section is enough.
+  - **Why an ADR:** a write-path trigger on the hottest table is a durable trade-off, and it
+    constrains every future data fix and UPDATE. "Why not just an index?" will be asked again,
+    because TASK-VS-027 chose indexes for admin counts.
+  - **Not auto-writable:** VS ADRs are outside the librarian's auto-write exception, which
+    covers ADR-GL only.
+  - **Next free ID:** `ADR-VS-0002`, per `30 ADR/ADR Register.md`.
+  - **Evidence refs:** decision-memo.md; ev-002, ev-005 and ev-006 (exactness); ev-007,
+    ev-008, ev-010, ev-011 and ev-012 (prod effect and cost); manual-local-bench-*.log (local
+    only).
+
+  ```
+  # ADR-VS-0002 Merchant Usage Reads From A Trigger-Maintained Hourly Rollup
+
+  - Status: Proposed. The design shipped in TASK-VS-048; this ADR is not yet accepted.
+  - Scope: VerifySlip (`slip-api`)
+  - Date: 2026-10-25 (memo and review); prod 2026-10-26 ICT
+
+  ## Context
+
+  Merchant usage and dashboard reads aggregated raw `verifications` over their whole range.
+  One branch writes about 590k rows a day, so 30-day reads exceeded the 3 s repository
+  timeout and returned 500 or empty usage. The readers mix UTC days, Bangkok days and Bangkok
+  months, and dashboard ranges are not day-aligned (the default `to` is now).
+
+  ## Decision
+
+  - Keep an hourly rollup `verification_usage_hourly`, keyed by owner, merchant, branch,
+    UTC hour, channel, status and outcome_reason, with a count and an amount sum.
+  - Maintain it with an AFTER INSERT/DELETE/UPDATE-OF row trigger on `verifications`.
+  - Track coverage with a single `covered_from` watermark.
+  - Rebuild history with an hour-by-hour backfill under an advisory lock, one REPEATABLE READ
+    step at a time, after a 5-minute quiet window.
+  - Readers take whole covered hours from the rollup and the edges from raw rows, so results
+    equal the raw query exactly.
+
+  ## Alternatives rejected
+
+  - **A′: the same rollup, filled by a periodic job.**
+    - It has no write-path cost.
+    - But readers still scan the open hours raw: up to about 1h05m, or 25–50k rows on the
+      busiest branch, and that grows with volume. A stalled job brings the timeouts back.
+    - Rows changed after their hour was rolled drift silently (the caveat of migration 058's
+      closed-day cache).
+    - It needs a permanent leader.
+    - The reviewer proposed a forward-filling job; the trigger was kept.
+  - **B: a covering index**, `(branch_id, created_at) INCLUDE (status, channel,
+    outcome_reason, amount)`.
+    - It is still O(rows): about 17M entries per 30-day read, roughly 2 s or more per query
+      even index-only, and overview runs three of them.
+    - Recent pages are not all-visible, so heap fetches remain. Insert-autovacuum tuning was
+      deferred in TASK-VS-030.
+    - It would be a 19th index on a table over 5 GB with heavy inserts, plus a long
+      CONCURRENTLY build.
+    - It misses the 3 s budget and gets worse every day.
+  - **C: overview skips the total COUNT.** It saves 10 s of about 16 s on one page and fixes
+    nothing else. Not implemented; it stays a fallback if A is rolled back.
+  - **A 058-style closed-day read-through cache** still reads the whole open day raw, up to
+    590k rows here.
+
+  ## Consequences
+
+  - **Gains:**
+    - Reads are exact and O(hours) at any branch volume, and freshness needs no job.
+    - On prod (47-minute windows):
+      - verify p50 went from 195 ms to 194 ms, and p99 from 740 ms to 661 ms;
+      - there were 0 5xx;
+      - RDS WriteLatency did not change during the backfill.
+    - Merchant pages dropped from 3–16 s (or 500) to 20–209 ms; the first dashboard load
+      took 454–461 ms.
+  - **Costs:**
+    - Every counted write upserts a small hot row.
+    - Local pgbench, single client: +~25 µs per insert.
+    - Local pgbench, worst case of 8 clients on one key: 9.5–10k TPS fell to 2.2–5.5k TPS.
+      Early rounds were noisy. That rate is about 1000× prod's per-branch rate, and in prod
+      the `branch_packages` row lock already serializes those writers.
+    - The one-off backfill read cold history: ReadIOPS went from about 15 to 981 at peak, for
+      about 15 minutes.
+    - A backfill step that is skipped on 40001/23505 logs nothing, so a stalled backfill is
+      silent until that is logged.
+    - Writes that bypass the trigger (TRUNCATE, a disabled trigger, replica role) drift.
+      Repair by raising `covered_from`.
+    - Future UPDATEs of counted columns, and bulk data fixes, pay the trigger and take the
+      shared advisory lock.
+  - **Rollback:** an app rollback leaves the trigger running, so rolling forward needs no new
+    backfill. A schema rollback is `goose down` of 065.
+
+  ## Sources
+
+  Sources:
+  - ai-dev-office/runs/TASK-VS-048/decision-memo.md
+  - ai-dev-office/runs/TASK-VS-048/task.md
+  - slip-api/migrations/065_verification_usage_hourly.sql
+  - slip-api/internal/repositories/verification_usage_hourly.go
+
+  ## Related
+
+  - [[10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26|Merchant Usage Hourly Rollup]]
+  - [[30 ADR/ADR-VS-0001 Two Backend Repos Three Ownership Units|ADR-VS-0001]]
+  - [[30 ADR/ADR Register|ADR Register]]
+  ```
+
+  If it is filed, also update `30 ADR/ADR Register.md` (action: update_note):
+  - add the row `| ADR-VS-0002 | VS | Merchant Usage Reads From A Trigger-Maintained Hourly Rollup | Proposed | 30 ADR/ |`;
+  - bump the VS next-free ID to `ADR-VS-0003`.
+
+  ---
+
+  # Tertiary: propose `Knowledge Base/40 Lessons/Parallel Migrations Claiming One Number — The Later One Renumbers Upward.md`
+
+  - **Action:** create_note. This is shared knowledge, so a human must promote it.
+  - **Reuse pressure:** three collisions in two repos.
+    - Games Labs Missions: two `035` files on staging, 2026-06-29.
+    - slip-api, 2026-10-22: `060`, TASK-VS-047 ev-013 and ev-014.
+    - slip-api, 2026-10-25: `065`, TASK-VS-048.
+  - **Alternative:** if the human prefers, fold only the slip-api rule into the primary note.
+  - **Evidence refs:**
+    - TASK-VS-047 ev-013 and ev-014;
+    - TASK-VS-048 `status.yaml` history rows at 2026-10-25T17:40:00Z, 17:48:30Z and
+      20:56:04Z;
+    - TASK-VS-048 `task.md`, section "Follow-up: PR #85 migration renumbered to 066";
+    - slip-api `migrations/run.go`, `run_test.go` and `.github/workflows/`;
+    - goose v3.24.3 `provider_collect.go` and `provider_options.go`;
+    - the Missions note.
+  - **ev-NNN ids are task-scoped.** The TASK-VS-047 ids below are cited in text only, not in
+    this output's provenance block.
+  - **Not established:** whether the duplicate `060` from `7cc0e51` ever reached staging or
+    prod before `2e303ea` renamed it.
+
+  ```
+  # Parallel Migrations Claiming One Number — The Later One Renumbers Upward
+
+  ## Rule
+
+  - When two migrations claim the same number, the one already on `main` keeps it.
+  - The later one renumbers to the next free number above everything on `main` and above
+    everything applied on any environment.
+  - It bumps any file-count pin in the same commit.
+  - Operator decision for slip-api, 2026-10-25: "Merge #92 first; #85 must renumber its
+    migration to 066 and set TestGooseSQLFiles to 66 before it merges."
+
+  ## Why it matters (depends on the runner)
+
+  - **Versioned goose Provider (slip-api).**
+    - `migrations/run.go` builds `goose.NewProvider` (v3.24.3) without
+      `WithAllowOutofOrder`.
+    - Two files with one version make `NewProvider` fail with `found duplicate migration
+      version`, and `cmd/main.go` exits with `log.Fatalf("migrations: …")`. Every new task
+      then fails to boot.
+    - A lower number that arrives after a higher one is already applied fails with `missing
+      (out-of-order) migration`.
+    - So renumber **upward**.
+  - **Git does not flag it.** Two different file names with one number merge with no
+    conflict.
+  - **slip-api has no CI on pull requests.** Its only workflows run on pushes to `staging`
+    and `prod`, and they do not run `go test`. So `TestGooseSQLFiles`, the file-count test,
+    is the only guard, and it runs only when a developer runs it locally.
+  - **The count pin itself drifts.** Per TASK-VS-047 ev-014, it was stale after two migration
+    commits:
+    - `ff900dc` (2026-10-15): 60 files, the test expected 59.
+    - `7cc0e51` (2026-10-22): 64 files, the test expected 63.
+
+    A failing count is therefore not a reliable collision signal.
+  - **Replay-all runners (Games Labs Missions and Game).** Both files run by filename, so a
+    duplicate number does not crash. Missions renamed its duplicate anyway, to avoid
+    confusion.
+
+  ## Worked cases (slip-api, four days apart)
+
+  1. **`060`, 2026-10-22** (TASK-VS-047 ev-013 and ev-014).
+     - Commit `7cc0e51` added `migrations/060_user_session_version.sql` while
+       `060_package_popular_highest_descriptions.sql` already existed.
+     - It left `TestGooseSQLFiles` expecting 63 with 64 files in the tree.
+     - Later that day `2e303ea` renamed the file to `064_user_session_version.sql`. That moved
+       it upward, past 061–063, which were already on `main`.
+  2. **`065`, 2026-10-25** (TASK-VS-048).
+     - PR #92 (`065_verification_usage_hourly.sql`) and the open PR #85 both used `065`.
+     - #92 merged first.
+     - On #85's branch, `0adf9ad` merged `main` and `d80825e` renamed the file to
+       `066_admin_day_aggregate_invalidations.sql` (SQL unchanged), with `TestGooseSQLFiles`
+       set to 66.
+     - On a throwaway `postgres:18.3`, the migrations and repositories packages passed (56
+       tests), and `goose_db_version` shows 64, 65 and 66 applied in order.
+     - #85 is mergeable and not merged.
+
+  ## Check before merging a migration PR
+
+  - List `migrations/` on `origin/main`, `origin/staging` and `origin/prod` for the number.
+  - Look for open PRs that add the same prefix.
+  - After a rebase, run `go test ./migrations/` locally. No CI will run it.
+  - A possible stronger guard, not implemented: a DB-less test that fails on duplicate
+    numeric prefixes, so it does not depend on a hand-maintained count.
+
+  ## Sources
+
+  Sources:
+  - slip-api/migrations/run.go
+  - slip-api/migrations/run_test.go
+  - slip-api/cmd/main.go
+  - slip-api/.github/workflows/deploy.yml
+  - slip-api/.github/workflows/deploy-production.yml
+  - ai-dev-office/runs/TASK-VS-048/task.md
+  - ai-dev-office/runs/TASK-VS-048/status.yaml
+  - ai-dev-office/runs/TASK-VS-047/evidence.yaml
+
+  Source: https://github.com/SparqLab/slip-api/pull/85#issuecomment-6401032120
+
+  Evidence: TASK-VS-047 ev-013 and ev-014 (the `060` case). Raw logs stay in the gitignored run
+  folder.
+
+  ## Related
+
+  - [[40 Lessons/Replicas That Migrate On Boot Need A Cross-Replica Lock|Replicas That Migrate On Boot Need A Cross-Replica Lock]]
+  - [[40 Lessons/Boot-Time Migration Runners That Replay Every File — Every Statement Must Be Idempotent|Boot-Time Migration Runners That Replay Every File]]
+  - [[10 Projects/Games Labs Missions/Missions Admin Wiring — Session Summary (2026-06-29)|Missions Admin Wiring (duplicate 035)]]
+  ```
+
+  ---
+
+  # Small updates (action: update_note)
+
+  - **`Knowledge Base/10 Projects/VerifySlip/Project Map.md`, Knowledge Routing.** Add this bullet:
+
+    ```
+    - Merchant usage and dashboard reads moved to a trigger-maintained hourly rollup, on production 2026-10-26:
+      [[10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26|Merchant Usage Hourly Rollup]].
+    ```
+
+    If ADR-VS-0002 is filed, also change "(next: `ADR-VS-0002`)" to "(next: `ADR-VS-0003`)".
+  - **Optional:** in `40 Lessons/Replicas That Migrate On Boot Need A Cross-Replica Lock.md`
+    Related, link the tertiary lesson if it is promoted.
+  - **Do not edit** `VerifySlip — Claude Memory Map.md` or `Migrations And Boot Replay —
+    Claude Memory Map.md`. They are retrieval projections of memory files, and this task
+    created no memory.

@@ -1,0 +1,395 @@
+---
+task_id: TASK-VS-049
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Branch Quota History Cursor Page — 2026-10-26.md
+summary: >-
+  slip-api GET /v1/branch-packages/history used to return every quota_history
+  deduction for a branch, with no LIMIT and no date range. It returned 500 at the
+  3 s repository timeout (10 events on prod 2026-10-25, ev-005). It now returns one
+  keyset page, per the slip-api#93 body (read by the orchestrator with gh) and the
+  tests (ev-001..ev-007, EXPLAIN ev-004): limit default 50 / max 200 (clamped), an
+  opaque cursor, from/to, 400 on bad input, no total, the channel param ignored,
+  and the sort order unchanged. slip-front-end #11 follows next_cursor for at most
+  5 x 200 rows (ev-008..ev-010). On prod: 20 history 200s in 5-26 ms (ev-011,
+  2026-10-25T20:31-20:34Z = 2026-10-26 ICT). The orchestrator's AWS check confirmed
+  slip-api-production:111 = production-sha-32cd203 and slip-front-end-production:65
+  = production-sha-b3b5948. No existing vault note covers this endpoint or
+  quota_history reads, so the primary proposal is a new VerifySlip project note.
+  The note records the contract, the rejected options (newest-N cap, per-day
+  grouping, channel index), the deploy-order compatibility rule (the PR author's
+  claim plus a source read), and the no-index-no-filter rule. Secondary proposals:
+  B, a Project Map routing link; C, an optional 40 Lessons note, gated on a
+  sparse-filter measurement; D, a Review Queue item for the sibling quota-history
+  endpoint. D's code shape (COUNT + OFFSET + channel filter) is confirmed on
+  origin/prod 32cd203. The 590k rows/day figure and the ?channel=line timeout stay
+  unmeasured in this task. Proposal only.
+sources:
+- ai-dev-office/runs/TASK-VS-049/task.md
+- ai-dev-office/runs/TASK-VS-049/decision-memo.md
+- ai-dev-office/runs/TASK-VS-049/status.yaml
+- ai-dev-office/runs/TASK-VS-049/evidence.yaml
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-001.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-002.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-003.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-004.log
+- ai-dev-office/runs/TASK-VS-049/evidence/explain-old-vs-new.sql
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-005.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-006.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-007.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-008.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-009.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-010.log
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-011.log
+- https://github.com/SparqLab/slip-api/pull/93
+- slip-front-end/app/features/branches/quota-ledger.ts
+- slip-front-end/app/features/branches/constants.ts
+- slip-front-end/app/features/branches/composables/useBranchTabData.ts
+- slip-front-end/app/features/branches/ui/BranchDetailUsage.vue
+- slip-front-end/app/features/packages/map.ts
+- slip-api/internal/handler/http/package.go
+- slip-api/internal/repositories/branch_package.go
+- slip-api/internal/core/service/branch.go
+- slip-api/internal/handler/router/router.go
+- knowledge-base/Knowledge Base/10 Projects/VerifySlip/Project Map.md
+- knowledge-base/Knowledge Base/10 Projects/VerifySlip/Verify Reliability And Privacy Fixes — 2026-10-16.md
+- knowledge-base/Knowledge Base/Review Queue.md
+recommended_action: create_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: "2026-10-25"
+  task_id: TASK-VS-049
+  evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011]
+  repo_origin: SparqLab/slip-api
+  repo_sha: unknown
+  confidence: medium
+note_patch: |
+  # Capture plan — TASK-VS-049 (4 proposals; schema allows one primary target_note)
+
+  | # | Target note | Action | Evidence refs |
+  |---|---|---|---|
+  | A (primary) | `Knowledge Base/10 Projects/VerifySlip/Branch Quota History Cursor Page — 2026-10-26.md` | create_note | ev-001..ev-011; slip-api#93 body |
+  | B | `Knowledge Base/10 Projects/VerifySlip/Project Map.md` | update_note (one routing bullet + Related link) | none (routing only) |
+  | C (optional, gated) | `Knowledge Base/40 Lessons/An Unindexed Filter Under ORDER BY LIMIT Walks The Whole Range — Index It Or Drop It.md` | create_note, only after the sparse-value EXPLAIN below | ev-004 (dense case only); TASK-VS-040 via its existing VerifySlip note |
+  | D | `Knowledge Base/Review Queue.md` § Pending Review | update_note (one item) | code read on slip-api `origin/prod` `32cd203` (orchestrator; no ev record) |
+
+  Notes compared and left unchanged:
+  - `Credit Top-Up Flow And Admin Top-Up Tracing.md`: covers the credit ledger
+    (`credit_transactions`), not the quota ledger.
+  - `VerifySlip — Claude Memory Map.md`: a retrieval projection of memory files, and no
+    memory hook exists for this endpoint.
+  - This is not proposed as `ADR-VS-0002`. It is an endpoint contract, not a
+    product or architecture decision, and the human may still promote it.
+
+  ---
+
+  # A) New note — `Knowledge Base/10 Projects/VerifySlip/Branch Quota History Cursor Page — 2026-10-26.md`
+
+  ---
+  freshness: current
+  verified_at: 2026-10-25
+  task_id: TASK-VS-049
+  evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011]
+  repo_origin: SparqLab/slip-api
+  repo_sha: unknown
+  confidence: medium
+  ---
+
+  # VerifySlip — Branch Quota History Is A Cursor Page (TASK-VS-049, 2026-10-26)
+
+  `GET /v1/branch-packages/history` (slip-api) feeds the branch usage tab in
+  slip-front-end. It used to return the whole quota ledger. It now returns one keyset
+  page. Read this before you change the endpoint, or add a filter or a total to any
+  `quota_history` read. `verified_at` is the UTC date of the prod log check (ev-011,
+  2026-10-25T20:34Z = 2026-10-26 03:34 ICT). Recheck `origin/prod` before you repeat
+  any number.
+
+  ## Why it broke
+
+  - `packages.ListHistory` called `BranchPackageRepository.ListQuotaDeductions`. That
+    query selected every `quota_history` row with `quota_delta < 0` for the merchant
+    or branch, `ORDER BY created_at DESC, id DESC`, with no LIMIT and no date range.
+    The verify fast path writes one row per charged verification.
+  - The task records branch `816d9bc9…` at about 590k rows a day. That figure was not
+    measured in this task.
+  - Prod `/ecs/slip-api-production` logged 10 × `list quota deductions: … context
+    deadline exceeded` between 2026-10-25T08:07:50Z and 17:02:27Z (ev-005). That is the
+    3 s repository timeout.
+  - slip-front-end hid the failure. `useBranchUsage` did `.catch(() => [])`, so the tab
+    showed "ไม่มีประวัติโควตาในช่วงที่เลือก" instead of an error.
+  - `EXPLAIN ANALYZE`, run locally on 2M deductions for one branch (ev-004). These are
+    local timings, not prod:
+
+    | Query | Rows read | Time |
+    |---|---|---|
+    | Old (unbounded): Parallel Seq Scan + external merge sort, about 38 MB spilled per worker | 2,000,000 | 631 ms |
+    | New first page (`quota_history_branch_created_idx`) | 51 | 12.9 ms |
+    | Cursor page 1.5M rows deep | 51 | 0.03 ms |
+    | Merchant-wide page (`quota_history_merchant_created_idx`) | 51 | 0.8 ms |
+
+  ## Contract (slip-api#93; final, after the review amendment)
+
+  ```
+  GET /v1/branch-packages/history?merchant_id=&branch_id=
+      &limit=50                      default 50, max 200; larger values are clamped
+      &from=<RFC3339>&to=<RFC3339>   optional; from inclusive, to exclusive; a date-only `to` includes that day
+      &cursor=<next_cursor>          optional, opaque
+
+  200 {"items":[...row shape unchanged...],"has_more":bool,"next_cursor":"...","limit":50}
+  400 bad `from`, `to` or `cursor`, or a negative `limit`
+  ```
+
+  - **No `total`.** A COUNT over millions of rows is the same slow query.
+  - **`channel` is ignored.** It was dropped after review because no `quota_history`
+    index covers it. The client filters the loaded rows instead. The first contract
+    block in decision-memo.md still lists `channel`, but the amendment and PR #93 drop
+    it.
+  - **Sort order unchanged:** `created_at DESC`. At the same instant a deduction sorts
+    before a grant, then `id DESC`. Id ties sort the same way in SQL and in the Go merge
+    (`TestListQuotaDeductionsTiesSortLikeGoStrings`).
+  - **Cursor** (decision memo): the last item's `(created_at, kind, id)`.
+    - A non-canonical (upper-case) cursor id is rejected.
+    - `from`/`to` are truncated to microseconds.
+  - **Deductions:** at most `limit+1` rows, read through the branch or merchant
+    `created_at` index.
+  - **Grants:** these come from `branch_package_events`, a small table. They are
+    filtered in memory by the same cursor and range, then merged.
+  - **Edge cases locked by tests** (RED ev-001/ev-006, GREEN plus the full suite with the
+    repository DSN on 47f1bc1, ev-007):
+    - `PagesThroughLedgerWithoutGapsOrDuplicates`
+    - `PagesZeroQuotaGrantLikeADeduction`
+    - `DateOnlyToIncludesThatDay`
+    - `TruncatesBoundsToMicroseconds`
+    - `BoundsLimit`
+    - `RejectsInvalidQuery`
+    - `CursorBreaksTimestampTiesByID`
+
+  ## Why this shape — options Earth rejected (2026-10-26)
+
+  1. **Newest-N cap, keeping the bare array.** It needs no FE change. But a busy branch
+     would see only the last few minutes, "เดือนก่อน" would be empty, and the CSV export
+     would be cut short with nothing telling the user.
+  2. **Group deductions per day.** This is the easiest for a person to read. But a
+     GROUP BY over a month of this branch (about 17M rows, an unmeasured estimate) hits
+     the same timeout. It would need a rollup table, a trigger and a backfill, as
+     TASK-VS-048 needed for usage. That is too big for this fix.
+  3. **Keep `channel` and add an index** (the amendment's other option). Migration 066
+     would run `CREATE INDEX CONCURRENTLY (branch_id, channel, created_at DESC, id DESC)`,
+     NO TRANSACTION. That means a large index build on the hot table at boot, plus one
+     more index write per verification. Rejected. A channel-accurate ledger is a
+     separate task with a planned deploy window.
+
+  ## Client compatibility — either repo can deploy first
+
+  This section is the PR #93 author's claim, plus a source read. It is not a
+  measurement.
+
+  - **BE first:** the deployed FE's `mapBranchPackageHistory` already reads
+    `record.items`, as well as a bare array. New BE plus old FE shows only the first
+    page (50 rows) and nothing breaks.
+  - **FE first:** slip-front-end#11 works with either API version.
+    - The source read agrees. `mapBranchPackageHistoryPage` treats a bare array as
+      `has_more` absent, so the FE makes one request and reports `truncated: false`.
+    - The pre-fix handler reads only `merchant_id`/`branch_id` and ignores
+      `limit`/`cursor`/`from`/`to`.
+    - The FE still filters month and channel on the client (`filteredLedger`).
+    - Neither deploy order was exercised.
+  - **Rule to reuse:** when a bare-array list becomes an envelope, ship a client
+    mapper that accepts both shapes and stops paging when `has_more` is missing.
+    Then the deploy order does not matter. Keep the client-side filters until the
+    server filters are proven.
+
+  ## FE adoption — slip-front-end #11 (`d378684`)
+
+  - `collectQuotaLedgerPages` follows `next_cursor` for at most
+    `branchQuotaLedgerMaxPages = 5` pages of `branchQuotaLedgerLimit = 200` rows.
+  - It stops when `has_more` is false, or when `has_more` comes without a cursor. It
+    reports `truncated` when it hits the cap.
+  - Month → `quotaLedgerMonthRange`: the Bangkok month `YYYY-MM-01T00:00:00+07:00` up to
+    the next month, exclusive.
+  - When truncated, the count label reads "จาก N+ รายการ".
+  - **Checks:**
+    - ev-008: RED.
+    - ev-009: the 4 ledger tests pass (plus 3 existing idempotency tests), and eslint
+      passes.
+    - ev-010: no new type errors. The one `AuthOtpInput` error exists on both sides.
+    - FE CI on #11 passed (status.yaml).
+
+  ## Prod result
+
+  - **Running images:** `slip-api-production:111` runs `production-sha-32cd203`, and
+    `slip-front-end-production:65` runs `production-sha-b3b5948`. Source: status.yaml
+    history plus the orchestrator's AWS check on 2026-10-26, which has no ev record.
+    Rollback targets are `:110` and `:64` (task.md).
+  - **Prod check (ev-011):** 20 × `GET /v1/branch-packages/history` 200, in 5–26 ms,
+    between 20:31:13Z and 20:33:59Z, while Earth opened merchant `84006774`'s branch
+    pages. Before the fix it returned 500 after about 3 s. The history log lines carry
+    no merchant id. They are tied to that merchant by time and client IP.
+  - **Inference from ev-011:** the calls came in 4 bursts of 5, each about 73.9 KB. So
+    the FE hit its 5-page cap every time, and this branch's ledger is always
+    truncated.
+
+  ## Rule — no index, no server filter on a busy table
+
+  - **When a filter is safe:** `quota_history` gets one row per charged verify. An
+    optional server filter on it is only safe if an index puts that column in the
+    access path.
+  - **Why an unindexed filter fails:** under `ORDER BY created_at DESC, id DESC LIMIT n`
+    on the branch index, an unindexed `channel = $n` is only a row Filter.
+    - When matches are dense, the scan stops after `n+1` rows.
+    - When they are sparse, it walks the branch's whole history. The review predicted
+      a timeout for `?channel=line` on a busy api branch (51 matches). This was not
+      measured in this task.
+    - A `from`/`to` window does not help when one month is millions of rows.
+  - **Pick one of two fixes:**
+    - Add a covering index. TASK-VS-040 did this on `verifications` (migration 063,
+      built CONCURRENTLY in 68 s on prod).
+    - Drop the server filter and filter the bounded page on the client. TASK-VS-049 did
+      this, because on the hot table the index costs a boot-time build and an extra
+      write per verify.
+  - **Totals follow the same rule:** a COUNT over the filtered set is the same slow
+    query, so omit `total` rather than compute it.
+  - **Measure the sparse value.** ev-004's channel plan used `channel = 'api'`, which
+    every fixture row matches. It finished in 0.023 ms and does not show the
+    sparse-match scan.
+
+  ## Known limits and open items
+
+  - **Coverage:** the tab shows the newest 1000 rows of the selected month, not the
+    whole month. At the unmeasured 590k rows a day, that is roughly 2–3 minutes of
+    deductions (derived).
+  - **CSV export:** `exportCsv` exports the same ≤1000 `filteredLedger` rows. The file
+    has no truncation marker; only the count on screen shows "+".
+  - **Channel filter:** the client channel filter sees only the loaded rows. On a busy
+    api branch, LINE rows older than the newest 1000 in the range do not appear.
+  - **Hidden errors:** the FE still turns a failed fetch into an empty ledger, via
+    `.catch(() => ({ rows: [], truncated: false }))` in `useBranchQuotaLedger`. A
+    future 500 would again look like "no history".
+  - **Sibling endpoint, confirmed on `origin/prod` `32cd203`:** `ListQuotaHistory`
+    still has the three shapes this task rejected. It accepts a `channel` filter, runs
+    `SELECT COUNT(*) FROM quota_history`, and pages with LIMIT/OFFSET. Its runtime
+    impact is unmeasured (Review Queue).
+  - **Staging gaps:** staging never exercised the paged history with a merchant token,
+    or the tab in a browser.
+
+  ## Sources
+
+  Sources:
+  - ai-dev-office/runs/TASK-VS-049/task.md
+  - ai-dev-office/runs/TASK-VS-049/decision-memo.md
+  - ai-dev-office/runs/TASK-VS-049/status.yaml
+  - ai-dev-office/runs/TASK-VS-049/evidence/explain-old-vs-new.sql
+  - https://github.com/SparqLab/slip-api/pull/93 (PR body: contract, compatibility claim, EXPLAIN table)
+  - slip-front-end/app/features/branches/quota-ledger.ts (at `d378684`, FE PR #11 head)
+  - slip-front-end/app/features/branches/constants.ts
+  - slip-front-end/app/features/branches/composables/useBranchTabData.ts
+  - slip-front-end/app/features/branches/ui/BranchDetailUsage.vue
+  - slip-front-end/app/features/packages/map.ts
+  - slip-api/internal/handler/http/package.go (pre-fix `ListHistory`)
+  - slip-api/internal/core/service/branch.go (sibling `ListQuotaHistory`, `origin/prod` `32cd203`)
+  - slip-api/internal/repositories/branch_package.go (pre-fix `ListQuotaDeductions`; sibling `ListQuotaHistory` on `origin/prod` `32cd203`)
+
+  Evidence: TASK-VS-049 ev-001..ev-011. Raw logs are kept only in the gitignored run
+  folder. PRs (identifiers from status.yaml/task.md):
+  - slip-api #93 (merged as `430ceae`), #94 (staging), #95 (prod);
+  - slip-front-end #11 (`853246a`), #12 (staging), #13 (prod).
+
+  ## Related
+
+  - [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]
+  - [[10 Projects/VerifySlip/Verify Reliability And Privacy Fixes — 2026-10-16|Verify Reliability And Privacy Fixes]] (TASK-VS-040 channel index on `verifications`)
+  - [[10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15|Admin Scoped Verification Count Indexes]] (COUNT timeouts)
+  - [[40 Lessons/A uuid::text Join Defeats The Index — And ORDER BY Outside A UNION Joins Every Row|A uuid::text Join Defeats The Index]] (merge order; canonical uuid text)
+  - [[40 Lessons/A Parser That Returns Empty On Error Makes Failure Look Like Absence|A Parser That Returns Empty On Error Makes Failure Look Like Absence]]
+  - [[40 Lessons/Report Totals Need The Whole Filtered Set — Unknown Is Not Zero|Report Totals Need The Whole Filtered Set]] (why there is no page-local total)
+
+  ---
+
+  # B) Update — `Knowledge Base/10 Projects/VerifySlip/Project Map.md`
+
+  Append to `## Knowledge Routing`:
+
+  - Branch quota ledger `GET /v1/branch-packages/history`: the unbounded list
+    returned 500 on a high-volume branch. It is now a keyset cursor page with no
+    total and no server channel filter, on prod 2026-10-26:
+    [[10 Projects/VerifySlip/Branch Quota History Cursor Page — 2026-10-26|Branch Quota History Cursor Page]].
+
+  Append the same wikilink to `## Related`.
+
+  ---
+
+  # C) Optional new lesson — `Knowledge Base/40 Lessons/An Unindexed Filter Under ORDER BY LIMIT Walks The Whole Range — Index It Or Drop It.md`
+
+  - **Reuse pressure:** the rule now has three uses in one project, which meets the
+    Promotion Rule default:
+    - TASK-VS-040: `verifications`, index added;
+    - TASK-VS-049: `quota_history`, filter dropped;
+    - the D endpoint: still has the unindexed filter, confirmed on `origin/prod`.
+  - **The causes differ.** In VS-040, `COALESCE` blocked an index. In VS-049, no index
+    contains `channel`.
+  - **Gate before promoting:** on the ev-004 fixture, add a few rows with a sparse
+    value (`channel = 'line'`). Then capture EXPLAIN ANALYZE for the old filtered query
+    under `statement_timeout = '3s'`. Until that runs, the sparse-match timeout is the
+    reviewer's reasoning and not a measurement. If the human declines, leave the rule
+    in note A only.
+  - **Draft body:** the "Rule — no index, no server filter" section of A, made
+    project-neutral. Keep the instances as dated evidence lines, plus one more: when a
+    filter is optional, EXPLAIN the sparse value, not the common one.
+
+  ---
+
+  # D) Update — `Knowledge Base/Review Queue.md` § Pending Review
+
+  - **VerifySlip sibling quota-history endpoint keeps the shapes TASK-VS-049 rejected**
+    - Opened: 2026-10-26.
+    - Status: code confirmed on slip-api `origin/prod` `32cd203` (orchestrator shell
+      read, 2026-10-26). Runtime impact is unmeasured.
+    - `internal/core/service/branch.go` `ListQuotaHistory` accepts a `channel` filter
+      (about lines 745–750) and uses `normalizePage` limit/offset (about line 757).
+    - `internal/repositories/branch_package.go` `ListQuotaHistory` does three things:
+      - adds `channel = $n` (about line 1062);
+      - runs `SELECT COUNT(*) FROM quota_history WHERE …` (about line 1079);
+      - pages with `LIMIT … OFFSET …` (about line 1085).
+    - That is an unindexed channel filter, a COUNT for `total`, and OFFSET paging, on
+      the table where TASK-VS-049 rejected all three.
+    - The route `GET /v1/merchants/{merchantId}/branches/{id}/quota-history` was read in
+      the local `router.go` only.
+    - slip-front-end's `branchApi.quotaHistory` is a stub that returns `[]` (task.md),
+      so the merchant app does not call it. API clients still could.
+    - Next action:
+      1. Check prod logs for `count quota history` / `list quota history` timeouts on
+         this route.
+      2. Decide whether to bound it to the TASK-VS-049 contract, remove it, or leave it.
+         Changing it is a new VS task.
+    - Sources: `slip-api/internal/core/service/branch.go`,
+      `slip-api/internal/repositories/branch_package.go` (both at `origin/prod`
+      `32cd203`), `slip-api/internal/handler/router/router.go`,
+      `ai-dev-office/runs/TASK-VS-049/task.md`.
+
+  ---
+
+  # Not verified from the files (reviewer, read before applying)
+
+  1. **Orchestrator checks have no ev record.** Three facts were checked by the
+     orchestrator, not by this capturer:
+     - the slip-api#93 body (read with `gh`);
+     - the D code on `origin/prod` `32cd203`;
+     - the prod images `:111` = `production-sha-32cd203` and `:65` =
+       `production-sha-b3b5948` (AWS check).
+
+     They are quoted from the coordinator's message.
+  2. **History handler code not read.** The shipped `ListHistory` code on `32cd203` was
+     not opened. The contract comes from the PR #93 body, the decision memo, and the
+     test names in ev-001, ev-006 and ev-007.
+  3. **Row-volume figures.** "About 590k rows a day" and "about 17M rows a month" come
+     from task.md and the memo only, and were not measured in this task. The "2–3
+     minutes per 1000 rows" figure is derived from them.
+  4. **`?channel=line` timeout.** It is a review prediction and was not measured in this
+     task. ev-004 measured only the dense `api` value.
+  5. **"Either repo can deploy first."** This is the PR author's claim, and the source
+     read supports it. Neither deploy order was exercised.
+  6. **Other deploy facts from task.md only.** Staging PRs and task definitions
+     (`:154`/`:105`), rollback targets `:110`/`:64`, and whether FE prod `b3b5948`
+     contains `d378684` were not checked.
+  7. **D runtime impact.** Prod load and timeouts on the sibling route are unknown.

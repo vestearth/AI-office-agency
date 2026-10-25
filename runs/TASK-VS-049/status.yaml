@@ -80,6 +80,12 @@ history:
     prod validated
   at: '2026-10-25T20:35:58Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261025T212515Z-verifyslip-high-volume-usage.yaml'
+  at: '2026-10-25T21:25:15Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -96,11 +102,11 @@ completion_gates:
     - ev-006
     - ev-007
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-10-25T17:39:14Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261025T212515Z-verifyslip-high-volume-usage.yaml'
+    updated_at: '2026-10-25T21:25:15Z'
     evidence_refs: []
 next_action: 'On prod (slip-api-production:111 + slip-front-end-production:65): history
   200 in 5-26 ms for merchant 84006774 (ev-011). Remaining: knowledge closeout.'

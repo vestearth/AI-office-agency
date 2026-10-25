@@ -44,4 +44,4 @@ Pending Earth. See `decision-memo.md`.
 ## Prod (2026-10-26, Earth-approved)
 
 - API: PR SparqLab/slip-api#95 → prod `32cd203`, `slip-api-production:111`, healthy. FE: PR SparqLab/slip-front-end#13 (staging `721b542` → prod `b3b5948`), Deploy PRODUCTION run `40227527006` success, `slip-front-end-production:65` runs `production-sha-b3b5948`, `app.up-slip.com/login` 200. Rollback: `slip-api-production:110`, `slip-front-end-production:64`.
-- **ev-011:** `GET /v1/branch-packages/history` 200 in 5–26 ms (×21) at 20:31–20:34Z while Earth opened merchant `84006774`'s branch pages (was 500 after ~3 s). The history log lines carry no merchant id; they arrived with that merchant's page loads.
+- **ev-011:** `GET /v1/branch-packages/history` 200 in 5–26 ms (×20) at 20:31–20:34Z while Earth opened merchant `84006774`'s branch pages (was 500 after ~3 s). The history log lines carry no merchant id; they arrived with that merchant's page loads.

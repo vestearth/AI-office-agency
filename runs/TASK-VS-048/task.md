@@ -62,6 +62,30 @@ Out of scope: `/v1/branch-packages/history`. It fails because it lists every quo
   | after 19:47–20:34Z (trigger on) | 7,231 | 194 | 443 | 661 | 3,265 | 0 |
 
   Verifies over 2s in 15.5 min: 10 after vs 22 before (same-length window) and 20 a day earlier — the ~2.2s/3.2s tail predates the trigger.
-- RDS (5-min max): ReadIOPS ~15 → 830–980 during backfill (cold history reads); WriteLatency max 3.2 ms and ReadLatency 0.6 ms unchanged; CPU max 9–10 %; connections 125–130 during the rolling deploy, 86 after.
+- RDS, 5-minute max:
+  - **ReadIOPS** (ev-011): about 15 before. 981, 757 and 514 in the backfill buckets (cold history reads). 919 in the 19:45Z bucket, which is the rolling deploy, before the backfill started; old tasks were still timing out on this merchant's usage reads then.
+  - **WriteLatency** (ev-012): 3.2–3.7 ms during the backfill, unchanged. One peak of 29.4 ms in the 19:45Z deploy bucket.
+  - **ReadLatency:** 0.6 ms.
+  - **CPU:** max 9–10 %.
+  - **Connections:** 125–130 during the rolling deploy, 86 after.
+  - *Corrected 2026-10-26: an earlier version of this line put the 919 ReadIOPS bucket in the backfill and gave the WriteLatency max as 3.2 ms.*
 - **ev-007:** merchant `84006774` page loads at 20:31–20:34Z (Earth opened them) — all 200: overview 51–56 ms (was 16 s), channels/api 63–209 ms (was 6.4 s), branch-packages/{id} 52 ms (was 3 s), `/v1/usage` 20–43 ms and `/v1/usage/monthly` 21–30 ms (were 500). The `/v1/usage*` log lines carry no merchant id; they arrived in the same seconds as that merchant's page loads.
 - **ev-008:** Earth called the dashboard at 20:34–20:40Z — merchant `84006774` `dashboard/summary`, `summary-today`, `summary-total`, `summary-daily`, `summary-breakdown`, `credits`: 48 calls, all 200, 4–461 ms (first load 454–461 ms, then 50–210 ms). Before the deploy these returned 500 after the 3s timeout (e.g. 19:45:34Z on td 110).
+
+## Follow-up: PR #85 migration renumbered to 066 (2026-10-26, Earth-requested)
+
+- Open PR SparqLab/slip-api#85 (admin day aggregate invalidation) also used migration `065`. Git merged both `065_*.sql` files with no conflict, and goose would refuse to boot.
+- Fixed on the PR branch `cursor/admin-aggregate-invalidation-297c`, fast-forward with no force-push:
+  - `0adf9ad` merges `main` into the branch.
+  - `d80825e` renames the branch's file to `066_admin_day_aggregate_invalidations.sql` (SQL unchanged) and sets `TestGooseSQLFiles` to 66.
+  - The PR body now says 066 and has a "Renumbered to 066" note.
+- Verified on a throwaway `postgres:18.3` container (removed afterwards), with `SLIP_API_REPOSITORY_TEST_DSN` and `SLIP_API_MIGRATION_TEST_DSN`. The `migrations` and `repositories` packages pass, 56 tests with none skipped, and `goose_db_version` shows 64, 65, 66 applied in order. `go vet`, `go build` and `go test ./...` pass.
+- PR #85 is MERGEABLE and not merged.
+- **Backfill end state is open.** The last log (ev-009) is `paused` at covered_from `2026-09-25T03:00Z`, and no progress followed in 30+ minutes. That does **not** prove history is covered.
+  - ev-013 shows 13,974 verify-200 log lines on prod from 2026-09-22T07:38Z to 2026-09-24T09:10Z, mostly merchant `6f798b3c`, the 2026-09-24 load test.
+  - `BackfillUsageHour` returns zero with no log in five cases: lock not won; no state row; no row below `covered_from` (`newest == nil`); the hour is too recent; or a 40001/23505 error.
+  - So either those rows were deleted from `verifications` (no record says so), or the step for `[2026-09-24T09:00Z, 2026-09-25T03:00Z)` fails silently on every retry.
+  - Readers stay exact either way, because hours below `covered_from` are read from raw `verifications`; that range is about 14k rows.
+  - Confirm with read-only SQL: `SELECT covered_from FROM verification_usage_hourly_state;` and `SELECT MAX(created_at) FROM verifications WHERE created_at < '2026-09-25T03:00Z';`.
+  - Follow-up: log when a backfill step is skipped for 40001/23505, so a stalled backfill is visible.
+  - *Corrected 2026-10-26: the earlier text inferred "no older rows" from the silence.*

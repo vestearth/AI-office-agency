@@ -1,0 +1,512 @@
+---
+task_id: TASK-VS-047
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/VerifySlip/Usage Timeouts Blocked Package Renewal — 2026-10-25.md"
+summary: >-
+  2026-10-25 UpSlip production incident. A high-volume branch (5G, code 783601)
+  ran out of quota. Its first 403 "no active package" came at 06:12:15Z. The
+  renewal purchase returned 201 at 10:24:58Z, and the first verify 200 came at
+  10:25:01Z, so the outage lasted about 4h13m (ev-011). Renewal from
+  app.up-slip.com was blocked because the package detail, overview and
+  API-channel reads returned 500. Their usage aggregation over raw
+  `verifications` (UsageByUser, 3 s repository timeout) timed out, and the
+  service treated that as fatal. The slip-front-end renew modal renders only
+  when the package detail has loaded (PackagePage.vue:1942). Two slip-api
+  hotfixes made usage fail-soft on those views: #86 (Usage) and #89 (overview
+  recent list, whose COUNT has a 10 s floor). Evidence: RED ev-001/ev-007,
+  GREEN ev-002/ev-008, prod ev-006/ev-010. The note also records triage facts.
+  First, the access-log `event` is a per-route name: merchant reads and the
+  purchase log empty `merchant_id`, while `slip_verify` events carry it.
+  Second, `vestearth` is denied Logs Insights StartQuery and
+  pi:DescribeDimensionKeys, and Performance Insights is off on
+  upslip-postgres-prod, so use `filter-log-events` (ev-012). Third, dated
+  history: TestGooseSQLFiles was red on main from 7cc0e51 (2026-10-22), which
+  added the 64th migration while the test still expected 63, until 5fc45b3
+  (TASK-VS-048, slip-api#92) set the expectation to 65 against 65 files
+  (ev-014). 2e303ea only renamed 060→064 (ev-013), and the same drift had
+  happened earlier at ff900dc. The usage-rollup and history follow-ups are
+  done; see TASK-VS-048 and TASK-VS-049. There are four proposals. P1 creates
+  this note. P2 updates the Project Map. P3 is a dated correction to the
+  Verify Capacity note's vestearth permission line (ev-012). P4 is a gated
+  lesson-promotion candidate. These remain unverified: the merchant volumes,
+  the insufficient-credit theory, and the deploy shas and task definitions.
+  Proposal only; nothing is written to knowledge-base.
+sources:
+- ai-dev-office/runs/TASK-VS-047/task.md
+- ai-dev-office/runs/TASK-VS-047/status.yaml
+- ai-dev-office/runs/TASK-VS-047/evidence.yaml
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-001.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-002.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-003.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-004.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-005.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-006.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-007.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-008.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-009.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-010.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-011.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-012.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-013.log
+- ai-dev-office/runs/TASK-VS-047/evidence/ev-014.log
+- ai-dev-office/runs/TASK-VS-048/status.yaml
+- ai-dev-office/runs/TASK-VS-048/evidence/ev-007.log
+- ai-dev-office/runs/TASK-VS-048/evidence/ev-008.log
+- ai-dev-office/runs/TASK-VS-048/knowledge-capture-output.yaml
+- ai-dev-office/runs/TASK-VS-049/status.yaml
+- ai-dev-office/runs/TASK-VS-049/evidence/ev-011.log
+- ai-dev-office/runs/TASK-VS-049/knowledge-capture-output.yaml
+- slip-api/internal/core/service/branch.go
+- slip-api/internal/core/service/branch_usage_degrade_test.go
+- slip-api/internal/repositories/verification.go
+- slip-api/internal/handler/middleware/audit.go
+- slip-api/cmd/main.go
+- slip-api/migrations/run_test.go
+- slip-api/.github/workflows/deploy.yml
+- slip-api/.github/workflows/deploy-production.yml
+- slip-front-end/app/features/packages/ui/PackagePage.vue
+- https://github.com/SparqLab/slip-api/pull/86
+- https://github.com/SparqLab/slip-api/pull/89
+- https://github.com/SparqLab/slip-api/pull/92
+- https://github.com/SparqLab/slip-api/pull/93
+- https://github.com/SparqLab/slip-front-end/pull/11
+- "knowledge-base/Knowledge Base/10 Projects/VerifySlip/Project Map.md"
+- "knowledge-base/Knowledge Base/10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24.md"
+- "knowledge-base/Knowledge Base/10 Projects/VerifySlip/Slip Time Zone And Admin Latency Fixes — 2026-09-28.md"
+- "knowledge-base/Knowledge Base/40 Lessons/Report Totals Need The Whole Filtered Set — Unknown Is Not Zero.md"
+recommended_action: create_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: "2026-10-25"
+  task_id: TASK-VS-047
+  evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012, ev-013, ev-014]
+  repo_origin: SparqLab/slip-api
+  repo_sha: unknown
+  confidence: medium
+note_patch: |
+  # Capture notes for the human applier (do not paste this section)
+
+  Vault search before proposing (2026-10-26). No note covers this incident, the
+  fail-soft rule, `TestGooseSQLFiles`, the slip-api access-log `event` field,
+  or Logs Insights / Performance Insights access. The nearest notes are:
+  - `Admin Scoped Verification Count Indexes — 2026-10-15` (admin COUNT
+    timeouts, indexes 061/062);
+  - `Slip Time Zone And Admin Latency Fixes — 2026-09-28` (3 s `queryTimeout`
+    precedent; VS-012 admin Overview partial load);
+  - `Verify Capacity 600-1200 Per Minute — 2026-09-24` (vestearth permission
+    notes, `slip_verify` tallies).
+
+  Because no existing note covers it, P1 is a new dated project note, following
+  the folder's pattern.
+
+  **Step update 1 (2026-10-26).** New evidence ev-011..ev-014 was recorded
+  after the first capture, and this output was updated in place:
+  - **ev-011** verifies the first 403, the renewal, the first 200 and the
+    outage length.
+  - **ev-012** answers the earlier P3 Review Queue question: both Insights
+    paths are denied. So P3 is no longer a Review Queue item; it is now the
+    closure edit that question named. ev-012 also shows that
+    `rds describe-db-instances` **succeeded**, which contradicts the vault's
+    2026-09-24 line "not `rds:Describe*`".
+  - **ev-013** verifies the `2e303ea` rename.
+  - **ev-014** identifies the real cause of the count drift, `7cc0e51`.
+
+  **Step update 2 (2026-10-26).** The red-`main` test trap and the
+  usage/history follow-ups were later resolved by TASK-VS-048 and
+  TASK-VS-049. They stay in P1 as dated history and cross-reference those
+  tasks. Those tasks' own captures propose their notes:
+  - `Merchant Usage Hourly Rollup — 2026-10-26`
+  - `Branch Quota History Cursor Page — 2026-10-26`
+
+  The cross-links below resolve once those captures are applied.
+
+  | # | Target note | Action | Evidence refs |
+  | --- | --- | --- | --- |
+  | P1 | `Knowledge Base/10 Projects/VerifySlip/Usage Timeouts Blocked Package Renewal — 2026-10-25.md` | create_note (primary) | ev-001..ev-014; cross-ref TASK-VS-048 ev-007/ev-008, TASK-VS-049 ev-011 |
+  | P2 | `Knowledge Base/10 Projects/VerifySlip/Project Map.md` | update_note (Knowledge Routing bullet + Related link) | none (pointer only) |
+  | P3 | `Knowledge Base/10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24.md` | update_note (dated correction to "How to re-measure" step 4: vestearth permissions) | ev-012 |
+  | P4 | `Knowledge Base/40 Lessons/A Read That Gates An Action Must Not Fail On Its Optional Aggregates.md` | create_note, **gated**: promotion candidate for `knowledge-promote`; do not apply on this capture alone | ev-001, ev-002, ev-006, ev-007, ev-010 + TASK-VS-012 record |
+
+  ## Still unverified (no file records them; label kept in the note body)
+
+  1. **Merchant volumes and load:**
+     - 4,188 of 4,194 calls were 403 in 14:00–14:10, against 4,098 calls
+       returning 200 in the same window the day before;
+     - the branch sends about 400 verifies/min, about 25k of the ALB's roughly
+       25k requests/hour, and writes about 590k `verifications` rows/day;
+     - RDS CPU stayed at 6–9 %, and other merchants' overview took 40–80 ms;
+     - the 24h 5xx census was 96/96.
+
+     Source: task.md only.
+  2. **Why the package stopped.** The theory that auto-renew lacked credit was
+     inferred from code by the task itself; nobody checked it against the
+     ledger.
+  3. **Deploy facts.** PR/merge shas, task-definition numbers, Actions run ids
+     and rollout times for #86/#89 come from task.md/status.yaml. They were
+     not re-checked against GitHub or ECS, and none has an ev record.
+  4. **Recovery detail.** The last 403 at 10:24:57Z and the 729/13/11 recovery
+     counts come from task.md only. ev-011 covers the first 403, the
+     purchase, and the first 200 after 10:24:57Z.
+  5. **Branch page.** On the branch page, the subscription id comes from the
+     failing reads. Source: task.md. I checked only `PackagePage.vue`, on the
+     local `slip-front-end` `main` checkout (sha not recorded; prod not
+     checked).
+  6. **Other endpoints before the fix.** `/v1/usage`, `/v1/usage/monthly` and
+     `/v1/branch-packages/history` returned 500 on 2026-10-25. Source:
+     task.md; ev-004 shows only `dashboard/summary*` 500. Their later 200s
+     are evidenced in the other tasks (TASK-VS-048 ev-007/ev-008, TASK-VS-049
+     ev-011).
+  7. **`cloudwatch:ListMetrics`.** The 2026-09-24 claim that it is denied was
+     not re-checked by ev-012.
+
+  # P1 — create: Knowledge Base/10 Projects/VerifySlip/Usage Timeouts Blocked Package Renewal — 2026-10-25.md
+
+  ---
+  freshness: current
+  verified_at: 2026-10-25
+  task_id: TASK-VS-047
+  evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008, ev-009, ev-010, ev-011, ev-012, ev-013, ev-014]
+  repo_origin: SparqLab/slip-api
+  repo_sha: unknown
+  ---
+
+  # VerifySlip — Usage Timeouts Blocked Package Renewal (2026-10-25)
+
+  > From **TASK-VS-047**, 2026-10-25. The fix is in `slip-api`, and the
+  > dependency is in `slip-front-end`. A high-volume merchant's quota ran out.
+  > The merchant could not renew, because the read endpoints behind the renew
+  > screens 500'd on a usage-aggregation timeout. Before repeating a number,
+  > recheck `origin/prod`, the ECS task definition and the logs. Items marked
+  > *(task record)* come from `task.md` with no ev record behind them.
+
+  ## Timeline (UTC, with Bangkok time)
+
+  | UTC | Bangkok | What | Evidence |
+  | --- | --- | --- | --- |
+  | 06:12:15 | 13:12 | First **403 "no active package"** on `POST /v1/slips/verify` for branch 5G (`816d9bc9…`, code 783601, Enterprise API, 320,000 quota). | ev-011 (first match in a 06:00–07:30Z search) |
+  | 08:02–09:52 | 15:02–16:52 | Every merchant read on `branch-packages/{id}`, `branches/{id}/overview`, `channels/api` and `dashboard/summary*` returned 500 after about 3.0–3.7 s. | ev-004 |
+  | 10:17–10:22 | 17:17–17:22 | Fix 1 (#86) on prod. Package detail returned **200** in about 3,020 ms and `channels/api` **200** in about 6,430 ms. Overview was **still 500**, now after about 16,0xx ms. | ev-006 |
+  | 10:24:58 | 17:24:58 | The merchant renewed: `POST /v1/packages/purchase` returned **201** in 85 ms from 27.130.63.68. | ev-011 |
+  | 10:25:01 | 17:25:01 | First verify **200** for the branch (the first after 10:24:57Z). | ev-011 |
+  | 16:13:28 | 23:13:28 | Fix 2 (#89) on prod. Overview returned **200** in 16,030 ms. | ev-010 |
+
+  **Outage on the branch: about 4h13m**, from the first 403 to the first 200
+  after renewal (06:12:15 → 10:25:01Z, ev-011). The census showing the
+  verifies in between were 403 is a *(task record)*. Renewal came about
+  3 minutes after fix 1 reached prod, and the purchase itself answered in
+  85 ms (ev-011).
+
+  ## Root cause
+
+  - Three merchant reads call `reports.Usage`, which runs
+    `verificationRepository.UsageByUser`:
+    - `GET /v1/merchants/{m}/branch-packages/{id}` (`GetPackage`)
+    - `.../branches/{id}/overview` (`Overview`)
+    - `.../branches/{id}/channels/{api|line}` (`GetChannel`)
+  - `UsageByUser` is a `GROUP BY day, status, channel, outcome_reason` over
+    the raw `verifications` rows in the range, under the repository
+    `queryTimeout` of 3 s (`slip-api/cmd/main.go:83`). On a branch writing
+    about 590k rows/day *(task record)*, the query cannot finish in time.
+  - Before #86, any Usage error other than forbidden was returned to the
+    caller, so the whole view failed with 500 `branch request failed`. RED:
+    `usage: usage verifications: context deadline exceeded` (ev-001).
+  - The overview's recent-5 list goes through `reports.ListVerifications`,
+    which also runs `CountByUser`: a `COUNT(*)` over the whole range with a
+    **10 s timeout floor** (`slip-api/internal/repositories/verification.go`,
+    `CountByUser`). Overview therefore costs 3 + 3 + 10 ≈ 16 s, which is
+    under the HTTP `WriteTimeout` of 20 s (`cmd/main.go:276`). RED: ev-007.
+    Observed on prod: ev-006 and ev-010.
+  - Indexes 061–063 (`verifications_{branch,merchant,channel}_status`) were
+    already in the migration set (file list in ev-005), and the usage query
+    still timed out on prod (ev-006). So the TASK-VS-027 indexes do not
+    solve this query.
+  - This was not a database-wide overload. Other merchants' overview answered
+    in 40–80 ms, and RDS CPU stayed at 6–9 % *(task record)*.
+  - Why the package stopped *(inferred by the task from code, not checked
+    against the ledger)*: `renewal_failed` is only recorded on
+    `ErrInsufficientBalance`, so auto-renew likely lacked credit at 13:12.
+
+  ## The front-end turns a usage outage into a renewal outage
+
+  - `slip-front-end/app/features/packages/ui/PackagePage.vue` loads
+    `selectedDetail` via `useAsyncData` → `packageApi.getMerchantBranchPackage`,
+    which is the package-detail endpoint above.
+  - The renew modal ("ต่ออายุแพ็กเกจเดิม") renders its content only behind
+    `v-if="selected && selectedDetail && canRenewNow()"` (line 1942). When the
+    detail 500s, the `UModal` opens with no content. That is the empty dark
+    overlay ("ค้าง") the merchant reported.
+  - On the branch page, the subscription id also comes from the failing reads
+    *(task record)*.
+  - The result: a read-only usage chart blocked the only self-service path to
+    paying and restoring service.
+
+  ## Rule adopted: usage is fail-soft on views that gate renewal
+
+  - **Scope.** `slip-api/internal/core/service/branch.go` sends every
+    `reports.Usage` error, and the overview `ListVerifications` error, to
+    `logUsageUnavailable`. The view then keeps its empty default. The views
+    are `package_detail`, `overview_month`, `overview_week`,
+    `overview_recent`, `api_channel_today|week|month` and
+    `line_channel_month`.
+  - **Forbidden.** `ErrForbidden` stays silent, as before.
+  - **What stays fatal.** Errors in the data the action itself needs are still
+    returned: the package, the branch, and the credit balance
+    (`get credit balance`). Only the aggregates degrade.
+  - **Signal.** WARN `msg="branch usage unavailable"` with `view`, `branch_id`
+    and `error`. It carries no `merchant_id`, `path` or `request_id`
+    (ev-006, ev-010).
+  - **Tests.** `internal/core/service/branch_usage_degrade_test.go`:
+    - Get/Overview/API/LINE `...LoadsWhenUsageTimesOut`
+    - `TestOverviewLoadsWhenRecentVerificationsTimeOut`
+
+    Each test asserts that the view loads and that the failure is logged.
+    RED on untouched `origin/main`: ev-001 and ev-007. GREEN: ev-002 and
+    ev-008.
+  - **Caveat: unknown renders as zero.** The degraded view returns zero
+    usage (the tests assert `want 0 when usage is unavailable` and month
+    total 0). The API has no "unavailable" flag, so the merchant sees 0
+    instead of `—`. That is acceptable for a hotfix but conflicts with
+    [[40 Lessons/Report Totals Need The Whole Filtered Set — Unknown Is Not Zero|Unknown Is Not Zero]].
+  - **Caveat: latency.** Fail-soft does not make the view fast. Each
+    timed-out query still waits its full timeout: detail about 3 s, API
+    channel about 6.4 s, overview about 16 s (ev-006, ev-010).
+  - **Caveat: client aborts still log 500.** If the client gives up during
+    that wait, the request still logs a 500. At 10:22:38Z, after
+    `usage verifications: context canceled`, `channels/api` logged 500 at
+    5,918 ms and overview at 5,048 ms (ev-006). A post-fix 5xx census
+    therefore includes abandoned requests.
+
+  ## Log shape and tool access for triage (`/ecs/slip-api-production`)
+
+  - **Access log.** Every request logs `msg="http request completed"`. The
+    `event` field is a **route name**, not a constant. It comes from
+    `eventName()` in `slip-api/internal/handler/middleware/audit.go`:
+    - `/v1/merchants/...` → `merchant`
+    - any path containing `/bank-accounts` → `bank_accounts`
+    - `/v1/slips/verify` → `slip_verify`
+    - `/v1/slips/decode` → `slip_decode`
+    - unmatched routes, such as `/v1/packages/purchase` and
+      `/v1/branch-packages/{id}`, → the default `http_request`
+
+    The purchase was observed as `event: http_request` (ev-011). A filter on
+    `event = "http_request"` misses every merchant read, and a filter on
+    `event = "merchant"` misses the purchase call.
+  - **Which events carry the ids.**
+    - `slip_verify` events carry `merchant_id` and `branch_id` (ev-011), so
+      `$.branch_id` filters work for verifies.
+    - Merchant-route and `http_request` access logs carry `merchant_id: ""`
+      and `branch_id: ""` (ev-004, ev-006, ev-010, ev-011). Filter those on
+      `$.path` instead, because the merchant id is in the path:
+      `{ $.status >= 500 && $.path = "/v1/merchants/<id>/*" }`.
+  - **Joining the fail-soft WARN.** The WARN line has no path. Join it to the
+    request by `branch_id` plus time, or by `logStreamName` (the ECS task),
+    as ev-006 and ev-010 do.
+  - **Use `filter-log-events`.** Use
+    `aws logs filter-log-events --profile vestearth --region ap-southeast-1`
+    with a JSON `--filter-pattern`, plus `--max-items 1` to find a
+    first/next event (ev-004, ev-006, ev-010, ev-011).
+  - **Logs Insights is denied.** `vestearth` cannot use Logs Insights:
+    `start-query` returns `AccessDeniedException` (ev-012, 2026-10-25).
+  - **Performance Insights is unavailable twice over:**
+    - `pi:DescribeDimensionKeys` returns `AccessDeniedException` (no
+      identity-based policy);
+    - `upslip-postgres-prod` has `PerformanceInsightsEnabled: False`
+      (ev-012).
+
+    Granting the IAM action alone would not produce query-level data.
+  - **`rds describe-db-instances` works.** In the same check it **succeeded**
+    for `vestearth` (ev-012).
+
+  ## Test trap (history): `go test ./...` was red on slip-api `main`, 2026-10-22 → 2026-10-25
+
+  - **What failed.** `slip-api/migrations/run_test.go:41` hard-coded
+    `len(sqlFiles) != 63` while `main` had 64 files, the last being
+    `064_user_session_version.sql`. `TestGooseSQLFiles` failed on untouched
+    `origin/main` `3a00e07` (ev-005) and on both fix branches (ev-003,
+    ev-009).
+  - **Cause (ev-014).** `7cc0e51` (watcharapol-spl, 2026-10-22,
+    "feat(auth): implement logout functionality and session management")
+    added `migrations/060_user_session_version.sql`. That took the tree to
+    64 `.sql` files while `run_test.go` still expected 63.
+  - **The rename came later.** `2e303ea` (watcharapol-spl, 2026-10-22,
+    "feat(branch): add methods to unlink LINE connectors by kind and
+    channel") only renamed `060_user_session_version.sql` →
+    `064_user_session_version.sql`. It did not touch `run_test.go` (ev-013).
+  - **Recurring pattern.** The same drift happened earlier at `ff900dc`
+    (watcharapol-spl, 2026-10-15): 60 `.sql` files against an expected 59.
+    A later commit fixed it; by `ee932d6` the count matched again at 62/62
+    (ev-014). A new migration that doesn't bump the hard-coded count is a
+    recurring way for `main` to go red.
+  - **Resolved.** `5fc45b3` (TASK-VS-048, merged in SparqLab/slip-api#92) set
+    the expectation to 65, matching 65 files (ev-014).
+  - **Still pending.** Open PR SparqLab/slip-api#85 has renumbered its
+    migration to 066 on its branch and is not merged (TASK-VS-048
+    status.yaml). Whichever migration lands next must bump the count again.
+  - **If it reappears,** prove the failure on untouched `main`, as ev-005
+    does, rather than assuming it is pre-existing.
+  - **Why nobody noticed.** slip-api's workflows run only on push:
+    `deploy.yml` on `staging` and `deploy-production.yml` on `prod`. There is
+    no `pull_request` trigger and no `go test` step, so PRs show zero checks
+    and a red `main` stays invisible.
+
+  ## Changes shipped *(task record; the prod behaviour is in ev-006 and ev-010)*
+
+  | Fix | Promotion chain | Prod task definition | Rollback |
+  | --- | --- | --- | --- |
+  | 1. Usage non-fatal at 7 call sites | #86 main `36c1e8a` → #87 staging `4b0793a` → #88 prod `f106243`; run `40183682573` | `slip-api-production:109`, rollout complete 10:21:11Z | `:108` |
+  | 2. Overview recent list non-fatal | #89 main `6362929` → #90 staging `9f17c06` → #91 prod `a60568d`; run `40207835692` | `slip-api-production:110`, rollout complete 15:48:26Z | `:109` |
+
+  Each promotion PR carried only the two hotfix files, and prod kept its
+  prod-only task-definition file. Staging was deployed, but the changed
+  endpoints were not exercised there, because that needs a merchant JWT.
+
+  ## Follow-ups (opened 2026-10-25; status as of 2026-10-26)
+
+  - **Done: usage reads without the raw scan.** TASK-VS-048 (hourly rollup)
+    is on prod as `slip-api-production:111`. The merchant's usage, overview,
+    package detail and dashboard reads return 200 (TASK-VS-048 ev-007,
+    ev-008). See
+    [[10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26|Merchant Usage Hourly Rollup]].
+    *History:* before it, `/v1/usage`, `/v1/usage/monthly`, `dashboard/summary*`
+    and `branch-packages/history` 500'd for this merchant *(task record;
+    ev-004 shows `dashboard/summary*`)*.
+  - **Done: quota history.** TASK-VS-049 (slip-api#93, slip-front-end#11) is
+    on prod; `GET /v1/branch-packages/history` returns 200 in 5–26 ms
+    (TASK-VS-049 ev-011). See
+    [[10 Projects/VerifySlip/Branch Quota History Cursor Page — 2026-10-26|Branch Quota History Cursor Page]].
+  - **Done: migration count.** `5fc45b3`; see the test-trap section above.
+  - **Overview COUNT.** Overview paid for a `COUNT(*)` it does not display.
+    Overview now answers in about 50 ms (TASK-VS-048 ev-007). This capture
+    does not check whether the COUNT itself changed.
+  - **Open: renew modal fallback.** slip-front-end's renew modal could fall
+    back to the list row when the package detail is unavailable. Not
+    re-checked.
+  - **Open: unknown is not zero.** *(Capturer suggestion, not from the
+    task.)* Expose usage completeness so the UI renders `—` rather than 0.
+  - **Open: query-level DB visibility.** *(Capturer suggestion.)* Enabling
+    Performance Insights on `upslip-postgres-prod` plus the `pi:*` grant has
+    a cost and is an operator decision.
+
+  ## Sources
+
+  Sources:
+  - ai-dev-office/runs/TASK-VS-047/task.md
+  - ai-dev-office/runs/TASK-VS-047/status.yaml
+  - ai-dev-office/runs/TASK-VS-047/evidence.yaml
+  - ai-dev-office/runs/TASK-VS-048/status.yaml
+  - ai-dev-office/runs/TASK-VS-049/status.yaml
+  - slip-api/internal/core/service/branch.go
+  - slip-api/internal/core/service/branch_usage_degrade_test.go
+  - slip-api/internal/repositories/verification.go
+  - slip-api/internal/handler/middleware/audit.go
+  - slip-api/cmd/main.go
+  - slip-api/migrations/run_test.go
+  - slip-api/.github/workflows/deploy.yml
+  - slip-api/.github/workflows/deploy-production.yml
+  - slip-front-end/app/features/packages/ui/PackagePage.vue
+  - https://github.com/SparqLab/slip-api/pull/86
+  - https://github.com/SparqLab/slip-api/pull/89
+  - https://github.com/SparqLab/slip-api/pull/92
+  - https://github.com/SparqLab/slip-api/pull/93
+  - https://github.com/SparqLab/slip-front-end/pull/11
+
+  Evidence:
+  - TASK-VS-047 ev-001..ev-014;
+  - TASK-VS-048 ev-007, ev-008 and TASK-VS-049 ev-011 (cross-referenced;
+    those ids are scoped to their own tasks).
+
+  The raw logs are kept only in the gitignored run folders. The slip-api
+  paths were read on `task/TASK-VS-047-overview-recent-nonfatal` (the
+  worktree `.worktrees/slip-api-TASK-VS-047`, which contains #86 and #89).
+  `PackagePage.vue` was read on the local `slip-front-end` `main` checkout.
+
+  ## Related
+
+  - [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]
+  - [[10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26|Merchant Usage Hourly Rollup]] (TASK-VS-048; pending its capture)
+  - [[10 Projects/VerifySlip/Branch Quota History Cursor Page — 2026-10-26|Branch Quota History Cursor Page]] (TASK-VS-049; pending its capture)
+  - [[10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15|Admin Scoped Verification Count Indexes]] (COUNT timeouts on the same table; indexes 061/062)
+  - [[10 Projects/VerifySlip/Slip Time Zone And Admin Latency Fixes — 2026-09-28|Slip Time Zone And Admin Latency Fixes]] (3 s `queryTimeout` precedent; VS-012 admin Overview partial load)
+  - [[10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24|Verify Capacity 600–1200 Per Minute]] (`queryTimeout`, vestearth permission notes)
+  - [[40 Lessons/Report Totals Need The Whole Filtered Set — Unknown Is Not Zero|Unknown Is Not Zero]]
+  - [[40 Lessons/A Parser That Returns Empty On Error Makes Failure Look Like Absence|A Parser That Returns Empty On Error]]
+  - [[40 Lessons/A Bare NoCredentials Is Not Proof Of No AWS Access — Check Named Profiles First|AWS named profiles]]
+
+  # P2 — update: Knowledge Base/10 Projects/VerifySlip/Project Map.md
+
+  Append to `## Knowledge Routing`, after the 2026-10-16 bullet:
+
+  - Usage-aggregation timeouts that 500'd package detail, overview and channel
+    reads and blocked a high-volume merchant's renewal for about 4h13m on
+    2026-10-25. Usage was made fail-soft on those views, then fixed by
+    TASK-VS-048 and TASK-VS-049. The note also covers access-log `event`
+    names, vestearth Logs Insights / Performance Insights access, and the
+    `TestGooseSQLFiles` count drift (red 2026-10-22 → 2026-10-25):
+    [[10 Projects/VerifySlip/Usage Timeouts Blocked Package Renewal — 2026-10-25|Usage Timeouts Blocked Package Renewal]].
+
+  Append to `## Related`:
+
+  - [[10 Projects/VerifySlip/Usage Timeouts Blocked Package Renewal — 2026-10-25|Usage Timeouts Blocked Package Renewal]]
+
+  # P3 — update: Knowledge Base/10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24.md
+
+  This replaces the earlier Review Queue proposal, which ev-012 closed. No
+  Review Queue item is needed.
+
+  In `## How to re-measure`, step 4, keep the 2026-09-24 sentence. Append this
+  dated correction after it:
+
+  > **Rechecked 2026-10-25 (TASK-VS-047 ev-012), `vestearth`:**
+  > - `aws rds describe-db-instances --db-instance-identifier upslip-postgres-prod`
+  >   **succeeded**. This contradicts the "not `rds:Describe*`" line above for
+  >   that action. The other `rds:Describe*` actions were not rechecked.
+  > - CloudWatch Logs Insights `start-query` on `/ecs/slip-api-production`
+  >   returns `AccessDeniedException`.
+  > - `pi:DescribeDimensionKeys` returns `AccessDeniedException`, and the
+  >   instance has `PerformanceInsightsEnabled: False`.
+  > - `cloudwatch:ListMetrics` was not rechecked.
+  >
+  > For per-request work, use `aws logs filter-log-events` with a JSON filter
+  > pattern. See
+  > [[10 Projects/VerifySlip/Usage Timeouts Blocked Package Renewal — 2026-10-25|Usage Timeouts Blocked Package Renewal]].
+
+  This note's frontmatter (`freshness: current`, `verified_at: 2026-09-24`)
+  describes the September capacity check. Do not move `verified_at`; the
+  addition carries its own date and evidence reference, like the note's
+  existing TASK-VS-016/017 sections.
+
+  Source: `ai-dev-office/runs/TASK-VS-047/evidence.yaml` (ev-012).
+
+  # P4 — gated promotion candidate (route through knowledge-promote; do not apply on this capture alone)
+
+  Proposed target: `Knowledge Base/40 Lessons/A Read That Gates An Action Must Not Fail On Its Optional Aggregates.md`
+
+  - **Reuse pressure:** the same pattern has appeared twice in VerifySlip,
+    which is the Promotion Rule's "used twice in the same project":
+    - TASK-VS-012: the admin Overview fired 15 requests in one `Promise.all`,
+      so one 500 hid every KPI. The fix kept each successful KPI and shows `—`
+      for failed sources.
+    - TASK-VS-047: the usage aggregates 500'd the package detail that gates
+      renewal.
+  - **Draft rule:** on a view the user must load to take an action (renew,
+    pay, configure), classify every dependency as *required for the action*
+    or *informational aggregate*.
+    - Required errors stay fatal.
+    - Aggregate errors degrade: log once with the view name, and return an
+      explicit "unavailable" marker rather than 0 (VS-012 got this right with
+      `—`; VS-047's hotfix still renders 0).
+    - Give each aggregate its own timeout well under the HTTP write timeout.
+      The degraded view still waits for every timeout in sequence.
+    - On the client, never gate the action UI on the aggregate-bearing
+      response alone. Fall back to the list row.
+  - **Evidence:** TASK-VS-047 ev-001, ev-002, ev-006, ev-007, ev-010;
+    `ai-dev-office/runs/TASK-VS-012/status.yaml`;
+    `slip-admin/app/features/overview/ui/OverviewDashboard.vue`. The VS-012
+    facts come from the existing Slip Time Zone note; I did not re-check
+    them in this capture.
+  - **Tension to resolve at promotion:** this rule adds an action-gating case
+    to [[40 Lessons/A Parser That Returns Empty On Error Makes Failure Look Like Absence|A Parser That Returns Empty On Error]],
+    where empty-on-error is safe only on pure display paths. Decide whether
+    the two notes merge or cross-link.

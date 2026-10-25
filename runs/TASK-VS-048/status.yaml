@@ -76,6 +76,18 @@ history:
     prod validated
   at: '2026-10-25T20:35:58Z'
   operator: claude
+- phase: assigned
+  agent: dev
+  reason: Renumbered PR SparqLab/slip-api#85 migration 065->066 on its branch (0adf9ad
+    merge main, d80825e rename); Postgres 18.3 migration+repository tests pass
+  at: '2026-10-25T20:56:04Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261025T212509Z-verifyslip-high-volume-usage.yaml'
+  at: '2026-10-25T21:25:09Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -90,13 +102,12 @@ completion_gates:
     - ev-005
     - ev-006
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-10-25T16:16:55Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261025T212509Z-verifyslip-high-volume-usage.yaml'
+    updated_at: '2026-10-25T21:25:09Z'
     evidence_refs: []
-next_action: 'On prod (slip-api-production:111): migration 065, backfill past 30 days,
-  verify latency unchanged; merchant 84006774 usage/overview/detail (ev-007) and dashboard
-  (ev-008) all 200. Remaining: knowledge closeout; PR #85 must renumber its migration
-  to 066.'
+next_action: 'On prod (slip-api-production:111), verified (ev-007..ev-012). PR #85
+  renumbered to 066 (d80825e, not merged). Remaining: knowledge closeout (capture
+  + librarian reconcile).'
