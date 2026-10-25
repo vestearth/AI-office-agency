@@ -44,7 +44,7 @@ export function DevBayNotes({
   awaitingReload: boolean;
   bus: BoardBus;
 }) {
-  const { invalidate } = useThree();
+  const { gl, invalidate } = useThree();
   const ref = useRef<InstancedMesh>(null);
   const state = useRef<BoardState>(NO_BOARD);
   const drawn = useRef('');
@@ -80,6 +80,8 @@ export function DevBayNotes({
     const signature = `${selectedRef.current ?? ''}#${layoutNow.notes.map((note) => `${note.taskId}:${note.column}:${note.row}:${note.dots.map((dot) => (dot ? 1 : 0)).join('')}`).join('|')}#${layoutNow.stacks.map((stack) => `${stack.column}x${stack.extra}`).join(',')}`;
     if (!force && !sliding && signature === drawn.current) return;
     drawn.current = signature;
+    // The dev build exposes what the board shows, so a browser check can read it (the other rooms' boards do the same with draw counts).
+    if (import.meta.env.DEV) gl.domElement.dataset.bayBoard = signature;
     const items = noteInstances(state.current, selectedRef.current, now).slice(0, NOTE_INSTANCE_CAP);
     owners.current = items.map((item) => item.taskId);
     items.forEach((item, index) => {

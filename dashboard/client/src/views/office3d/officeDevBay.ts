@@ -98,7 +98,7 @@ export const DEVBAY = {
   columnPitch: 0.45,
   header: { y: 1.0, w: 0.4, h: 0.04, d: 0.006 },
   /** Note slots: row 0 on top, row 5 (the stack) at the bottom. */
-  note: { w: 0.28, h: 0.1, d: 0.012, rowPitch: 0.115, firstRowY: 0.9, z: -1.607 },
+  note: { w: 0.3, h: 0.105, d: 0.012, rowPitch: 0.115, firstRowY: 0.9, z: -1.607 },
   dot: { size: 0.026, pitch: 0.037, drop: 0.024, d: 0.006 },
   tray: { x: -0.35, y: 0.165, z: -1.6, w: 1.3, h: 0.025, d: 0.07 },
   /** Where a robot stands in front of the board, and the lane it walks along to reach a column. */
@@ -125,24 +125,27 @@ export const DEVBAY = {
   cooler: { x: 1.05, z: -0.1, w: 0.24, d: 0.24, h: 0.5, jugH: 0.3 },
   plants: [{ x: -1.88, z: -0.1 }, { x: 1.02, z: 0.33 }],
   plantScale: 1.15,
-  lamp: { dx: 0.27, dz: -0.12, scale: 0.8 },
+  /** The desk lamp is three flat pieces on the rack mesh: its own shade, never the merged decor's glowing one and no new draw call. */
+  lamp: { dx: 0.27, dz: -0.12, base: 0.07, stemH: 0.17, shade: { w: 0.11, h: 0.06 } },
   mug: { dx: -0.27, dz: 0.04, w: 0.05, h: 0.06, d: 0.05 },
 } as const;
 
 /** Muted tones for the pieces that need their own color. None of them is a status color or a glow. */
 export const DEVBAY_COLORS = {
-  face: '#50555b',
+  face: '#3c4045',
   divider: '#3a3e43',
   headers: ['#8f9ba3', '#9ca796', '#ada38b', '#9d8f86', '#969aa2', '#74767b'],
-  paper: '#bfb7a0',
-  paperStack: '#a69e88',
+  paper: '#cbc3ab',
+  paperStack: '#aca48c',
   inkOn: '#1d1f23',
   inkOff: '#948c76',
   halo: '#c9d4e3',
   marker: ['#5b6670', '#7a5f55', '#4f6a58'],
-  jug: '#6c8793',
+  jug: '#4d6670',
   drawer: '#5a636d',
   glass: '#587286',
+  lampBase: '#2b2e33',
+  lampShade: '#9a8c63',
   mugA: '#b0aaa0',
   mugB: '#7f8f93',
 } as const;
@@ -219,7 +222,15 @@ export function devBayTinted(): DevBayTinted[] {
   }
   out.push(tint('jug', DEVBAY_COLORS.jug, cooler.x, cooler.h + cooler.jugH / 2, cooler.z, 0.2, cooler.jugH, 0.2));
   out.push(tint('glass', DEVBAY_COLORS.glass, win.x + 0.012, win.y, win.z, 0.008, win.h, win.d));
-  // A mug on each workstation.
+  // A desk lamp and a mug on each workstation.
+  WORKSTATION_X.forEach((x) => {
+    const lx = x + DEVBAY.lamp.dx;
+    const lz = BAY_DESK_Z + DEVBAY.lamp.dz;
+    const { base, stemH, shade } = DEVBAY.lamp;
+    out.push(tint('lamp', DEVBAY_COLORS.lampBase, lx, DESK_TOP + 0.01, lz, base, 0.02, base));
+    out.push(tint('lamp', DEVBAY_COLORS.lampBase, lx, DESK_TOP + 0.02 + stemH / 2, lz, 0.015, stemH, 0.015));
+    out.push(tint('lamp', DEVBAY_COLORS.lampShade, lx, DESK_TOP + 0.02 + stemH + shade.h / 2 - 0.01, lz, shade.w, shade.h, shade.w));
+  });
   WORKSTATION_X.forEach((x, index) => {
     out.push(tint('mug', index % 2 === 0 ? DEVBAY_COLORS.mugA : DEVBAY_COLORS.mugB,
       x + DEVBAY.mug.dx, DESK_TOP + DEVBAY.mug.h / 2, BAY_DESK_Z + DEVBAY.mug.dz, DEVBAY.mug.w, DEVBAY.mug.h, DEVBAY.mug.d));

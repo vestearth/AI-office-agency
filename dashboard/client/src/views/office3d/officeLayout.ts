@@ -11,7 +11,7 @@ import {
 } from './officeLook';
 import { BAR_CAP, BAR_COLOR, BLOCKED, blockedSeating } from './officeBlocked';
 import { DEBUG_LAB, roundTagBoxes } from './officeDebug';
-import { DESK_TOP, DEVBAY, DEVBAY_DESK_SCALE, DEVBAY_TINTED, bayWorkstations, workstationX } from './officeDevBay';
+import { DEVBAY, DEVBAY_DESK_SCALE, DEVBAY_TINTED, bayWorkstations, workstationX } from './officeDevBay';
 import { BOARD_SEGMENTS, DEVOPS, DEVOPS_COLORS, DEVOPS_TINTED, boardRows, segmentSlot, trainRows } from './officeDevops';
 import { ESCALATION, escalationSeating } from './officeEscalation';
 import { LOUNGE } from './officeLounge';
@@ -214,13 +214,6 @@ export function buildOfficePoses(
       if (LAMPS.has(zone.id)) {
         out.lamp.push(pose(x + 0.78, FLOOR_TOP, z - 0.2, zone.id, SCENE.shade, deskHot, {
           kind: 'desk', taskId: desk.taskId, sx: 1.1, sy: 1.1, sz: 1.1,
-        }));
-      }
-      // Each Dev Bay workstation has a desk lamp on the shared lamp meshes (never the merged decor's shade,
-      // which glows with DevOps). Like the Inbox lamps, they follow the room: lit while it holds a task.
-      if (zone.id === 'dev') {
-        out.lamp.push(pose(x + DEVBAY.lamp.dx, FLOOR_TOP + DESK_TOP, z + DEVBAY.lamp.dz, zone.id, SCENE.shade, deskHot, {
-          kind: 'desk', taskId: desk.taskId, sx: DEVBAY.lamp.scale, sy: DEVBAY.lamp.scale, sz: DEVBAY.lamp.scale,
         }));
       }
       // Debug Lab round tags (post, rail, one tag per round) ride the rack mesh, placed from the current desk row.

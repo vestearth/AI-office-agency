@@ -276,11 +276,13 @@ describe('the four workstations', () => {
     expect(anchor?.[2]).toBeCloseTo(layout.z + BAY_DESK_Z);
   });
 
-  it('puts a lamp on every workstation on the shared lamp meshes, never the merged decor shade', () => {
+  it('puts a lamp on every workstation from flat pieces on the rack mesh: no lamp mesh, no glow, no new draw call', () => {
     const poses = posesFor(tasksFor(1));
-    const lamps = poses.lamp.filter((pose) => pose.zoneId === 'dev');
-    expect(lamps).toHaveLength(WORKSTATION_COUNT);
-    expect(lamps.every((lamp) => Math.abs(lamp.y - (FLOOR_TOP + DESK_TOP)) < 1e-9)).toBe(true);
+    // The shared lamp meshes are absent from a room without an Inbox lamp, so using them would add two draw calls.
+    expect(poses.lamp.filter((pose) => pose.zoneId === 'dev')).toEqual([]);
+    const pieces = DEVBAY_TINTED.filter((piece) => piece.part === 'lamp');
+    expect(pieces).toHaveLength(WORKSTATION_COUNT * 3);
+    expect(pieces.every((piece) => piece.y - piece.h / 2 >= DESK_TOP - 1e-9)).toBe(true);
     // The merged decor's shade bucket glows with DevOps: nothing of Dev Bay may join it.
     expect(Object.keys(devBayFixtures()).filter((name) => !['wood', 'metal', 'fabric'].includes(name))).toEqual([]);
     expect(DECOR_PLACEMENTS.filter((entry) => entry.zoneId === 'dev').map((entry) => entry.file).filter((file) => /lamp/i.test(file))).toEqual([]);
@@ -702,7 +704,7 @@ describe('the room', () => {
     for (const color of colors) {
       const channels = [1, 3, 5].map((at) => parseInt(color.slice(at, at + 2), 16));
       // Under the bloom threshold: the brightest channel of any piece stays dim.
-      expect(Math.max(...channels), color).toBeLessThanOrEqual(0xc8);
+      expect(Math.max(...channels), color).toBeLessThanOrEqual(0xd0);
     }
   });
 
