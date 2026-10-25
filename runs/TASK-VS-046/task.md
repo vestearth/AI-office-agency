@@ -57,7 +57,7 @@ Merchant credit top-up rejected a real 40,000 THB slip and told the user "สล
 
   | `rejection_reason` | Reject kind / message |
   |---|---|
-  | `slip must be transferred today`, `slip transfer date unavailable` | New same-day kind (suggested `'stale'`, matching the verification flag name). Copy: only slips transferred on the same Bangkok calendar day are accepted. If money was already sent but the slip was attached late, contact CS with the slip. Re-attaching the same slip cannot pass, so do not offer only "attach again". |
+  | `slip must be transferred within 24 hours` (current, since slip-api `1fd81a9`); `slip must be transferred today` (older rejected rows still listed by `GET /v1/payments`); `slip transfer date unavailable` | New slip-age kind (suggested `'stale'`, matching the verification flag name). Copy: only slips transferred within the last 24 hours are accepted. If money was already sent but the slip is older, contact CS with the slip. Re-attaching the same slip cannot pass, so do not offer only "attach again". |
   | `receiver does not match configured accounts` | `'destination'`, unchanged |
   | `slip not verified` | `'not_found'` |
   | `slip amount unavailable` | `'unreadable'` |
@@ -76,7 +76,7 @@ Merchant credit top-up rejected a real 40,000 THB slip and told the user "สล
 
 ### Regression test (RED before the fix)
 
-- `mapPayment({ id, status: 'rejected', rejection_reason: 'slip must be transferred today', amount: '40000.00' }, 422)` must not produce `status: 'mismatch'`. On `c3dc067` it does: `'mismatch'`, credited 0, then `'destination'`.
+- `mapPayment({ id, status: 'rejected', rejection_reason: 'slip must be transferred within 24 hours', amount: '40000.00' }, 422)` must not produce `status: 'mismatch'`. On `c3dc067` it does: `'mismatch'`, credited 0, then `'destination'`.
 - The classifier maps each reason in the table above.
 - **Test runner caveat:** the repo has no test script, and CI runs only `bun run lint` and `bun run typecheck`. The one existing test, `tests/verification-idempotency.test.ts`, uses `node:test` with an extensionless import. `node --test --experimental-strip-types` (Node 24) fails it with `ERR_MODULE_NOT_FOUND`. TASK-VS-028's ev-013 shows the same failure masked by `| tail`.
 - `map.ts` imports through the `~/` alias. Its import tree (bank-accounts/constants, payments/constants, payments/utils, verification/constants, utils/api-payload, utils/api-error) is plain TypeScript with no package imports. So either of these works:
@@ -86,5 +86,24 @@ Merchant credit top-up rejected a real 40,000 THB slip and told the user "สล
 
 ### Out of scope / decisions for Earth
 
-- **Business rule:** keeping the same-day rule is a product decision. It also rejects a slip transferred at 23:59 and attached at 00:01.
-- **This customer:** the money appears to have reached KBank `1063762993`, but the statement is not checked yet. Crediting it is a CS/admin action: check the statement, then use `admin.up-slip.com` Users → Top-up (`POST /v1/admin/users/{id}/top-up`). Whether that path issues the tax invoice the customer asked for was not checked. Re-submitting the same slip will keep failing the same-day rule.
+- **Business rule:** decided 2026-10-25. See the update below.
+- **This customer:** see the update below.
+
+## 2026-10-25 16:40 update: backend rule changed on prod (Claude, re-checked remote refs)
+
+- **The backend rule changed.** slip-api `1fd81a9` (watcharapol-spl, 12:46) replaced the same-Bangkok-day rule with a 24-hour window, `paymentSlipAgeReason`:
+  - transfer time in the future, or more than 24h ago → reject with `slip must be transferred within 24 hours`
+  - `slip transfer date unavailable` is unchanged
+  - no test was added for the new rule
+- **It is live on prod.** It went `main` → `staging` → `prod` directly, with no PR:
+  - `450fd9a`: Deploy PRODUCTION succeeded 05:57Z
+  - `1ee6fa3`: deploy finished 08:53Z
+  - ECS `slip-api-production:108` runs `production-sha-1ee6fa3`, 3/3
+- **The front end is unchanged.** No slip-front-end commit or branch exists since `c3dc067`, so every 422 rejection, including the new reason, still shows "บัญชีปลายทางไม่ตรง". The handoff above stands, with the reason string updated in the table.
+- **This customer's slip** (trans_datetime `20261024 17:47:27`):
+  - Under the new rule it passes until **2026-10-25 17:47:27 BKK** and fails after that. Checked by a scratch test on the `origin/prod` `1ee6fa3` export (ev-003).
+  - The earlier attempts 2 and 3 re-verified instead of returning 409, so the rejected row does not block a retry.
+  - Prod logs show two `payment_submit_slip` 200s at 06:02:21Z and 06:02:35Z (13:02 BKK), from the same browser family as the customer but a different IP.
+  - Whether they credited this slip is **unverified**. Check with:
+    `SELECT id, status, rejection_reason, amount, credited_at, created_at FROM payment_transactions WHERE trans_ref = (SELECT trans_ref FROM payment_transactions WHERE id = 'f9795cd2-9827-4f4a-81c5-04703c7f6d72') ORDER BY created_at;`
+- **Unrelated, also on prod, not reviewed:** slip-api `3a00e07` "fix(branch): correct expiry check logic in Purchase method" removes the `ErrPackageAlreadyActive` guard in `BranchPackageRepository.Purchase`. Re-buying the currently active package is no longer rejected. It has no test. This is outside TASK-VS-046.
