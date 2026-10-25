@@ -793,6 +793,25 @@ describe('the board from the default camera', () => {
     }
   });
 
+  it('shows every seated robot\'s head over the +x wall, at least as well as the shared desk row does', () => {
+    // A seated robot's head spans about 0.5 to 0.72 above the floor slab, 0.3 wide, at the seat (desk z + 0.5).
+    const heads = (x: number): [number, number, number][] => [
+      [x, 0.72, BAY_DESK_Z + 0.5], [x - 0.15, 0.72, BAY_DESK_Z + 0.5], [x + 0.15, 0.72, BAY_DESK_Z + 0.5],
+      [x, 0.72, BAY_DESK_Z + 0.35], [x, 0.72, BAY_DESK_Z + 0.65],
+    ];
+    const wall = occluders().find((piece) => piece.part === 'wall')!;
+    const others = (x: number) => occluders().filter((piece) => piece.part !== 'wall' && !(piece.part === 'chair' && Math.abs(piece.min[0] + 0.335 / 2 - x) < 0.01));
+    for (const x of WORKSTATION_X) {
+      for (const from of heads(x)) {
+        expect(hitsBox(wall, from), `the +x wall hides the head of the robot at x ${x.toFixed(3)}`).toBe(false);
+        for (const blocker of others(x)) expect(hitsBox(blocker, from), `${blocker.part} hides the head of the robot at x ${x.toFixed(3)}`).toBe(false);
+      }
+    }
+    // The shared row's outer desk (x 1.425) is the reference: its head clears the wall.
+    expect(hitsBox(wall, [1.425, 0.72, BAY_DESK_Z + 0.5])).toBe(false);
+    expect(hitsBox(wall, [1.9, 0.72, BAY_DESK_Z + 0.5])).toBe(true);
+  });
+
   it('would notice a piece that stands in front of the board', () => {
     const slot: [number, number, number] = [columnX(5), rowY(5), DEVBAY.note.z + 0.01];
     expect(hitsBox(around('cabinet', columnX(5) + 0.3, -1.3, 0.4, 0.3, 0.9), slot)).toBe(true);

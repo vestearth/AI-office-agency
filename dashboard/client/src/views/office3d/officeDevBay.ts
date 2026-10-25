@@ -71,11 +71,11 @@ export const UNREADABLE_TEXT = 'gates unreadable';
 /* ---- the room ---- */
 
 export const BAY_DESK_Z = 0.8;
-export const DEVBAY_DESK_SCALE = 1;
+export const DEVBAY_DESK_SCALE = 0.82;
 /** Half of the walkway between the two pairs of workstations: a robot (0.533 wide) keeps 0.2 either side. */
 export const AISLE_HALF = 0.475;
 const DESK_W = 0.7345 * DEVBAY_DESK_SCALE;
-const DESK_GAP = 0.05;
+const DESK_GAP = 0.03;
 /** The four fixed workstations, left to right, two on each side of the aisle. */
 export const WORKSTATION_X: readonly number[] = [
   -(AISLE_HALF + DESK_W / 2 + DESK_W + DESK_GAP),
@@ -126,8 +126,8 @@ export const DEVBAY = {
   plants: [{ x: -1.88, z: -0.1 }, { x: 1.02, z: 0.33 }],
   plantScale: 1.15,
   /** The desk lamp is three flat pieces on the rack mesh: its own shade, never the merged decor's glowing one and no new draw call. */
-  lamp: { dx: 0.27, dz: -0.12, base: 0.07, stemH: 0.17, shade: { w: 0.11, h: 0.06 } },
-  mug: { dx: -0.27, dz: 0.04, w: 0.05, h: 0.06, d: 0.05 },
+  lamp: { dx: 0.2, dz: -0.12, base: 0.07, stemH: 0.17, shade: { w: 0.11, h: 0.06 } },
+  mug: { dx: -0.2, dz: 0.04, w: 0.05, h: 0.06, d: 0.05 },
 } as const;
 
 /** Muted tones for the pieces that need their own color. None of them is a status color or a glow. */
