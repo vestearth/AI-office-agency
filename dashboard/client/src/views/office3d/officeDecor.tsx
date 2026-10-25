@@ -16,6 +16,7 @@ import {
 import { ABORTED } from './officeAborted';
 import { BLOCKED } from './officeBlocked';
 import { DEBUG_LAB } from './officeDebug';
+import { DEVBAY, devBayBoxes } from './officeDevBay';
 import { DEVOPS, devopsBoxes } from './officeDevops';
 import { ESCALATION } from './officeEscalation';
 import { FLOOR_TOP, SCENE } from './officeLook';
@@ -58,10 +59,12 @@ export const DECOR_PLACEMENTS: DecorPlacement[] = [
   ...RECEPTION.counters.map((item) => ({ ...item, zoneId: 'inbox' })),
   { ...RECEPTION.shelf, zoneId: 'inbox' },
 
-  { file: 'bookcaseOpen', zoneId: 'dev', x: -1.55, y: 0, z: -1.48, rotY: 0, scale: 1.05 },
-  { file: 'bookcaseClosed', zoneId: 'dev', x: -0.35, y: 0, z: -1.48, rotY: 0, scale: 1.05 },
-  { file: 'cardboardBoxClosed', zoneId: 'dev', x: 0.4, y: 0, z: -1.46, rotY: 0.3, scale: 1.4 },
-  { file: 'cardboardBoxClosed', zoneId: 'dev', x: 0.95, y: 0, z: -1.42, rotY: -0.2, scale: 1.4 },
+  // Dev Bay is an office: a meeting table with four chairs, two bookcases on the left wall and a low cabinet that
+  // carries the printer. The whiteboard, filing cabinet, cooler and window are boxes, see `devBayFixtures`.
+  { file: DEVBAY.table.file, zoneId: 'dev', x: DEVBAY.table.x, y: 0, z: DEVBAY.table.z, rotY: DEVBAY.table.rotY, scale: DEVBAY.table.scale },
+  ...DEVBAY.chairs.map((chair) => ({ file: 'chair', zoneId: 'dev', x: chair.x, y: 0, z: chair.z, rotY: chair.rotY, scale: DEVBAY.chairScale })),
+  ...DEVBAY.bookcases.map((shelf) => ({ file: shelf.file, zoneId: 'dev', x: shelf.x, y: 0, z: shelf.z, rotY: shelf.rotY, scale: shelf.scale })),
+  { file: DEVBAY.cabinet.file, zoneId: 'dev', x: DEVBAY.cabinet.x, y: 0, z: DEVBAY.cabinet.z, rotY: 0, scale: DEVBAY.cabinet.scale },
 
   { file: 'loungeSofa', zoneId: 'done', ...LOUNGE.sofa },
   { file: 'loungeChair', zoneId: 'done', ...LOUNGE.chair },
@@ -204,6 +207,20 @@ export function devopsFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>>
   return out;
 }
 
+/**
+ * Dev Bay's whiteboard backing and tray, rug and aisle runner, filing cabinet, printer, water cooler and window
+ * with its blind: plain boxes that join the merged decor buckets at no draw call. Wood, metal and fabric only,
+ * so nothing here glows. Room-local numbers come from `DEVBAY`; the result is in world space.
+ */
+export function devBayFixtures(): Partial<Record<DecorBucket, BufferGeometry[]>> {
+  const layout = ROOM_LAYOUT.dev;
+  const out: Partial<Record<DecorBucket, BufferGeometry[]>> = {};
+  for (const item of devBayBoxes()) {
+    (out[item.bucket] ??= []).push(boxAt(item.w, item.h, item.d, layout.x + item.x, FLOOR_TOP + item.y, layout.z + item.z));
+  }
+  return out;
+}
+
 export type DecorGeometries = Partial<Record<DecorBucket, BufferGeometry>>;
 
 const FILES = [...new Set(DECOR_PLACEMENTS.map((item) => item.file))];
@@ -324,6 +341,9 @@ async function loadDecorOnce(): Promise<DecorGeometries> {
     buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
   }
   for (const [name, shapes] of Object.entries(debugFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
+    buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
+  }
+  for (const [name, shapes] of Object.entries(devBayFixtures()) as Array<[DecorBucket, BufferGeometry[]]>) {
     buckets.set(name, [...(buckets.get(name) ?? []), ...shapes]);
   }
   const merged = {} as DecorGeometries;

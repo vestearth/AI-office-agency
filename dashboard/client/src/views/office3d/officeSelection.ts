@@ -4,6 +4,7 @@ import { PHASE_TO_ZONE, ZONE_BY_ID, ZONES, summarizeZones, zonePreview, type Zon
 import type { DeskRowMap } from './officeLook';
 import { characterOperator, lastOperatorLabel } from './officeOperator';
 import { blockedSeating, buildWaitQueue, queueLines } from './officeBlocked';
+import { bayOrder } from './officeDevBay';
 import { escalationSeating } from './officeEscalation';
 import { reviewOrder } from './officeReview';
 
@@ -120,8 +121,11 @@ export function desksForZone(zoneId: string, tasks: OfficeTask[], stats?: Office
   const zone = ZONE_BY_ID.get(zoneId);
   if (!zone) return [];
   const inZone = tasksInZone(zoneId, tasks, stats);
-  // Review is a line, not a row of desks: the longest wait first, then decided, then the rest.
-  const ordered = zoneId === 'review' ? reviewOrder(inZone) : zonePreview(zone, inZone, inZone.length || 1);
+  // Review is a line, not a row of desks: the longest wait first, then decided, then the rest. Dev Bay seats the
+  // most recently active tasks (see `bayOrder`); every other room seats its oldest first.
+  const ordered = zoneId === 'review'
+    ? reviewOrder(inZone)
+    : zoneId === 'dev' ? bayOrder(inZone) : zonePreview(zone, inZone, inZone.length || 1);
   if (ordered.length === 0) {
     return [{ key: `${zoneId}:empty`, zoneId, taskId: null, task: null }];
   }
@@ -168,7 +172,9 @@ export function officeDesks(
   const row = rows?.[zoneId];
   if (!row) return sceneDesks(desksForZone(zoneId, tasks, stats));
   const byId = new Map(tasks.map((task) => [task.taskId, task]));
-  return row.map((slot) => ({
+  // Dev Bay always draws four workstations; the list and the keyboard walk the occupied ones (or one empty desk).
+  const slots = zoneId === 'dev' && row.some((slot) => slot.taskId) ? row.filter((slot) => slot.taskId) : zoneId === 'dev' ? row.slice(0, 1) : row;
+  return slots.map((slot) => ({
     key: slot.taskId ?? `${zoneId}:empty`,
     zoneId,
     taskId: slot.taskId,

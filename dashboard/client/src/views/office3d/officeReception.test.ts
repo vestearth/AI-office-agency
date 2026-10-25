@@ -29,7 +29,7 @@ describe('inbox reception furniture', () => {
   });
 
   it('puts the monitor and the plant with the reception, and keeps other desk rows put', () => {
-    const tasks = [inboxTask('IN'), { ...inboxTask('DEV'), taskId: 'DEV', phase: 'assigned' as const, status: 'running' }];
+    const tasks = [inboxTask('IN'), { ...inboxTask('DBG'), taskId: 'DBG', phase: 'debugging' as const, status: 'running' }];
     const stats = summarizeZones(tasks);
     const poses = buildOfficePoses(tasks, stats, null, null);
     const screen = poses.screenOn.find((pose) => pose.zoneId === 'inbox');
@@ -39,11 +39,11 @@ describe('inbox reception furniture', () => {
     expect(inboxPlants).toHaveLength(1);
     expect(inboxPlants[0].z).toBeLessThan(ROOM_LAYOUT.inbox.z - 0.8);
     const inboxDesk = poses.desk.find((pose) => pose.zoneId === 'inbox');
-    const devDesk = poses.desk.find((pose) => pose.zoneId === 'dev');
+    const debugDesk = poses.desk.find((pose) => pose.zoneId === 'debug');
     expect(deskZ('inbox')).toBeLessThan(DESK_Z);
-    expect(deskZ('dev')).toBe(DESK_Z);
+    expect(deskZ('debug')).toBe(DESK_Z);
     expect(inboxDesk?.z).toBeCloseTo(ROOM_LAYOUT.inbox.z + deskZ('inbox'));
-    expect(devDesk?.z).toBeCloseTo(ROOM_LAYOUT.dev.z + DESK_Z);
+    expect(debugDesk?.z).toBeCloseTo(ROOM_LAYOUT.debug.z + DESK_Z);
     const seated = characterSlots(tasks, stats).find((slot) => slot.taskId === 'IN');
     expect(seated?.z).toBeCloseTo((inboxDesk?.z ?? 0) + SLOT_Z_OFFSET);
   });

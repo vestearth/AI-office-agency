@@ -2,6 +2,7 @@ import { navigateTo } from '../../navigation';
 import { BOARD_SEGMENTS, trainText, type TrainRow } from './officeDevops';
 import { EscalationList } from './OfficeEscalationViews';
 import type { EscalationLine } from './officeEscalation';
+import type { GateItem } from './officeDevBay';
 
 type TaskLine = Omit<EscalationLine, 'kind'>;
 
@@ -66,14 +67,35 @@ export function DevopsReadout({
 }
 
 /**
- * What the selection card adds for an open release train: its exact gate count (counts only, the read
- * model has no gate names) and the button to the run in Monitor. A card that already carries Open in
- * Monitor (a DevOps task's own block) passes `showMonitor={false}`.
+ * What the selection card adds for a task's gates: its exact `gates x/y`, then the gates in order with their state
+ * (pass, na or pending) when the list is known, and the button to the run in Monitor. It serves every open release
+ * train, in any room, and every task in Dev Bay that has gates. A card that already carries Open in Monitor (a
+ * DevOps task's own block) passes `showMonitor={false}`.
  */
-export function GatesBlock({ taskId, text, showMonitor = true }: { taskId: string; text: string; showMonitor?: boolean }) {
+export function GatesBlock({
+  taskId,
+  text,
+  items = [],
+  showMonitor = true,
+}: {
+  taskId: string;
+  text: string;
+  items?: GateItem[];
+  showMonitor?: boolean;
+}) {
   return (
     <div className="o3d-wait o3d-gates-card" data-gates-block>
       <p className="lead">{text}</p>
+      {items.length > 0 && (
+        <ol className="o3d-gate-list" aria-label="Gates in order">
+          {items.map((item) => (
+            <li key={item.name} data-state={item.status}>
+              <span className="name">{item.name}</span>
+              <span className="state">{item.status}</span>
+            </li>
+          ))}
+        </ol>
+      )}
       {showMonitor && <button type="button" className="form-button" onClick={() => navigateTo('monitor', taskId)}>Open in Monitor</button>}
     </div>
   );

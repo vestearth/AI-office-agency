@@ -1,5 +1,6 @@
 import { ZONES, summarizeZones } from '../commandZones';
 import { FLOOR_TOP, deskLocalX, type DeskRowMap } from './officeLook';
+import { workstationX } from './officeDevBay';
 import { deskZ } from './officeReception';
 import { BLOCKED, blockedSeating } from './officeBlocked';
 import { ESCALATION, escalationSeating } from './officeEscalation';
@@ -194,7 +195,7 @@ export function characterSlots(tasks: OfficeTask[], stats?: OfficeZoneStats, row
           if (!desk?.task || !desk.taskId) return [];
           return [{ desk, localX: slot.localX }];
         })
-      : live.map((desk, index) => ({ desk, localX: deskLocalX(index, live.length) }));
+      : live.map((desk, index) => ({ desk, localX: zone.id === 'dev' ? workstationX(index) : deskLocalX(index, live.length) }));
     for (const { desk, localX } of placed) {
       if (!desk.task || !desk.taskId) continue;
       slots.push({

@@ -35,6 +35,7 @@ import {
   type ClipCue,
 } from './officeCharacters';
 import {
+  BOARD_SECONDS,
   CELEBRATE_SECONDS,
   SPRINT_SPEED,
   VANISH_SECONDS,
@@ -45,6 +46,7 @@ import {
   deskHoldForRoom,
   needsReceptionPickup,
   pickPickupSpot,
+  planBoardWalk,
   planMove,
   resumeMove,
   roomRect,
@@ -54,6 +56,7 @@ import {
   type MovePlan,
 } from './officeMove';
 import { initialCatchUp, onFrame, onStreamPhase } from './officeCatchUp';
+import { bayWorkstations, type BoardBus } from './officeDevBay';
 import type { DeskRowMap, ShownDesk } from './officeLook';
 import { FLOOR_TOP, SCENE } from './officeLook';
 import { ABORTED, THROW_SECONDS, pickDropSpot, takenDropSpots } from './officeAborted';
@@ -110,6 +113,10 @@ interface Actor {
   pickupLeft: number;
   /** Seconds left at the help desk's call button. */
   pressLeft: number;
+  /** Seconds left at the Dev Bay whiteboard. */
+  boardLeft: number;
+  /** A Dev Bay gate walk the whiteboard is waiting on: it has been claimed but the robot has not reached the board yet. */
+  boardPending: boolean;
   /** Seconds left of the toss at the heap. */
   throwLeft: number;
   /** Carrying a box to the Aborted heap. */
@@ -298,6 +305,8 @@ function begin(actor: Actor, plan: MovePlan, rig: BlockyRig): void {
   actor.dead = false;
   clearEnvelope(actor);
   actor.pressLeft = 0;
+  actor.boardLeft = 0;
+  actor.boardPending = false;
   actor.throwLeft = 0;
   actor.carryBox = false;
   actor.dropSpot = null;
@@ -388,7 +397,7 @@ function finish(actor: Actor, rig: BlockyRig): void {
   setMode(actor, rig, sitMode(actor));
 }
 
-function advance(actor: Actor, rig: BlockyRig, step: number): void {
+function advance(actor: Actor, rig: BlockyRig, step: number, onBoard?: (taskId: string) => void): void {
   if (actor.dead || step <= 0) return;
   if (actor.celebrateLeft > 0) {
     actor.celebrateLeft = Math.max(0, actor.celebrateLeft - step);
@@ -430,6 +439,16 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
       setMode(actor, rig, paused.gait === 'sprint' ? 'sprint' : 'walk');
     }
   }
+  if (actor.boardLeft > 0) {
+    actor.boardLeft = Math.max(0, actor.boardLeft - step);
+    if (actor.boardLeft > 0) return;
+    const paused = actor.plan;
+    const next = paused?.points[actor.cursor];
+    if (paused && next) {
+      face(actor, { x: actor.x, z: actor.z }, next);
+      setMode(actor, rig, 'walk');
+    }
+  }
   if (actor.pickupLeft > 0) {
     actor.pickupLeft = Math.max(0, actor.pickupLeft - step);
     if (actor.pickupLeft > 0) return;
@@ -452,7 +471,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
     const dist = Math.hypot(dx, dz);
     if (dist < 0.001) {
       actor.cursor += 1;
-      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target) || holdPress(actor, rig, target)) return;
+      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target) || holdPress(actor, rig, target) || holdBoard(actor, rig, target, onBoard)) return;
       continue;
     }
     actor.rotY = Math.atan2(dx, dz);
@@ -461,7 +480,7 @@ function advance(actor: Actor, rig: BlockyRig, step: number): void {
       actor.z = target.z;
       remain -= dist;
       actor.cursor += 1;
-      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target) || holdPress(actor, rig, target)) return;
+      if (holdPickup(actor, rig, target) || holdThrow(actor, rig, target) || holdPress(actor, rig, target) || holdBoard(actor, rig, target, onBoard)) return;
     } else {
       actor.x += (dx / dist) * remain;
       actor.z += (dz / dist) * remain;
@@ -500,8 +519,19 @@ function holdPress(actor: Actor, rig: BlockyRig, target: MovePlan['points'][numb
   return true;
 }
 
+/** At the Dev Bay whiteboard: face it and work for a moment with the interact clip. The note moves, or its dot inks, now. */
+function holdBoard(actor: Actor, rig: BlockyRig, target: MovePlan['points'][number], onBoard?: (taskId: string) => void): boolean {
+  if (target.role !== 'board') return false;
+  actor.boardLeft = BOARD_SECONDS;
+  actor.rotY = Math.PI;
+  setMode(actor, rig, 'interact');
+  actor.boardPending = false;
+  onBoard?.(actor.taskId);
+  return true;
+}
+
 function moving(actor: Actor): boolean {
-  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.pickupLeft > 0 || actor.throwLeft > 0 || actor.pressLeft > 0;
+  return actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.pickupLeft > 0 || actor.throwLeft > 0 || actor.pressLeft > 0 || actor.boardLeft > 0;
 }
 
 function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
@@ -524,6 +554,8 @@ function createActor(rig: BlockyRig, place: CharacterPlace): Actor {
     celebrateLeft: 0,
     pickupLeft: 0,
     pressLeft: 0,
+    boardLeft: 0,
+    boardPending: false,
     throwLeft: 0,
     carryBox: false,
     dropSpot: null,
@@ -581,6 +613,14 @@ function layoutRows(
     }
     const desired = sceneDesks(desksForZone(zone.id, tasks, stats)).map((desk) => desk.taskId);
     const prior = previous.get(zone.id) ?? null;
+    if (zone.id === 'dev') {
+      // Dev Bay has four fixed workstations: a task keeps its own, and a leaving robot keeps it until it is gone.
+      const retained = reduced ? [] : deskHoldForRoom(zone.id, prior, desired, prevPlaces, flags).retainTaskIds;
+      const row = bayWorkstations(desired.filter((id): id is string => id != null), prior, retained);
+      next[zone.id] = row;
+      previous.set(zone.id, row);
+      continue;
+    }
     const motion = reduced
       ? { hold: false, retainTaskIds: [] as string[] }
       : deskHoldForRoom(zone.id, prior, desired, prevPlaces, flags);
@@ -652,7 +692,7 @@ function syncActors(
       actor = undefined;
     }
     const prev = prevPlaces.get(place.taskId) ?? null;
-    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || actor.pickupLeft > 0 || actor.pressLeft > 0 || actor.throwLeft > 0 || !actor.seated));
+    const enRoute = Boolean(actor && (actor.plan !== null || actor.celebrateLeft > 0 || actor.vanishLeft > 0 || actor.sitLeft > 0 || actor.pickupLeft > 0 || actor.pressLeft > 0 || actor.boardLeft > 0 || actor.throwLeft > 0 || !actor.seated));
     if (actor && actor.acceptedKey === key && actor.reduced === reducedMotion && !(snap && enRoute)) {
       actor.operator = place.operator;
       actor.posture = place.posture;
@@ -711,6 +751,41 @@ function syncActors(
   prevPlaces.clear();
   for (const place of places) prevPlaces.set(place.taskId, place);
   booted.current = true;
+}
+
+/**
+ * Serves the whiteboard's gate moves. The task's own robot walks to the board when it sits at a Dev Bay workstation
+ * and is idle; otherwise (no robot drawn, still walking, reduced motion, a snap) the request is rejected and the
+ * board moves the note itself. A walk that ends before the robot reached the board is rejected too, so a note
+ * never waits for a robot that is not coming. The room never borrows another task's robot.
+ */
+function serveBoardRequests(
+  bus: BoardBus,
+  actors: Map<string, Actor>,
+  places: ReadonlyMap<string, CharacterPlace>,
+  rig: BlockyRig,
+  options: { snap: boolean; reducedMotion: boolean },
+): void {
+  for (const [taskId, request] of [...bus.requests]) {
+    bus.requests.delete(taskId);
+    const actor = actors.get(taskId);
+    const place = places.get(taskId);
+    const idle = actor != null && !actor.dead && actor.seated && !moving(actor) && actor.sitLeft === 0
+      && actor.acceptedKey.startsWith('seat:dev:');
+    const plan = idle && place && !options.snap && !options.reducedMotion ? planBoardWalk(place, request.column) : null;
+    if (!actor || !plan) {
+      bus.rejected.add(taskId);
+      continue;
+    }
+    begin(actor, plan, rig);
+    actor.boardPending = true;
+    bus.claimed.add(taskId);
+  }
+  for (const actor of actors.values()) {
+    if (!actor.boardPending || actor.plan !== null || actor.boardLeft > 0) continue;
+    actor.boardPending = false;
+    bus.rejected.add(actor.taskId);
+  }
 }
 
 class Batch {
@@ -861,6 +936,7 @@ export function OfficeCharacterView({
   streamOpen,
   awaitingReload,
   onDeskRows,
+  bus,
 }: {
   tasks: OfficeTask[];
   stats: OfficeZoneStats;
@@ -872,6 +948,8 @@ export function OfficeCharacterView({
   /** True from a reconnect until the reload that reconnect started has been applied. */
   awaitingReload: boolean;
   onDeskRows?: (rows: DeskRowMap) => void;
+  /** Dev Bay: the whiteboard asks for a robot's walk here and hears when it starts and arrives. */
+  bus?: BoardBus;
 }) {
   const { gl, invalidate } = useThree();
   const [rig, setRig] = useState<BlockyRig | null>(null);
@@ -902,6 +980,8 @@ export function OfficeCharacterView({
   const publishedRows = useRef('');
   const onDeskRowsRef = useRef(onDeskRows);
   onDeskRowsRef.current = onDeskRows;
+  const busRef = useRef(bus);
+  busRef.current = bus;
   const headBox = useMemo(() => new Box3(), []);
   const tasksRef = useRef(tasks);
   const statsRef = useRef(stats);
@@ -1002,11 +1082,14 @@ export function OfficeCharacterView({
         },
         frame.snap,
       );
+      const board = busRef.current;
+      if (board) serveBoardRequests(board, actors.current, prevPlaces.current, rig, { snap: frame.snap, reducedMotion: reducedRef.current });
       const step = animateRef.current ? Math.min(delta, 0.05) : 0;
       let walking = 0;
+      const onBoard = board ? (taskId: string) => { board.arrived.add(taskId); } : undefined;
       for (const actor of actors.current.values()) {
         if (actor.dead) continue;
-        advance(actor, rig, step);
+        advance(actor, rig, step, onBoard);
         if (animateRef.current) actor.proxy.mixer.update(step);
         if (moving(actor)) walking += 1;
       }

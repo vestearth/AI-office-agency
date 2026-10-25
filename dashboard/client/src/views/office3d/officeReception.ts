@@ -16,6 +16,12 @@ export const INBOX_DESK_Z = -0.95;
 export const DEVOPS_DESK_Z = 0.8;
 
 /**
+ * Dev Bay's four workstations stand at the same front row, so the back two thirds hold the whiteboard, the
+ * meeting table and the walk along the centre aisle. Equal to `BAY_DESK_Z` in officeDevBay (a test pins it).
+ */
+export const DEVBAY_DESK_Z = 0.8;
+
+/**
  * Meters the counter moves toward the door from its original spot.
  * The desk row at -0.95 still leaves the side lane short of a body width,
  * and 0.08 is enough without leaving the approved 0.1 limit.
@@ -34,6 +40,7 @@ export const SIDE_LANE_X = 1.62;
 
 export function deskZ(zoneId: string): number {
   if (zoneId === 'inbox') return INBOX_DESK_Z;
+  if (zoneId === 'dev') return DEVBAY_DESK_Z;
   return zoneId === 'devops' ? DEVOPS_DESK_Z : DESK_Z;
 }
 

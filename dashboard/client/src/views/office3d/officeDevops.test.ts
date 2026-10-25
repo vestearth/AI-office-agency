@@ -445,10 +445,12 @@ describe('the front desk row', () => {
   const hits = (item: { x: number; z: number; w: number; d: number }, x: number, z: number, pad: number) =>
     Math.abs(x - item.x) < item.w / 2 + pad && Math.abs(z - item.z) < item.d / 2 + pad;
 
-  it('moves only DevOps: deskZ is the new front row and every other room keeps its value', () => {
+  it('moves only DevOps and Dev Bay: deskZ is the new front row and every other room keeps its value', () => {
     expect(deskZ('devops')).toBe(0.8);
     expect(deskZ('devops')).toBeGreaterThan(DESK_Z);
-    for (const zone of ['dev', 'review', 'escalation', 'debug', 'rejected', 'blocked', 'done', 'aborted']) expect(deskZ(zone)).toBe(DESK_Z);
+    // Dev Bay's workstations stand on the same front row (SPAR-53).
+    expect(deskZ('dev')).toBe(deskZ('devops'));
+    for (const zone of ['review', 'escalation', 'debug', 'rejected', 'blocked', 'done', 'aborted']) expect(deskZ(zone)).toBe(DESK_Z);
     expect(deskZ('inbox')).toBeLessThan(DESK_Z);
     // The chair ends 0.46 behind the desk, inside the 1.7 front edge.
     expect(deskZ('devops') + 0.46).toBeLessThan(ROOM_D / 2);

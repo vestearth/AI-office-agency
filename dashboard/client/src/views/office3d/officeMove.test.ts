@@ -7,6 +7,7 @@ import { buildOfficePoses } from './officeLayout';
 import { LOUNGE_SEAT_COUNT, SIT_SECONDS, loungeSeatWorld } from './officeLounge';
 import { ABORTED, DROP_SPOT_COUNT, THROW_SECONDS, dropSpotWorld, heapSlots, pickDropSpot, takenDropSpots } from './officeAborted';
 import { BLOCKED } from './officeBlocked';
+import { bayWorkstations, workstationX } from './officeDevBay';
 import { ROOM_LAYOUT, officeDesks } from './officeSelection';
 import { summarizeZones as zoneStats } from '../commandZones';
 import {
@@ -720,8 +721,9 @@ describe('move planner', () => {
 
   it('walks a fifth task to the full room front and vanishes', () => {
     const seated = place('M', 'pending', 'queued');
+    // Dev Bay seats the newest first, so the task left out is the one that has been quiet the longest.
     const crowd = [
-      task({ taskId: 'M', phase: 'assigned', status: 'running', updatedAt: '2026-10-20T00:00:00Z' }),
+      task({ taskId: 'M', phase: 'assigned', status: 'running', updatedAt: '2026-09-01T00:00:00Z' }),
       ...[0, 1, 2, 3].map((index) => task({
         taskId: `D${index}`,
         phase: 'assigned',
@@ -768,7 +770,7 @@ describe('move planner', () => {
 
   it('walks in through that room front when a freed desk reveals the task', () => {
     const crowd = [
-      task({ taskId: 'M', phase: 'assigned', status: 'running', updatedAt: '2026-10-20T00:00:00Z' }),
+      task({ taskId: 'M', phase: 'assigned', status: 'running', updatedAt: '2026-09-01T00:00:00Z' }),
       ...[0, 1, 2, 3].map((index) => task({
         taskId: `D${index}`,
         phase: 'assigned',
@@ -880,13 +882,14 @@ describe('replan', () => {
 
 describe('desk row hold', () => {
   it('keeps a seated robot still while a new task walks in', () => {
+    // Dev Bay's four workstations are fixed: a seated task keeps its own whoever walks in (see `bayWorkstations`).
     const before = devTasks(['A']);
-    const previous = commitRoomDesks('dev', before, undefined, null, { hold: false, retainTaskIds: [] });
-    expect(previous).toEqual([{ taskId: 'A', localX: 0 }]);
-    const held = commitRoomDesks('dev', devTasks(['A', 'B']), undefined, previous, { hold: true, retainTaskIds: [] });
-    expect(held.find((desk) => desk.taskId === 'A')?.localX).toBe(0);
-    expect(held.find((desk) => desk.taskId === 'B')?.localX).not.toBeCloseTo(deskLocalX(1, 2));
-    const seated = classifyTasks(before).find((item) => item.taskId === 'A')!;
+    const previous = bayWorkstations(['A']);
+    expect(previous[0]).toEqual({ taskId: 'A', localX: workstationX(0) });
+    const held = bayWorkstations(['A', 'B'], previous);
+    expect(held.find((desk) => desk.taskId === 'A')?.localX).toBe(workstationX(0));
+    expect(held.find((desk) => desk.taskId === 'B')?.localX).toBe(workstationX(1));
+    const seated = classifyTasks(before, undefined, { dev: previous }).find((item) => item.taskId === 'A')!;
     const still = classifyTasks(devTasks(['A', 'B']), undefined, { dev: held }).find((item) => item.taskId === 'A')!;
     expect(still.seat?.x).toBeCloseTo(seated.seat!.x);
     expect(planMove(seated, still, live)?.action).toBe('stay');

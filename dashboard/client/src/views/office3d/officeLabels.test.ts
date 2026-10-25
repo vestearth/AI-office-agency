@@ -365,7 +365,7 @@ describe('visibleReadouts', () => {
   });
 
   it('shows nothing for a room with no readout, or with no focus', () => {
-    expect(visibleReadouts({ focus: 'dev', selection: null, tvHot: false }).size).toBe(0);
+    expect(visibleReadouts({ focus: 'inbox', selection: null, tvHot: false }).size).toBe(0);
     expect(visibleReadouts({ focus: null, selection: null, tvHot: false }).size).toBe(0);
   });
 
