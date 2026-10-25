@@ -1,0 +1,50 @@
+---
+task_id: TASK-VS-046
+task_label: Show real topup slip rejection reason in slip-front-end
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+next_action: 'Investigation done by Claude (task.md, ev-001/ev-002). Earth assigns the slip-front-end
+  fix to another developer: branch from main, RED regression test, PR into main only.'
+created_at: '2026-10-25'
+updated_at: '2026-10-25'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-10-25T05:43:16Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: regression tests seen failing before the fix and passing after, plus typecheck/lint
+    on the PR commit
+  at: '2026-10-25T05:43:16Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-25T05:43:16Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: regression tests seen failing before the fix and passing after, plus typecheck/lint
+      on the PR commit
+    updated_at: '2026-10-25T05:43:16Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-25T05:43:16Z'
+    evidence_refs: []
