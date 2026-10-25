@@ -1,0 +1,81 @@
+---
+summary: |
+  Implemented by the conductor (operator override for this run, 2026-10-23).
+  Three PRs, none merged:
+
+  - SparqLab/shared-lib#97 (base main, head a746af5): SettleRoundRequest field 9
+    `currency`; PlayerActivityEvent.Currency doc covers round.* events. make buf
+    also regenerated unrelated admin swagger drift from other merged tasks;
+    those files were reverted out of the PR. build, vet, gamepb + events tests
+    pass.
+  - SparqLab/Games-Labs-Game#50 (base staging, head 81df9be): migration 034
+    `ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT ''`; SettleRound
+    trims and upper-cases currency; stored non-blank currency is immutable, a
+    blank one is filled by a later settle; round.settled / outcome_updated /
+    reversed carry it; turnover.* unchanged. 7 new tests seen RED, then GREEN.
+    Full suite against disposable postgres:16 (GAME_TEST_DATABASE_URL): 10
+    packages ok incl. fresh-bootstrap + replay and goose lane; schema drift
+    test on an empty DB (GAME_MIGRATIONS_TEST_DATABASE_URL) PASS.
+  - SparqLab/Games-Labs-Provider#43 (base staging): AFB, OneUp, VP, IDG bet+win
+    and GGSoft type-4 pass the currency their wallet call posts; Sigma stays
+    blank. 6 money-path tests seen RED, then GREEN; each runs the real wallet
+    transaction against a stub Wallet and compares the posted payload currency.
+    shared-lib bump bf1fcf4 -> a746af5 alone kept build, vet and all 19
+    packages green before any code change.
+
+  Game and Provider pin a746af5 (the #97 branch head) and must be re-pinned to
+  the #97 merge commit before they merge. Logs needs no change: it already
+  projects event.Currency and matches COIN exactly.
+artifacts:
+- path: shared-lib/proto/gamepb/game.proto
+  action: modified
+- path: shared-lib/proto/gamepb/game.pb.go
+  action: modified
+- path: shared-lib/events/player_activity.go
+  action: modified
+- path: Games-Labs-Game/migrations/034_round_lifecycle_currency.sql
+  action: created
+- path: Games-Labs-Game/migrations/run.go
+  action: modified
+- path: Games-Labs-Game/internal/core/repositories/game.go
+  action: modified
+- path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+  action: modified
+- path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+  action: modified
+- path: Games-Labs-Game/internal/core/handlers/gamehdl/settle_round.go
+  action: modified
+- path: Games-Labs-Game/internal/models/game.go
+  action: modified
+- path: Games-Labs-Provider/internal/adapters/gameadt/settle_round.go
+  action: modified
+- path: Games-Labs-Provider/internal/core/services/afb/service.go
+  action: modified
+- path: Games-Labs-Provider/internal/core/services/ggsoft/service.go
+  action: modified
+- path: Games-Labs-Provider/internal/core/services/idg/callback.go
+  action: modified
+- path: Games-Labs-Provider/internal/core/services/oneup/callback.go
+  action: modified
+- path: Games-Labs-Provider/internal/core/services/vp/seamless.go
+  action: modified
+evidence_refs: []
+next_action:
+  agent: reviewer
+  reason: All three PRs are open with RED->GREEN tests; review, then merge
+    shared-lib#97, re-pin, and merge Game before Provider with operator approval.
+context_sources:
+  github:
+    branch: feat/TASK-EAR-405-round-currency
+    pr: https://github.com/SparqLab/shared-lib/pull/97
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+    - Games-Labs-Game/internal/core/repositories/game.go
+    - Games-Labs-Provider/internal/adapters/gameadt/settle_round.go
+    notes: Known call graph; every file was read on disk.
+blockers:
+- Game report Coin totals in Logs stay absent while any blank-currency round is
+  in range (historical rows and Sigma). Changing that Logs rule is a separate
+  operator decision.

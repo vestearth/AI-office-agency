@@ -2,10 +2,10 @@
 task_id: TASK-EAR-405
 task_label: Carry each game round's real wallet currency onto round events (follow-up
   to TASK-EAR-390)
-phase: pending
-state: pending
-iteration: 0
-current_agent: pm
+phase: in_review
+state: in_review
+iteration: 2
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -13,10 +13,78 @@ assignment:
   primary: pm
   parallel: false
 created_at: '2026-10-13'
-updated_at: '2026-10-13'
+updated_at: '2026-10-24'
 history:
 - phase: created -> pending
   agent: pm
   reason: 'opened without completion gates: Opened as a scoped follow-up; gates are
     declared when the design is chosen'
   at: '2026-10-12T18:33:42Z'
+- phase: 'gate shared_lib_publication: absent -> pending'
+  agent: pm
+  reason: Game and Provider must pin the published contract before their PRs merge.
+  at: '2026-10-23T16:14:57Z'
+  operator: claude
+- phase: 'gate authenticated_staging: absent -> pending'
+  agent: pm
+  reason: One new COIN round on staging must reach monitoring_round_outcomes with
+    currency COIN.
+  at: '2026-10-23T16:14:57Z'
+  operator: claude
+- phase: pending -> assigned
+  agent: pm
+  reason: Design decided 2026-10-23; implement shared-lib, Game and Provider.
+  at: '2026-10-23T16:14:57Z'
+  operator: claude
+- phase: assigned -> in_review
+  agent: dev
+  reason: All three PRs are open with RED->GREEN tests; review, then merge shared-lib#97,
+    re-pin, and merge Game before Provider with operator approval.
+  at: '2026-10-23T16:24:50Z'
+  operator: claude
+- phase: 'gate shared_lib_publication: pending -> pass'
+  agent: dev
+  reason: 'SparqLab/shared-lib#97 merged to main as 1bd040a (v0.0.0-20261023164719-1bd040a6cd08):
+    SettleRoundRequest.currency field 9. Game #50 (ad824ca) and Provider #43 (233baf0)
+    pin it with no replace; full suites green on the pin (Game with real postgres:16
+    incl. migration replay + schema drift; Provider 19 packages). Deployed: games-labs-game-staging:81
+    image staging-sha-ad824ca, steady 2026-10-23T16:54:55Z, clean boot (migrations.Run
+    is fatal-before-serve, so 034 applied); games-labs-provider-staging:34 image staging-sha-233baf0,
+    steady 17:00:21Z, clean boot.'
+  at: '2026-10-23T17:02:00Z'
+  operator: claude
+completion_gates:
+  shared_lib_publication:
+    status: pass
+    actor: dev
+    reason: 'SparqLab/shared-lib#97 merged to main as 1bd040a (v0.0.0-20261023164719-1bd040a6cd08):
+      SettleRoundRequest.currency field 9. Game #50 (ad824ca) and Provider #43 (233baf0)
+      pin it with no replace; full suites green on the pin (Game with real postgres:16
+      incl. migration replay + schema drift; Provider 19 packages). Deployed: games-labs-game-staging:81
+      image staging-sha-ad824ca, steady 2026-10-23T16:54:55Z, clean boot (migrations.Run
+      is fatal-before-serve, so 034 applied); games-labs-provider-staging:34 image
+      staging-sha-233baf0, steady 17:00:21Z, clean boot.'
+    updated_at: '2026-10-23T17:02:00Z'
+    evidence_refs: []
+    ran:
+      by: claude
+      ref: shared-lib 1bd040a
+      url: https://github.com/SparqLab/shared-lib/pull/97
+  authenticated_staging:
+    status: pending
+    actor: pm
+    reason: One new COIN round on staging must reach monitoring_round_outcomes with
+      currency COIN.
+    updated_at: '2026-10-23T16:14:57Z'
+    evidence_refs: []
+    after:
+    - shared_lib_publication
+    requires_record: true
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-EAR-405/dev-output.yaml
+last_synced_output:
+  file: dev-output.yaml
+  digest: 256a9efd3d73c155c4a7c324d0cf750d5c190f4d416b0c0b7aced6a06bddd396
+  next: reviewer

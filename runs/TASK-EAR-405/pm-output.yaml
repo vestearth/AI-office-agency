@@ -1,0 +1,174 @@
+---
+task:
+  id: TASK-EAR-405
+  title: Carry each game round's real wallet currency onto round events
+  short_name: round-wallet-currency
+  parent: TASK-EAR-390
+  epic: monitoring-report-leftovers
+  type: feature
+  workstream: backend
+  priority: medium
+  created_at: '2026-10-13'
+scope:
+  target_services:
+  - service: shared-lib
+    reason: SettleRoundRequest gains the round's wallet currency; PlayerActivityEvent.Currency
+      already exists and only its doc comment widens to round events.
+  - service: Games-Labs-Game
+    reason: Accepts the currency, stores it on round_lifecycles so reversed and
+      outcome_updated events keep it, and stamps it on round.* events.
+  - service: Games-Labs-Provider
+    reason: Each provider path passes the currency it actually sent to Wallet;
+      Sigma sends none because it moves no wallet balance.
+  affected_files:
+  - path: shared-lib/proto/gamepb/game.proto
+    action: modify
+    description: SettleRoundRequest field 9 `string currency`; empty means not proven.
+  - path: shared-lib/proto/gamepb/game.pb.go
+    action: modify
+    description: Regenerated with make buf (protoc-gen-go v1.36.11, buf 1.64.0).
+  - path: shared-lib/proto/gamepb/game.swagger.json
+    action: modify
+    description: Regenerated.
+  - path: shared-lib/events/player_activity.go
+    action: modify
+    description: Currency doc comment covers round.* events.
+  - path: Games-Labs-Game/migrations/034_round_lifecycle_currency.sql
+    action: create
+    description: ADD COLUMN IF NOT EXISTS currency TEXT; replay-safe on every boot.
+  - path: Games-Labs-Game/migrations/run.go
+    action: modify
+    description: Embed and run 034 after 033.
+  - path: Games-Labs-Game/internal/models/game.go
+    action: modify
+    description: RoundLifecycle.Currency.
+  - path: Games-Labs-Game/internal/core/handlers/gamehdl/settle_round.go
+    action: modify
+    description: Read currency, trim and upper-case it.
+  - path: Games-Labs-Game/internal/core/services/gamesvc/service.go
+    action: modify
+    description: Carry Currency through settledRoundLifecycle and roundActivityInputFromLifecycle.
+  - path: Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+    action: modify
+    description: RoundActivityInput.Currency onto round.settled, round.reversed and
+      round.outcome_updated. turnover.* events stay unchanged.
+  - path: Games-Labs-Game/internal/core/repositories/game.go
+    action: modify
+    description: Upsert writes currency (a stored value is kept, a blank one is filled
+      by a retry that carries it); reads return it.
+  - path: Games-Labs-Provider/internal/adapters/gameadt/settle_round.go
+    action: modify
+    description: SettleRoundInput.Currency onto the request.
+  - path: Games-Labs-Provider/internal/core/services/{afb,ggsoft,oneup,vp,idg}/*.go
+    action: modify
+    description: Set Currency from the wallet currency each path sends to /wallets/*.
+  - path: Games-Labs-Provider/internal/core/services/sigma/service.go
+    action: modify
+    description: No change in behavior; a test pins Currency blank.
+description: |
+  See task.md. Design decided by the operator on 2026-10-23 (all four
+  recommended options): implement here end to end; Sigma rounds stay blank;
+  Game persists currency on round_lifecycles with an idempotent migration;
+  no historical backfill.
+
+  Evidence at Provider 9049261 / Game 609217f (origin/staging):
+  - AFB payout sends COIN to Wallet for every leg (afb/service.go).
+  - OneUp bets/result debits and credits oneUpDefaultCurrency = COIN.
+  - VP betNSettle sends vpSeamlessWalletCurrency = "coin".
+  - IDG bet and win always send idgWalletCurrency = COIN (the passed currency
+    is ignored in idgDoWalletTransaction).
+  - GGSoft sends ggsoftWalletCurrency(req.Currency): THB maps to COIN, other
+    values pass through, empty request currency defaults to "idr".
+  - Sigma walletOp returns a zero balance and never calls Wallet, so a Sigma
+    round has no provable currency.
+  Game normalizes with TrimSpace + ToUpper so Logs' exact `currency = 'COIN'`
+  match holds for VP's lowercase value.
+acceptance_criteria:
+- criterion: A Provider test per path (AFB, OneUp, VP, IDG bet and win, GGSoft THB
+    and non-THB) proves SettleRoundInput.Currency equals the currency sent to Wallet;
+    a Sigma test proves it is blank.
+- criterion: A Game test proves round.settled, round.outcome_updated and round.reversed
+    carry the stored upper-cased currency, and a request without currency publishes
+    a blank one.
+- criterion: The migration replays twice on a fresh database without error, and the
+    schema drift test resolves the new repository SQL.
+- criterion: After deploy to staging, a new COIN round's monitoring_round_outcomes
+    row has currency COIN; Sigma rounds stay blank.
+plan:
+  approach: |
+    Proto field first, published to shared-lib main. Game and Provider pin that
+    commit with no replace. Proto3 makes either deploy order safe (an old Game
+    ignores the field, an old Provider leaves it blank); deploy Game first so
+    the column exists before currency arrives.
+  subtasks:
+  - order: 1
+    id: shared-lib-contract
+    description: Add SettleRoundRequest.currency and regenerate.
+    agent: dev
+    owned_files:
+    - shared-lib/proto/gamepb/*
+    - shared-lib/events/player_activity.go
+    parallel_safe: false
+  - order: 2
+    id: game-persist-and-stamp
+    description: Migration 034, model, handler, service, repository, events, tests.
+    agent: dev
+    owned_files:
+    - Games-Labs-Game/**
+    parallel_safe: true
+  - order: 3
+    id: provider-send-currency
+    description: Pass the wallet currency on every SettleRound call; tests per path.
+    agent: dev
+    owned_files:
+    - Games-Labs-Provider/**
+    parallel_safe: true
+  risks:
+  - risk: Logs shows the game report Coin totals only when no blank-currency round
+      is in range, so historical rows and Sigma rounds keep those totals absent.
+    mitigation: Report it at handoff; changing that Logs rule is a separate operator
+      decision.
+  - risk: Provider pins shared-lib bf1fcf4 (2026-10-05); the bump pulls every later
+      contract change.
+    mitigation: Build, vet and full Provider tests after the bump.
+  - risk: A retry that carries a different currency than the stored one.
+    mitigation: Stored non-blank currency is immutable, like game_id.
+  estimated_complexity: medium
+assignment:
+  primary: dev
+  parallel: false
+  reason: One contract field across three repos; the conductor carries it end to
+    end at the operator's request.
+completion_gates:
+- name: shared_lib_publication
+  reason: Game and Provider must pin the published contract before their PRs merge.
+- name: authenticated_staging
+  reason: One new COIN round on staging must reach monitoring_round_outcomes with
+    currency COIN.
+  after:
+  - shared_lib_publication
+  requires_record: true
+summary: Provider sends the wallet currency of each round, Game stores it and stamps
+  it on round events, Sigma stays blank, no backfill.
+artifacts:
+- path: runs/TASK-EAR-405/task.md
+  action: created
+- path: runs/TASK-EAR-405/status.yaml
+  action: created
+next_action:
+  agent: dev
+  reason: Design decided 2026-10-23; implement shared-lib, Game and Provider.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+    - Games-Labs-Provider/internal/adapters/gameadt/settle_round.go
+    - Games-Labs-Game/internal/core/services/gamesvc/player_activity.go
+    - Games-Labs-Logs/infrastructures/monitoring_clickhouse.go
+    notes: Every SettleRound caller was found with rg and read on disk; the index
+      was not needed for a known call graph.
+blockers: []
