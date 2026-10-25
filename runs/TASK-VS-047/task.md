@@ -44,7 +44,7 @@ Production incident on 2026-10-25. A high-volume merchant could not renew its pa
   - API channel today, week and month
   - LINE channel month
 - The helper writes `slog.Default().WarnContext(ctx, "branch usage unavailable", "view", …, "branch_id", …, "error", …)`. `ErrForbidden` stays silent, exactly as before.
-- `Overview.ListVerifications` is unchanged; its 5-row indexed query was never seen failing.
+- `Overview.ListVerifications` is unchanged. **Correction (after the prod deploy):** an earlier version of this note said its 5-row query was never seen failing. That was wrong. `reports.ListVerifications` also runs `CountByUser`, a `COUNT(*)` over the whole range with a 10s timeout floor. That count times out on this branch, so overview still returns 500 (see Deploy).
 
 ## Verification
 
@@ -52,9 +52,33 @@ Production incident on 2026-10-25. A high-volume merchant could not renew its pa
 - **ev-002 (GREEN):** fix applied. The 4 new tests and the existing `TestOverviewMonthCountsPerChannel` PASS. The tests also assert that the failure is logged.
 - **ev-003:** `go vet ./... && go build ./...` pass. `go test ./...` passes in every package except `migrations` `TestGooseSQLFiles`.
 - **ev-005:** that migrations failure is pre-existing on untouched `origin/main`: "want 63", but there are 64 files. Migration `064_user_session_version.sql` came from `2e303ea` without updating the count. Not touched here; this is a separate fix for the slip-api owners.
-- **Not yet verified:** that the deployed fix lets this merchant open the renew modal on `https://app.up-slip.com/branches` and the package page.
+## Deploy (2026-10-25, operator-approved)
+
+- **Merge and promotion:** PR #86 merged into `main` (`36c1e8a`). PR #87 promoted `main` → `staging` (`4b0793a`). PR #88 promoted `staging` → `prod` (`f106243`).
+- **Before merging:** `main`, `staging` and `prod` carried no other pending commits. PR #88's merge-base diff contained only the 2 hotfix files. The prod-only `ecs/task-definition.production.json` was kept.
+- **Staging:** Deploy STAGING run `40182855347` succeeded, and `slip-api-staging:152` runs `staging-sha-4b0793a`.
+  - The new task booted at 10:01:17Z, the ALB target is healthy, and staging logged no ERROR or panic.
+  - The changed endpoints were **not** exercised on staging, because that needs a merchant JWT.
+- **Prod:** Deploy PRODUCTION run `40183682573` succeeded. `slip-api-production:109` runs `production-sha-f106243` with 3 of 3 tasks; the rollout completed at 10:21:11Z and all 3 targets are healthy.
+- **Rollback:** `slip-api-production:108` (`production-sha-1ee6fa3`).
+- **ev-006:** prod log for merchant `84006774-…` on the new tasks, 10:17–10:22Z:
+
+  | Endpoint | Before | After |
+  |---|---|---|
+  | `GET …/branch-packages/{id}`, which the renew modal needs | 500 | **200** in about 3,020 ms |
+  | `GET …/branches/{id}/channels/api` | 500 | **200** in about 6,430 ms |
+  | `GET …/branches/{id}/overview` | 500 | **still 500**, now after about 16,000 ms |
+
+  - The overview time is Usage 3s + 3s + `CountByUser` 10s.
+  - The new code ran: `branch usage unavailable` warnings were logged for `api_channel_week`, `api_channel_month`, `overview_month` and `overview_week`.
+- **Still open at 10:22Z:**
+  - No `POST /v1/packages/purchase` from this merchant yet.
+  - Verifies are still 403 "no active package" (162 in the last 2 minutes).
+  - Renewal now depends on the merchant clicking renew on `https://app.up-slip.com`, from the package page or the branch page.
 
 ## Follow-ups (not in this task)
+
+- Overview still returns 500 for high-volume branches, because `ListVerifications` runs `CountByUser`. Possible fixes: treat that error as non-fatal too, or let overview skip the total count.
 
 - Usage aggregation must stop scanning raw `verifications` for high-volume branches. Options are a daily rollup table or at least a covering index. `/v1/usage`, `/v1/usage/monthly`, `/v1/branch-packages/history` and `dashboard/summary*` still 500 for this merchant for the same reason.
 - slip-front-end: the renew modal could fall back to the list row when the package detail is unavailable.

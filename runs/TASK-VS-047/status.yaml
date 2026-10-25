@@ -44,6 +44,12 @@ history:
     and opened SparqLab/slip-api#86 into main
   at: '2026-10-25T09:56:05Z'
   operator: claude
+- phase: assigned
+  agent: devops
+  reason: 'Earth approved merge+promotion: #86 main 36c1e8a, #87 staging 4b0793a,
+    #88 prod f106243; prod deploy run 40183682573 success; post-deploy log ev-006'
+  at: '2026-10-25T10:23:08Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
@@ -59,6 +65,7 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-10-25T09:49:40Z'
     evidence_refs: []
-next_action: 'PR SparqLab/slip-api#86 (commit 0bc4c41) open into main. Next: review
-  + merge, promote main->staging->prod, then confirm prod logs show 200 on overview/branch-packages/channels
-  for merchant 84006774 and the merchant renews on https://app.up-slip.com/branches.'
+next_action: Deployed to prod (slip-api-production:109, production-sha-f106243). branch-packages/{id}
+  and channels/api now 200 for merchant 84006774; overview still 500 (CountByUser
+  10s). Waiting for the merchant to renew on app.up-slip.com; then confirm verify
+  200s. Decide whether to fix overview ListVerifications next.
