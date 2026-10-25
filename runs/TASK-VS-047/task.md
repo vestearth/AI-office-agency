@@ -76,9 +76,21 @@ Production incident on 2026-10-25. A high-volume merchant could not renew its pa
   - Verifies are still 403 "no active package" (162 in the last 2 minutes).
   - Renewal now depends on the merchant clicking renew on `https://app.up-slip.com`, from the package page or the branch page.
 
+## Fix 2: overview recent list (Earth, 2026-10-25)
+
+- Branch `task/TASK-VS-047-overview-recent-nonfatal`, cut from `origin/main` `36c1e8a` (which contains #86).
+- Commit `86126f3`; PR https://github.com/SparqLab/slip-api/pull/89 into `main`, MERGEABLE.
+- In `Overview`, a `ListVerifications` error now goes to `logUsageUnavailable` (view `overview_recent`), and `Recent` stays empty. The helper's doc comment now covers this case; the log message is unchanged.
+- Expected on prod after deploy: overview for this branch returns 200 after about 16s (3 + 3 + 10s), under the 20s `WriteTimeout`.
+- **Evidence:**
+  - **ev-007 (RED):** `origin/main` `36c1e8a` plus the updated test only. `TestOverviewLoadsWhenRecentVerificationsTimeOut` FAILS with `count verifications: context deadline exceeded`.
+  - **ev-008 (GREEN):** all 6 degrade and overview tests PASS.
+  - **ev-009:** vet and build pass. The full suite passes except the pre-existing `migrations` failure (ev-005).
+- **Not done yet:** merge #89 and promote main→staging→prod. Each step needs Earth's go-ahead.
+
 ## Follow-ups (not in this task)
 
-- Overview still returns 500 for high-volume branches, because `ListVerifications` runs `CountByUser`. Possible fixes: treat that error as non-fatal too, or let overview skip the total count.
+- Overview still pays for a full `COUNT(*)` it does not display. Letting overview skip the count would bring it back to seconds.
 
 - Usage aggregation must stop scanning raw `verifications` for high-volume branches. Options are a daily rollup table or at least a covering index. `/v1/usage`, `/v1/usage/monthly`, `/v1/branch-packages/history` and `dashboard/summary*` still 500 for this merchant for the same reason.
 - slip-front-end: the renew modal could fall back to the list row when the package detail is unavailable.

@@ -50,6 +50,12 @@ history:
     #88 prod f106243; prod deploy run 40183682573 success; post-deploy log ev-006'
   at: '2026-10-25T10:23:08Z'
   operator: claude
+- phase: assigned
+  agent: dev
+  reason: Claude fixed overview ListVerifications timeout (non-fatal), RED ev-007,
+    GREEN ev-008, full ev-009; opened SparqLab/slip-api#89 into main
+  at: '2026-10-25T15:23:16Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
@@ -65,7 +71,7 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-10-25T09:49:40Z'
     evidence_refs: []
-next_action: Deployed to prod (slip-api-production:109, production-sha-f106243). branch-packages/{id}
-  and channels/api now 200 for merchant 84006774; overview still 500 (CountByUser
-  10s). Waiting for the merchant to renew on app.up-slip.com; then confirm verify
-  200s. Decide whether to fix overview ListVerifications next.
+next_action: 'Fix 2 PR SparqLab/slip-api#89 (86126f3) open into main: overview recent
+  list non-fatal. Next on Earth go-ahead: merge #89, promote main->staging->prod,
+  confirm overview 200 for merchant 84006774. Also still waiting for the merchant
+  to renew (verify 403 since 13:12).'
