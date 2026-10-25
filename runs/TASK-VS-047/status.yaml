@@ -1,0 +1,64 @@
+---
+task_id: TASK-VS-047
+task_label: Branch package detail/overview/API channel must not 500 when usage aggregation
+  times out
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-25'
+updated_at: '2026-10-25'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-10-25T09:49:40Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: regression tests seen failing before the fix and passing after, plus go
+    vet/build on the PR commit
+  at: '2026-10-25T09:49:40Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-25T09:49:40Z'
+  operator: claude
+- phase: assigned
+  agent: dev
+  reason: Claude implemented the slip-api hotfix in a worktree; evidence ev-001..ev-005
+    recorded; not committed
+  at: '2026-10-25T09:54:20Z'
+  operator: claude
+- phase: assigned
+  agent: dev
+  reason: Claude committed the hotfix (0bc4c41), pushed task/TASK-VS-047-usage-timeout-nonfatal
+    and opened SparqLab/slip-api#86 into main
+  at: '2026-10-25T09:56:05Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: regression tests seen failing before the fix and passing after, plus go
+      vet/build on the PR commit
+    updated_at: '2026-10-25T09:49:40Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-25T09:49:40Z'
+    evidence_refs: []
+next_action: 'PR SparqLab/slip-api#86 (commit 0bc4c41) open into main. Next: review
+  + merge, promote main->staging->prod, then confirm prod logs show 200 on overview/branch-packages/channels
+  for merchant 84006774 and the merchant renews on https://app.up-slip.com/branches.'
