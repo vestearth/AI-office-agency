@@ -1,0 +1,102 @@
+---
+task_id: TASK-VS-048
+task_label: Merchant usage/statistics reads fast for high-volume branches (no raw
+  verifications scan)
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-25'
+updated_at: '2026-10-26'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-10-25T16:16:55Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: regression tests seen failing before the fix and passing after, migration
+    replay test, go vet/build on the PR commit
+  at: '2026-10-25T16:16:55Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-25T16:16:55Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: RED on old readers (ev-002) and on the backfill/data-fix race (ev-004);
+    GREEN vet+build+full go test+race on PR head 9d21286 (ev-006); new readers equal
+    the 7 readers copied verbatim from 6362929, 18/18 cases (ev-005). PR SparqLab/slip-api#92
+  at: '2026-10-25T17:28:42Z'
+  operator: claude
+- phase: assigned
+  agent: dev
+  reason: 'Claude implemented option A of decision-memo.md (hourly rollup kept by
+    a trigger, migration 065, backfill loop) on task/TASK-VS-048-usage-daily-rollup
+    from origin/main 6362929: 5fc45b3 + review fixes 9d21286 (independent reviewer
+    agent: ready after fixes); pushed and opened SparqLab/slip-api#92 into main. Not
+    promoted: Earth approves staging/prod. PR #85 also claims migration 065; whichever
+    merges second renumbers to 066'
+  at: '2026-10-25T17:30:00Z'
+  operator: claude
+- phase: assigned
+  agent: dev
+  reason: 'Earth: "Merge #92 first; #85 must renumber its migration to 066 and set
+    TestGooseSQLFiles to 66 before it merges." Claude merged SparqLab/slip-api#92
+    into main as d839216 (head guarded at 9d21286; merge tree identical to the tested
+    9d21286, ev-006). No workflow ran: deploys trigger on staging/prod pushes only.
+    Not on staging or prod. #85 still open with 065'
+  at: '2026-10-25T17:40:00Z'
+  operator: claude
+- phase: assigned
+  agent: dev
+  reason: 'On Earth''s request Claude commented the renumber requirement (065 -> 066,
+    TestGooseSQLFiles -> 66) on SparqLab/slip-api#85: https://github.com/SparqLab/slip-api/pull/85#issuecomment-6401032120'
+  at: '2026-10-25T17:48:30Z'
+  operator: claude
+- phase: assigned
+  agent: devops
+  reason: Earth approved main->staging promotion; staging validated (boot/migration/backfill/health);
+    prod not promoted
+  at: '2026-10-25T19:03:52Z'
+  operator: claude
+- phase: assigned
+  agent: devops
+  reason: Earth approved staging->prod promotion (slip-api#95, slip-front-end#13);
+    prod validated
+  at: '2026-10-25T20:35:58Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: RED on old readers (ev-002) and on the backfill/data-fix race (ev-004);
+      GREEN vet+build+full go test+race on PR head 9d21286 (ev-006); new readers equal
+      the 7 readers copied verbatim from 6362929, 18/18 cases (ev-005). PR SparqLab/slip-api#92
+    updated_at: '2026-10-25T17:28:42Z'
+    evidence_refs:
+    - ev-002
+    - ev-004
+    - ev-005
+    - ev-006
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-25T16:16:55Z'
+    evidence_refs: []
+next_action: 'On prod (slip-api-production:111): migration 065, backfill past 30 days,
+  verify latency unchanged; merchant 84006774 usage/overview/detail (ev-007) and dashboard
+  (ev-008) all 200. Remaining: knowledge closeout; PR #85 must renumber its migration
+  to 066.'

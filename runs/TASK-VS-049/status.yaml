@@ -1,0 +1,106 @@
+---
+task_id: TASK-VS-049
+task_label: GET /v1/branch-packages/history must return a bounded page, not every
+  quota deduction (500 on high-volume merchant)
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-26'
+updated_at: '2026-10-26'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-10-25T17:39:14Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: regression test seen failing before the fix and passing after, plus go vet/build
+    and the repository test suite on the PR commit
+  at: '2026-10-25T17:39:14Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-25T17:39:14Z'
+  operator: claude
+- phase: assigned
+  agent: dev
+  reason: 'Earth chose the cursor page + server-side filter contract, BE PR first
+    and FE in a separate PR (decision-memo.md). Claude implemented it on task/TASK-VS-049-history-cursor-page
+    from origin/main d839216: commit 152adef. Evidence: RED ev-001, GREEN ev-002,
+    full vet+build+suite ev-003, EXPLAIN on 2M rows ev-004, prod census ev-005. Pushed
+    and opened SparqLab/slip-api#93 into main; not merged, not promoted'
+  at: '2026-10-25T18:02:16Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'RED on old behavior (ev-001) and on the review fixes (ev-006); GREEN targeted
+    + build + vet + full go test with repository DSN on PR head 47f1bc1 (ev-007);
+    EXPLAIN on 2M rows: index-bounded pages (ev-004). Independent reviewer agent:
+    approve-with-nits; W1 (unindexed channel filter) fixed by dropping channel per
+    Earth. PR SparqLab/slip-api#93'
+  at: '2026-10-25T18:16:30Z'
+  operator: claude
+- phase: assigned
+  agent: dev
+  reason: 'Review W1 (unindexed channel filter) fixed by dropping channel per Earth
+    (decision-memo amendment) plus review nits: slip-api 47f1bc1 on #93 (RED ev-006,
+    GREEN+full ev-007). FE adoption: slip-front-end task/TASK-VS-049-ledger-cursor
+    d378684 (cursor collect, max 5 pages x 200), SparqLab/slip-front-end#11 into main
+    (RED ev-008, tests+lint ev-009, no new type errors ev-010; not browser-verified).
+    Neither PR merged nor promoted; knowledge_closeout pending'
+  at: '2026-10-25T18:19:57Z'
+  operator: claude
+- phase: assigned
+  agent: devops
+  reason: 'Earth approved merge into main only (no staging/prod): SparqLab/slip-api#93
+    merged as 430ceae (2026-10-25T18:42:30Z), SparqLab/slip-front-end#11 merged as
+    853246a (18:42:43Z). FE CI on #11 (bun frozen lockfile, lint + typecheck) passed.
+    Neither commit is on staging; deploy workflows trigger only on staging/prod pushes'
+  at: '2026-10-25T18:43:02Z'
+  operator: claude
+- phase: assigned
+  agent: devops
+  reason: Earth approved main->staging promotion; staging validated (boot/migration/backfill/health);
+    prod not promoted
+  at: '2026-10-25T19:03:52Z'
+  operator: claude
+- phase: assigned
+  agent: devops
+  reason: Earth approved staging->prod promotion (slip-api#95, slip-front-end#13);
+    prod validated
+  at: '2026-10-25T20:35:58Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'RED on old behavior (ev-001) and on the review fixes (ev-006); GREEN
+      targeted + build + vet + full go test with repository DSN on PR head 47f1bc1
+      (ev-007); EXPLAIN on 2M rows: index-bounded pages (ev-004). Independent reviewer
+      agent: approve-with-nits; W1 (unindexed channel filter) fixed by dropping channel
+      per Earth. PR SparqLab/slip-api#93'
+    updated_at: '2026-10-25T18:16:30Z'
+    evidence_refs:
+    - ev-001
+    - ev-004
+    - ev-006
+    - ev-007
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-25T17:39:14Z'
+    evidence_refs: []
+next_action: 'On prod (slip-api-production:111 + slip-front-end-production:65): history
+  200 in 5-26 ms for merchant 84006774 (ev-011). Remaining: knowledge closeout.'
