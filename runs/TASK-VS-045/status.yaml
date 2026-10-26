@@ -1,19 +1,20 @@
 ---
 task_id: TASK-VS-045
 task_label: Instrument admin verification COUNT paths
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: Review slip-api PR #84 into main; Earth decides any later staging or production deployment.
+next_action: No implementation work remains; Earth decides any separate staging or
+  production promotion.
 created_at: '2026-10-22'
-updated_at: '2026-10-22'
+updated_at: '2026-10-26'
 history:
 - phase: created -> assigned
   agent: dev
@@ -34,8 +35,16 @@ history:
   operator: codex
 - phase: assigned -> in_review
   agent: dev
-  reason: 'PR #84 open into main at b482577; requested local tests and checks passed; no merge or deployment'
+  reason: 'PR #84 open into main at b482577; requested local tests and checks passed;
+    no merge or deployment'
   at: '2026-10-22T03:29:18Z'
+  operator: codex
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Rechecked slip-api PR #84 MERGED into main at eb01ae8; exact merge full
+    tests, build, vet and focused COUNT race tests pass. Knowledge gate passed; deployment
+    is outside task scope. Reconcile stale in_review to done.'
+  at: '2026-10-25T21:09:38Z'
   operator: codex
 completion_gates:
   knowledge_closeout:
@@ -44,3 +53,7 @@ completion_gates:
     reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261022T032902Z-spar33-admin-count-timeout.yaml'
     updated_at: '2026-10-22T03:29:02Z'
     evidence_refs: []
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
