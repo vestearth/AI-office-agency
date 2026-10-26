@@ -89,3 +89,34 @@ Out of scope: `/v1/branch-packages/history`. It fails because it lists every quo
   - Confirm with read-only SQL: `SELECT covered_from FROM verification_usage_hourly_state;` and `SELECT MAX(created_at) FROM verifications WHERE created_at < '2026-09-25T03:00Z';`.
   - Follow-up: log when a backfill step is skipped for 40001/23505, so a stalled backfill is visible.
   - *Corrected 2026-10-26: the earlier text inferred "no older rows" from the silence.*
+
+## Follow-up: PR #85 promoted to prod (2026-10-26, Earth-approved)
+
+- **Merge:** SparqLab/slip-api#85 was merged into `main` as `7aee086` at 03:11Z. The merge tree is identical to the tested `d80825e`. Its branch `cursor/admin-aggregate-invalidation-297c` was deleted after the merge.
+- **Promotion:** #96 promoted `main` → `staging` as `56ba3b1`, and #97 promoted `staging` → `prod` as `8477b0a`. Each PR carried only #85's 19 files.
+- **Staging (ev-015):**
+  - Deploy run `40263958500` succeeded. `slip-api-staging:155` runs `staging-sha-56ba3b1`.
+  - Log at 03:27:41Z: `goose: OK up 066_admin_day_aggregate_invalidations.sql (92ms)`, version 66, HTTP started, `admin day caches warmed` (119 ms). `/health` returned 200, and the new endpoint without a token returned 401.
+  - **The staging RDS `upslip-postgres-dev` (db.t3.micro) hit `FATAL: sorry, too many clients already` (SQLSTATE 53300):**
+    - 93 lines on the old pre-#85 task `a9a5a8c22ecd` (02:52:57Z–03:16:19Z, before the deploy started at ~03:24Z);
+    - 61 lines on the new #85 task `af48cb8a37c6` (03:30:49Z–03:37:25Z).
+  - Mostly `claim queue job failed`, plus `branches/summary` 500s on the old task.
+  - **Connections, 1-minute max:** ~23–26 normally. 48 from 03:17Z, which is before the deploy, cause unknown. 63–66 during the 03:28–03:34Z task overlap. 23 again from 03:35Z.
+  - At 03:37Z, errors appeared while the metric showed 23. So `max_connections` is low, or the spikes are shorter than one metric sample.
+  - #85 opens no new pool; it polls the invalidation log every 15 s through the existing one. The saturation started before #85.
+  - **Correction:** PR #97's body and an earlier chat report said "0 ERROR lines after the old task drained at 03:34:30Z". That was wrong. The check ran at 03:36:50Z, before CloudWatch had ingested the 03:37Z lines; ev-015 shows 87 ERROR lines from 03:34:30Z to 03:40Z.
+  - **Follow-up, not in this task:** size the staging RDS or cap `POSTGRES_MAX_CONNS` for staging, and find the 03:17Z connection jump.
+- **Prod (ev-016):**
+  - Deploy run `40264965074` succeeded. `slip-api-production:112` runs `production-sha-8477b0a` with 3 of 3 tasks; the rollout completed at 03:47:56Z and all targets are healthy.
+  - Log at 03:40:06Z: `goose: OK up 066 (44ms)`, version 66. All three new tasks logged `admin day caches warmed` in 11–33 ms, and the old tasks drained at 03:46Z.
+  - **Errors:** none (0 5xx or ERROR lines) from 03:37Z to 03:47Z.
+  - **Verify latency:**
+
+    | Window | n | p50 | p95 | p99 | max | 5xx |
+    |---|---|---|---|---|---|---|
+    | before, td 111 (03:30–03:37Z) | 2,035 | 232 ms | 609 ms | 2,292 ms | 3,895 ms | 0 |
+    | after, td 112 (03:40–03:47Z) | 2,021 | 211 ms | 503 ms | 2,327 ms | 3,483 ms | 0 |
+
+  - The admin report pages and the invalidate endpoint were not called after the deploy; only `/v1/admin/me`, which returned 200 ×18.
+- **Rollback:** `slip-api-production:111` (`production-sha-32cd203`). Migration 066 only creates a table, so the old code ignores it.
+- **Operating note:** call `POST /v1/admin/report-aggregates/invalidate` only when every task runs this release, and not during a rolling deploy.

@@ -88,6 +88,13 @@ history:
     in knowledge-reviews/closeouts/20261025T212509Z-verifyslip-high-volume-usage.yaml'
   at: '2026-10-25T21:25:09Z'
   operator: claude
+- phase: assigned
+  agent: devops
+  reason: 'Earth approved PR #85 promotion: #96 staging 56ba3b1, #97 prod 8477b0a;
+    slip-api-production:112, migration 066 applied, 0 5xx (ev-016); staging RDS too-many-clients
+    recorded (ev-015)'
+  at: '2026-10-26T03:49:31Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -108,6 +115,6 @@ completion_gates:
       in knowledge-reviews/closeouts/20261025T212509Z-verifyslip-high-volume-usage.yaml'
     updated_at: '2026-10-25T21:25:09Z'
     evidence_refs: []
-next_action: 'On prod (slip-api-production:111), verified (ev-007..ev-012). PR #85
-  renumbered to 066 (d80825e, not merged). Remaining: knowledge closeout (capture
-  + librarian reconcile).'
+next_action: 'Done on prod (slip-api-production:112 includes VS-048 + PR #85). Open:
+  backfill end state (Review Queue SQL), skipped-step logging, staging RDS too-many-clients
+  (ev-015), ADR-VS-0002 and lessons await human promotion.'
