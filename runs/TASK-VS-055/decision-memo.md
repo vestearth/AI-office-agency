@@ -170,3 +170,93 @@ Ruled out by task.md and not options: raising timeouts, or disabling planner fea
 - **D3:** search → **diagnostics first** (S1). No slip-admin change in this task.
 - **D4:** keep OFFSET (implicit in D1; no contract change).
 - **Implementer:** Claude, in this session. Branch from the latest slip-api main; PR into main; no merge or deploy.
+
+## 8. Production index pre-build (runbook for Earth, decision D2)
+
+Run this **before** any slip-api deploy that contains migration 067. Once this index exists, migration 067 does nothing at boot (`IF NOT EXISTS`).
+
+Do not let a boot build it. Migration 063 took 1m8s on about 4.4M rows. This index covers 9.52M rows and two CASE expressions per row. A booting task that is still building gets replaced after about 150 s, and the deploy then loops (section 3, option A).
+
+### Where and when
+
+- **Database:** RDS `upslip-postgres-prod` (PostgreSQL 18.3), the slip-api production database (the task's `POSTGRES_DB`). `CREATE INDEX` needs the role that owns `verifications`, which is the role slip-api migrates with.
+- **Window:** a quiet window, for example 02:00–05:00 Bangkok. Migration 063 ran at 03:20 Bangkok.
+- **Expected duration:** several minutes, not measured. `CONCURRENTLY` keeps reads and writes running, but adds I/O and CPU while it builds.
+- **DBeaver settings:**
+  - Use **Auto-Commit** mode. `CREATE INDEX CONCURRENTLY` fails inside a transaction block.
+  - The session must not carry a short statement timeout.
+
+### 1. Build (copy exactly; this is migration 067's statement)
+
+```sql
+SET statement_timeout = 0;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS verifications_bank_flow_pair_idx ON verifications (
+    (CASE
+        WHEN upper(btrim(sending_bank)) IN ('BBL', '002', '2') THEN '002'
+        WHEN upper(btrim(sending_bank)) IN ('KBANK', '004', '4') THEN '004'
+        WHEN upper(btrim(sending_bank)) IN ('KTB', '006', '6') THEN '006'
+        WHEN upper(btrim(sending_bank)) IN ('TTB', '011', '11') THEN '011'
+        WHEN upper(btrim(sending_bank)) IN ('SCB', '014', '14') THEN '014'
+        WHEN upper(btrim(sending_bank)) IN ('CIMB', '022', '22') THEN '022'
+        WHEN upper(btrim(sending_bank)) IN ('UOB', '024', '24') THEN '024'
+        WHEN upper(btrim(sending_bank)) IN ('BAY', '025', '25') THEN '025'
+        WHEN upper(btrim(sending_bank)) IN ('GSB', '030', '30') THEN '030'
+        WHEN upper(btrim(sending_bank)) IN ('GHB', '033', '33') THEN '033'
+        WHEN upper(btrim(sending_bank)) IN ('BAAC', '034', '34') THEN '034'
+        WHEN upper(btrim(sending_bank)) IN ('KKP', '069', '69') THEN '069'
+        WHEN upper(btrim(sending_bank)) IN ('LHB', '073', '73') THEN '073'
+        WHEN upper(btrim(sending_bank)) ~ '^[0-9]+$' THEN right('00' || upper(btrim(sending_bank)), 3)
+        ELSE upper(btrim(sending_bank)) END),
+    (CASE
+        WHEN upper(btrim(receiving_bank)) IN ('BBL', '002', '2') THEN '002'
+        WHEN upper(btrim(receiving_bank)) IN ('KBANK', '004', '4') THEN '004'
+        WHEN upper(btrim(receiving_bank)) IN ('KTB', '006', '6') THEN '006'
+        WHEN upper(btrim(receiving_bank)) IN ('TTB', '011', '11') THEN '011'
+        WHEN upper(btrim(receiving_bank)) IN ('SCB', '014', '14') THEN '014'
+        WHEN upper(btrim(receiving_bank)) IN ('CIMB', '022', '22') THEN '022'
+        WHEN upper(btrim(receiving_bank)) IN ('UOB', '024', '24') THEN '024'
+        WHEN upper(btrim(receiving_bank)) IN ('BAY', '025', '25') THEN '025'
+        WHEN upper(btrim(receiving_bank)) IN ('GSB', '030', '30') THEN '030'
+        WHEN upper(btrim(receiving_bank)) IN ('GHB', '033', '33') THEN '033'
+        WHEN upper(btrim(receiving_bank)) IN ('BAAC', '034', '34') THEN '034'
+        WHEN upper(btrim(receiving_bank)) IN ('KKP', '069', '69') THEN '069'
+        WHEN upper(btrim(receiving_bank)) IN ('LHB', '073', '73') THEN '073'
+        WHEN upper(btrim(receiving_bank)) ~ '^[0-9]+$' THEN right('00' || upper(btrim(receiving_bank)), 3)
+        ELSE upper(btrim(receiving_bank)) END),
+    created_at DESC, id DESC
+) WHERE status = 'verified';
+```
+
+### 2. Check that it is VALID (must return `t`)
+
+```sql
+SELECT indisvalid, indisready, pg_size_pretty(pg_relation_size(indexrelid)) AS size
+FROM pg_index WHERE indexrelid = 'verifications_bank_flow_pair_idx'::regclass;
+```
+
+- **If `indisvalid` is `f`, the build was interrupted** (cancelled session, connection drop):
+  1. Run `DROP INDEX CONCURRENTLY IF EXISTS verifications_bank_flow_pair_idx;`
+  2. Run step 1 again.
+- **Never deploy with an INVALID leftover.** The boot guard would drop it and rebuild it inside the health-check window.
+- **Expected size:** about 0.8 GB (estimate: 1.22 × the 674 MB `verifications_verified_created_idx`).
+
+### 3. Refresh statistics (gives the planner the bank-code expression stats)
+
+```sql
+ANALYZE verifications;
+```
+
+### 4. Tell Claude / the run
+
+Record:
+- start and end time
+- the size from step 2
+- whether any retry was needed
+
+After that, the code can go main → staging → prod as usual. Staging builds the index at boot, on its small database.
+
+### Rollback
+
+- **Order:** revert the code first, then `DROP INDEX CONCURRENTLY IF EXISTS verifications_bank_flow_pair_idx;`.
+- **Why the index goes last:** the added predicates have no statistics without the index.
+- **Index on its own:** leaving the index in place after a code revert is harmless; it only costs one more insert per verified row.

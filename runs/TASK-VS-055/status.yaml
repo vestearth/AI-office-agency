@@ -104,7 +104,7 @@ completion_gates:
 next_action:
   agent: devops
   description: >-
-    1) Earth pre-builds verifications_bank_flow_pair_idx on production per prod-index-prebuild.md
+    1) Earth pre-builds verifications_bank_flow_pair_idx on production per decision-memo.md section 8
     (quiet window, auto-commit, check indisvalid, ANALYZE). 2) Review and merge SparqLab/slip-api#108
     into main, then promote main -> staging -> prod only after step 1. 3) After deploy, watch
     `admin bank flow transfers` logs and transfers 5xx; then record knowledge_closeout. Search (count
