@@ -145,3 +145,54 @@ Operator asked whether the new slip-age rule closed this task. It does not.
 - Match the backend's real strings in `paymentLooksTooOld`: the Thai >24h text and the legacy `slip must be transferred today`. Matching the exact backend strings beats keyword guesses that drift whenever the backend copy changes.
 - Map `slip amount unavailable` to `'unreadable'` (acceptance table above).
 - Add the ev-004 cases as a committed regression test. CI still runs only lint and typecheck.
+
+## Developer handoff spec (2026-10-28, supersedes the acceptance table above)
+
+Traced on prod code: slip-api `1dd7ab3` (`Submit` in `internal/core/service/payment.go`, `writeRejectedPayment` / `writePaymentError` in `internal/handler/http/payment.go`) and slip-front-end `8b9906f`.
+
+### Root cause, one line
+
+The backend answers a rejected slip with HTTP 422 and the payment body `{ "id": "...", "status": "rejected", "rejection_reason": "<reason>", ... }`. `submitSlip` passes it to `mapPayment(body, 422)`, and `paymentNote()` never reads `rejection_reason`. So `payment.message` is `null`, `slipRejectKindFromText(null)` returns `null`, and the composables fall back to `'destination'`.
+
+### Condition table
+
+The backend checks in this order and stops at the first failure: bank verify → slip age → receiver → amount. A slip that is both too old and sent to the wrong account therefore gets only the age reason.
+
+**A. 422 with a payment body (classify `rejection_reason`):**
+
+| `rejection_reason` (exact) | When | Should show | Prod `8b9906f` |
+|---|---|---|---|
+| `slip not verified` | bank did not confirm the transfer | `not_found` | destination ✖ |
+| `เกิดข้อผิดพลาด เนื่องจากสลิปเกินเวลา โปรดติดต่อแอดมิน` | transferred more than 24h ago (`20bbd6f`) | `expired` | destination ✖ |
+| `slip must be transferred within 24 hours` | transfer time in the future (clock skew, rare) | `expired` or a generic rejected message | destination ✖ |
+| `slip transfer date unavailable` | bank response has no transfer time | pending decision D2 (recommended `unreadable`) | destination ✖ |
+| `receiver does not match configured accounts` | wrong destination account | `destination` | destination ✔ |
+| `slip amount unavailable` | amount unreadable | `unreadable` | destination ✖ |
+| `slip must be transferred today` | legacy rows before `1fd81a9`, seen in `GET /v1/payments` history only | `expired` | n/a |
+| any other or empty reason | — | `not_found` or a generic rejected message | **never `destination`** |
+
+**B. Errors without a payment body (`handleSubmitError`, mostly correct already):**
+
+- `duplicate slip` (409) → `duplicate` ✔
+- QR/file errors (400 `no QR code found in image`, `invalid or unsupported image`, `failed to decode image`, `slip QR missing sendingBank/transRef`; 413 `image too large`) → `unreadable` with a toast ✔
+- `no receiving accounts configured` (422, platform config) → currently `'destination'`. Optional: a generic system message instead.
+
+### Files to change
+
+1. `app/features/payments/map.ts`: read `rejection_reason` from both record and root. Preferred: add `rejectionReason: string | null` to `IPayment` (`app/features/payments/type.ts`) and classify it first; adding it to `paymentNote()` also works.
+2. `app/features/payments/utils.ts`: make `slipRejectKindFromText` match the exact backend strings in table A first, then fall back to keywords. The backend copy changed three times in a month (`b5d519f` → `1fd81a9` → `20bbd6f`), and `paymentLooksTooOld` already misses `เกินเวลา` and `must be transferred today`. Add `slip amount unavailable` → `'unreadable'`.
+3. `app/features/payments/composables/useCreditTopup.ts` (`applyPaymentResult`) and `app/features/branches/composables/useBranchPurchase.ts` (~1079–1100): both duplicate the same logic, so keep them in step (one shared helper preferred). An `'unreadable'` result must also set the unreadable flag.
+4. No backend or API contract change.
+
+### Acceptance
+
+- A committed regression test covers every row of table A: feed the body above with HTTP 422 and assert the resulting reject kind.
+- The test is seen **failing on the unfixed code** first, then passing. ev-004 shows 5 of 6 cases failing on `8b9906f`.
+- slip-front-end CI runs only lint and typecheck, so the PR includes the test run output. Use the same runner as the existing `tests/*.test.ts` (`node:test`; there is no `test` script in `package.json`).
+- PR into `main` first. No direct push to prod (`8b9906f` went to prod without a PR).
+
+### Decisions for Earth (pending)
+
+- **D1, expired screen action:** the chip says `เกินกำหนด 24 ชม. · ต้องแนบสลิปใบใหม่`, but a customer who paid more than 24h ago has no newer slip. The backend text says to contact admin, and admin can credit through Users → Top-up. Recommended: a contact admin/CS action on the expired screen.
+- **D2, `slip transfer date unavailable`:** recommended `'unreadable'` (transfer time unreadable), not `'expired'`, because the expired copy `สลิปมีอายุเกิน 24 ชั่วโมง` would be false.
+- **D3, later and outside this task:** ask slip-api for a stable `rejection_code` beside the text, so a copy change no longer breaks the front end. This is a contract change.
