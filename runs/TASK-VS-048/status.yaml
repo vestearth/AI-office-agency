@@ -2,18 +2,18 @@
 task_id: TASK-VS-048
 task_label: Merchant usage/statistics reads fast for high-volume branches (no raw
   verifications scan)
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-10-25'
-updated_at: '2026-10-26'
+updated_at: '2026-10-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -95,6 +95,23 @@ history:
     recorded (ev-015)'
   at: '2026-10-26T03:49:31Z'
   operator: claude
+- phase: assigned -> assigned
+  agent: dev
+  operator: codex
+  at: '2026-10-26T06:40:37Z'
+  reason: 'Production DBeaver read-only snapshot: one coverage state row at 2026-09-25T03:00Z,
+    no verification rows below it (MAX created_at NULL). Close only the Review Queue
+    backfill end-state question; other follow-ups remain.'
+- phase: assigned -> done
+  agent: dev
+  reason: 'Re-verified 2026-10-28 at operator request: d839216 (#92) and the PR #85
+    renumber (0adf9ad, d80825e) are ancestors of slip-api origin/prod 1dd7ab3 with
+    no reverts since 2026-10-25; prod runs production-sha-1dd7ab3 on slip-api-production:117
+    (ev-017). Scoped admin counts moved to the rollup in TASK-VS-053 (done). Left
+    outside this task, not blocking: optional skipped-step logging, staging RDS too-many-clients
+    (ev-015), ADR-VS-0002 and lessons awaiting human promotion. Both gates pass.'
+  at: '2026-10-28T07:22:15Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -115,6 +132,13 @@ completion_gates:
       in knowledge-reviews/closeouts/20261025T212509Z-verifyslip-high-volume-usage.yaml'
     updated_at: '2026-10-25T21:25:09Z'
     evidence_refs: []
-next_action: 'Done on prod (slip-api-production:112 includes VS-048 + PR #85). Open:
-  backfill end state (Review Queue SQL), skipped-step logging, staging RDS too-many-clients
-  (ev-015), ADR-VS-0002 and lessons await human promotion.'
+next_action:
+  agent: done
+  description: >-
+    None in this run. Still on prod at slip-api-production:117 (ev-017). Outside
+    this task: optional skipped-step logging, staging RDS too-many-clients (ev-015),
+    and ADR-VS-0002 plus lessons awaiting human promotion.
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route

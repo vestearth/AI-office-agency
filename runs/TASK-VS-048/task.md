@@ -120,3 +120,75 @@ Out of scope: `/v1/branch-packages/history`. It fails because it lists every quo
   - The admin report pages and the invalidate endpoint were not called after the deploy; only `/v1/admin/me`, which returned 200 ×18.
 - **Rollback:** `slip-api-production:111` (`production-sha-32cd203`). Migration 066 only creates a table, so the old code ignores it.
 - **Operating note:** call `POST /v1/admin/report-aggregates/invalidate` only when every task runs this release, and not during a rolling deploy.
+
+## Review Queue follow-up — 2026-10-26 (Codex, read-only access check)
+
+Picked the factual backfill end-state question from Knowledge Base/Review
+Queue.md. The end state remains unverified; this access failure is not proof
+of a stalled or completed backfill.
+
+Observed:
+
+- AWS identity was verified with explicit profile vestearth and region
+  ap-southeast-1: expected account and IAM operator matched workspace policy.
+- RDS upslip-postgres-prod is available and PubliclyAccessible=false.
+- A 5-second PostgreSQL TCP probe from this workstation timed out. DBeaver's
+  existing slip production connection also returned Connection attempt timed
+  out. No query was executed through DBeaver.
+- Existing slip-api production task has ExecuteCommandAgent RUNNING and
+  enableExecuteCommand=true. ECS Exec reached its container; psql, python3,
+  node and openssl were absent from PATH (nc exists).
+- SSM DescribeInstanceInformation and StartSession port forwarding were denied
+  for the operator identity. No IAM, network or deployment setting was changed.
+
+Next verification must run through an already-authorized private-network SQL
+connection. Use one consistent read-only snapshot and a short timeout:
+
+```sql
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SET LOCAL statement_timeout = '5s';
+SET LOCAL lock_timeout = '1s';
+SELECT current_database(), transaction_read_only
+FROM (SELECT current_setting('transaction_read_only') AS transaction_read_only) s;
+SELECT covered_from,
+       (SELECT MAX(v.created_at)
+        FROM verifications v
+        WHERE v.created_at < s.covered_from) AS newest_before_coverage
+FROM verification_usage_hourly_state s;
+ROLLBACK;
+```
+
+Exactly one state row plus NULL newest_before_coverage proves there are no
+raw verification rows older than coverage at that snapshot. A non-NULL
+value proves older raw rows remain, but does not establish why. No state row
+means coverage is uninitialized, not completed. Source:
+internal/repositories/verification_usage_hourly.go (usageCoveredFrom,
+BackfillUsageHour and rebuildUsageHour). No row-level customer data or secret
+was read or written; no task completion gate or phase was changed.
+
+## Production read-only coverage result — 2026-10-26 13:40 ICT (Codex)
+
+After Earth reopened DBeaver, its existing slip connection connected to the
+production RDS database. A new SQL Console preserved Script-11. Executed the
+BEGIN REPEATABLE READ READ ONLY / SET LOCAL timeouts / SELECT / ROLLBACK
+script above, using current_database() and current_setting() in the SELECT.
+The result grid contained exactly one row:
+
+| database_name | read_only | checked_at | covered_from | newest_before_coverage |
+|---|---|---|---|---|
+| slip | on | 2026-10-26 13:40:37.316 +0700 | 2026-09-25 10:00:00.000 +0700 | NULL |
+
+UTC equivalents: checked_at 2026-10-26T06:40:37.316Z; covered_from
+2026-09-25T03:00:00Z. The result was observed directly in DBeaver's result
+grid; this is a manual UI observation, not an ev-NNN execution record.
+The script finished with ROLLBACK; no rows were changed.
+
+Conclusion: no existing verification row predates covered_from in that
+snapshot. The Review Queue backfill end-state question is resolved for the
+then-existing data. The earlier inference that a silent retry was more likely
+is not supported by this result. It does not prove deletion, retention,
+completeness of historical ingestion, or equality of all rollup totals.
+The 13,974 earlier verify-200 log lines are not proof of rows currently in
+this table. Skipped-step logging remains an optional observability follow-up;
+this query does not demonstrate that a 40001/23505 retry is occurring.
+Other VS-048 follow-ups and its phase are unchanged by this narrow closure.

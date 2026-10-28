@@ -2,18 +2,18 @@
 task_id: TASK-VS-049
 task_label: GET /v1/branch-packages/history must return a bounded page, not every
   quota deduction (500 on high-volume merchant)
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-10-26'
-updated_at: '2026-10-26'
+updated_at: '2026-10-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -86,6 +86,15 @@ history:
     in knowledge-reviews/closeouts/20261025T212515Z-verifyslip-high-volume-usage.yaml'
   at: '2026-10-25T21:25:15Z'
   operator: claude
+- phase: assigned -> done
+  agent: dev
+  reason: 'Re-verified 2026-10-28 at operator request: slip-api 430ceae (#93) and
+    slip-front-end 853246a (#11) are ancestors of origin/prod (1dd7ab3 / 8b9906f)
+    with no reverts since 2026-10-25; prod runs slip-api-production:117 and slip-front-end-production:70
+    on those SHAs (ev-012). The sibling quota history was bounded in TASK-VS-052 (done).
+    Both gates pass.'
+  at: '2026-10-28T07:22:15Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -108,5 +117,12 @@ completion_gates:
       in knowledge-reviews/closeouts/20261025T212515Z-verifyslip-high-volume-usage.yaml'
     updated_at: '2026-10-25T21:25:15Z'
     evidence_refs: []
-next_action: 'On prod (slip-api-production:111 + slip-front-end-production:65): history
-  200 in 5-26 ms for merchant 84006774 (ev-011). Remaining: knowledge closeout.'
+next_action:
+  agent: done
+  description: >-
+    None. Still on prod at slip-api-production:117 and slip-front-end-production:70
+    (ev-012). The sibling quota history was bounded in TASK-VS-052.
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route

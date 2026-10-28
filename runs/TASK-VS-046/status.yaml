@@ -11,10 +11,12 @@ waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Investigation done by Claude (task.md, ev-001/ev-002). Earth assigns the slip-front-end
-  fix to another developer: branch from main, RED regression test, PR into main only.'
+next_action: 'Not closable. slip-front-end 8b9906f (prod td 70) added an expired kind but mapPayment
+  still ignores rejection_reason, so every 422 rejection still shows destination mismatch
+  (ev-004). The developer must read rejection_reason and match the backend strings (task.md
+  2026-10-28 re-check), with a committed RED regression test.'
 created_at: '2026-10-25'
-updated_at: '2026-10-25'
+updated_at: '2026-10-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -32,6 +34,15 @@ history:
   reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-10-25T05:43:16Z'
+  operator: claude
+- phase: assigned -> assigned
+  agent: reviewer
+  reason: 'Re-checked at operator request. Prod runs slip-api 1dd7ab3 (td 117) and slip-front-end
+    8b9906f (td 70) (ev-005). slip-api 20bbd6f changed the >24h reason to Thai text. Thanwa''s
+    slip-front-end 8b9906f added an expired reject kind, but paymentNote never reads rejection_reason,
+    so 5 of 6 rejection reasons still map to destination (ev-004 RED on the prod export). Gates
+    stay pending.'
+  at: '2026-10-28T07:23:18Z'
   operator: claude
 completion_gates:
   implementation_verification:

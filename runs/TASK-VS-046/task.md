@@ -107,3 +107,41 @@ Merchant credit top-up rejected a real 40,000 THB slip and told the user "สล
   - Whether they credited this slip is **unverified**. Check with:
     `SELECT id, status, rejection_reason, amount, credited_at, created_at FROM payment_transactions WHERE trans_ref = (SELECT trans_ref FROM payment_transactions WHERE id = 'f9795cd2-9827-4f4a-81c5-04703c7f6d72') ORDER BY created_at;`
 - **Unrelated, also on prod, not reviewed:** slip-api `3a00e07` "fix(branch): correct expiry check logic in Purchase method" removes the `ErrPackageAlreadyActive` guard in `BranchPackageRepository.Purchase`. Re-buying the currently active package is no longer rejected. It has no test. This is outside TASK-VS-046.
+
+## 2026-10-28 re-check: partial front-end fix on prod, bug still live (Claude)
+
+Operator asked whether the new slip-age rule closed this task. It does not.
+
+- **What runs on prod (ev-005):**
+  - slip-api `slip-api-production:117` = `production-sha-1dd7ab3` = `origin/prod`.
+  - slip-front-end `slip-front-end-production:70` = `production-sha-8b9906f` = `origin/prod`, registered 2026-10-28 11:44 +07.
+- **Backend message changed again.** slip-api `20bbd6f` (watcharapol-spl, 2026-10-26, on prod) split `paymentSlipAgeReason`:
+  - older than 24h → `เกิดข้อผิดพลาด เนื่องจากสลิปเกินเวลา โปรดติดต่อแอดมิน`
+  - future-dated → `slip must be transferred within 24 hours`
+  - The 422 body is still the bare `PaymentTransactionResponse` with `rejection_reason`.
+- **Front-end change (Thanwa, `8b9906f`, no PR, no TASK id):**
+  - Adds reject kind `'expired'` with copy (`branchTopupExpired*`), `slipRejectKindFromText`, `paymentLooksTooOld`, `paymentLooksNotVerified`.
+  - Both composables now call `slipRejectKindFromText(payment.message) ?? 'destination'`.
+  - `mapPayment` gained `message: paymentNote(record, root)`, but `paymentNote` reads only `statusMessage`, `status_message`, `outcome_reason`, `outcomeReason`, `reason`, `message`, `error`. **It never reads `rejection_reason`.**
+  - So on the 422-with-payment path (`usePaymentService.submitSlip` → `mapPayment(body, 422)`), `message` is `null` and every rejection still becomes `'mismatch'` → `'destination'`.
+  - Even if the reason were read, `paymentLooksTooOld` does not match the new Thai >24h text (`เกินเวลา`), nor the legacy `slip must be transferred today`.
+  - The thrown-error path (`handleSubmitError`) now checks the message via `ApiError` (`readBackendMessage` does read `rejection_reason`), but it only runs when the 422 body has no payment id. Not tested here.
+- **ev-004 (RED on the prod export):** scratch `node:test` on `origin/prod` `8b9906f`, Node 24 with a resolve hook for `~/` and extensionless imports. Each body is `{ id, status: 'rejected', rejection_reason, amount }` with HTTP 422:
+
+  | rejection_reason | `status` | `message` | shown kind |
+  |---|---|---|---|
+  | `เกิดข้อผิดพลาด เนื่องจากสลิปเกินเวลา โปรดติดต่อแอดมิน` | mismatch | null | destination ✖ |
+  | `slip must be transferred within 24 hours` | mismatch | null | destination ✖ |
+  | `slip transfer date unavailable` | mismatch | null | destination ✖ |
+  | `slip not verified` | mismatch | null | destination ✖ |
+  | `slip amount unavailable` | mismatch | null | destination ✖ |
+  | `receiver does not match configured accounts` | mismatch | null | destination ✔ |
+
+  The "shown kind" column applies the composable rule from `useCreditTopup.ts` / `useBranchPurchase.ts:1094`, not the Vue composable itself.
+
+### What is left for the developer
+
+- Read `rejection_reason` in `paymentNote` (record and root), or classify `rejection_reason` directly.
+- Match the backend's real strings in `paymentLooksTooOld`: the Thai >24h text and the legacy `slip must be transferred today`. Matching the exact backend strings beats keyword guesses that drift whenever the backend copy changes.
+- Map `slip amount unavailable` to `'unreadable'` (acceptance table above).
+- Add the ev-004 cases as a committed regression test. CI still runs only lint and typecheck.

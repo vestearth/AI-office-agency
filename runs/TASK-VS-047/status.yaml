@@ -2,18 +2,18 @@
 task_id: TASK-VS-047
 task_label: Branch package detail/overview/API channel must not 500 when usage aggregation
   times out
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-10-25'
-updated_at: '2026-10-26'
+updated_at: '2026-10-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -84,6 +84,16 @@ history:
     in knowledge-reviews/closeouts/20261025T212453Z-verifyslip-high-volume-usage.yaml'
   at: '2026-10-25T21:24:53Z'
   operator: claude
+- phase: assigned -> done
+  agent: dev
+  reason: 'Re-verified 2026-10-28 at operator request: fix commits 36c1e8a (#86) and
+    6362929 (#89) are ancestors of slip-api origin/prod 1dd7ab3 with no reverts since
+    2026-10-25; prod runs slip-api-production:117 = production-sha-1dd7ab3 (ev-015).
+    The migrations-count follow-up is closed: TestGooseSQLFiles passes on the origin/prod
+    export (ev-016). The aggregation follow-up shipped as TASK-VS-048 and TASK-VS-053
+    (both done). Both gates pass.'
+  at: '2026-10-28T07:22:15Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -111,7 +121,12 @@ completion_gates:
       in knowledge-reviews/closeouts/20261025T212453Z-verifyslip-high-volume-usage.yaml'
     updated_at: '2026-10-25T21:24:53Z'
     evidence_refs: []
-next_action: 'Both fixes on prod and confirmed: package detail, API channel and overview
-  return 200 for merchant 84006774 (overview 200 in ~16s, ev-010); merchant renewed
-  10:24:58Z. Remaining: knowledge closeout; follow-ups for usage/count aggregation
-  on high-volume branches and the migrations TestGooseSQLFiles count on main.'
+next_action:
+  agent: done
+  description: >-
+    None. Both fixes are on prod (ev-015). The aggregation follow-up shipped as
+    TASK-VS-048 and TASK-VS-053, and TestGooseSQLFiles passes on origin/prod (ev-016).
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route
