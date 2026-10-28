@@ -1,0 +1,111 @@
+---
+task_id: TASK-VS-055
+task_label: 'Bank-flow transfers: bound computed-filter pagination work and diagnose
+  recurring list timeout'
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-28'
+updated_at: '2026-10-28'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-10-28T07:28:17Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: Original or clearly bounded representative reproducer, failing-before regression,
+    query-plan comparison, contract tests, build and vet are recorded
+  at: '2026-10-28T07:28:17Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-28T07:28:17Z'
+  operator: codex
+- phase: assigned -> assigned
+  agent: debugger
+  reason: 'Read-only follow-up at operator request: 30-day logs (ev-001) show 9 transfers
+    5xx since 10/15 in two classes (page-query list timeouts; a 6x COUNT burst on
+    10/21, likely search); a same-page retry on 10/28 took 12.8 s. Local PG 18.3 proof
+    (ev-003): an expression index on the bank codes plus implied predicates gives
+    the same rows at 0.2-33 ms vs 1.6-1.9 s. Production sizing ev-004/ev-006; boot
+    migration 063 took 1m8s against a ~150 s replace window (ev-005), so the index
+    must be pre-built. Options and decisions in decision-memo.md; no source change.'
+  at: '2026-10-28T10:05:29Z'
+  operator: claude
+- phase: assigned -> assigned
+  agent: pm
+  reason: 'Earth decided in chat (decision-memo.md section 7): D1 option A + diagnostics,
+    D2 Earth pre-builds the production index before the code deploys, D3 search waits
+    for diagnostics, D4 keep OFFSET; Claude implements in this session (branch from
+    slip-api main, PR into main, no merge or deploy). Routed debugger -> dev.'
+  at: '2026-10-28T10:08:17Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Bounded representative reproducer: a 3-row out/in 073 bucket under 20,000
+    newer rows scanned ~20k rows on main (ev-007 no index, ev-008/ev-012 index without
+    predicates) and 3 rows via verifications_bank_flow_pair_idx after the fix under
+    custom and prepared force_generic_plan (ev-009, ev-013); local prod-frequency
+    plan comparison 1.6-1.9 s -> 0.2-33 ms with identical rows (ev-003); parity, migration-leftover
+    and log tests plus full go test -race with both DSNs (ev-013); vet, readonly build,
+    gofmt (ev-014). Independent reviewer agent: approve-with-nits, nits fixed in 7f982ee.
+    PR SparqLab/slip-api#108 (not merged, not deployed).'
+  at: '2026-10-28T10:27:09Z'
+  operator: claude
+- phase: assigned -> assigned
+  agent: dev
+  reason: 'Claude implemented decision-memo.md section 7 on slip-api task/TASK-VS-055-bank-flow-pair-index
+    from origin/main 53dac50: c8dd94a (migration 067 verifications_bank_flow_pair_idx, implied
+    from_bank/to_bank predicates in bankFlowListSQL, slow/failed transfers request-shape log) and
+    7f982ee (review fixes: real generic-plan test, in direction, masked non-code bank). Opened
+    SparqLab/slip-api#108 into main; not merged, not deployed. Production index pre-build runbook:
+    prod-index-prebuild.md.'
+  at: '2026-10-28T10:27:30Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'Bounded representative reproducer: a 3-row out/in 073 bucket under 20,000
+      newer rows scanned ~20k rows on main (ev-007 no index, ev-008/ev-012 index without
+      predicates) and 3 rows via verifications_bank_flow_pair_idx after the fix under
+      custom and prepared force_generic_plan (ev-009, ev-013); local prod-frequency
+      plan comparison 1.6-1.9 s -> 0.2-33 ms with identical rows (ev-003); parity,
+      migration-leftover and log tests plus full go test -race with both DSNs (ev-013);
+      vet, readonly build, gofmt (ev-014). Independent reviewer agent: approve-with-nits,
+      nits fixed in 7f982ee. PR SparqLab/slip-api#108 (not merged, not deployed).'
+    updated_at: '2026-10-28T10:27:09Z'
+    evidence_refs:
+    - ev-003
+    - ev-007
+    - ev-008
+    - ev-009
+    - ev-012
+    - ev-013
+    - ev-014
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-28T07:28:17Z'
+    evidence_refs: []
+next_action:
+  agent: devops
+  description: >-
+    1) Earth pre-builds verifications_bank_flow_pair_idx on production per prod-index-prebuild.md
+    (quiet window, auto-commit, check indisvalid, ANALYZE). 2) Review and merge SparqLab/slip-api#108
+    into main, then promote main -> staging -> prod only after step 1. 3) After deploy, watch
+    `admin bank flow transfers` logs and transfers 5xx; then record knowledge_closeout. Search (count
+    timeouts) stays open until those logs show how often it happens.
