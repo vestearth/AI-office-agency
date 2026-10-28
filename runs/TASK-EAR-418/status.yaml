@@ -1,0 +1,130 @@
+---
+task_id: TASK-EAR-418
+task_label: 'Order: PR vet workflow (incl. -tags integration) + UpdatePaymentState
+  gateway integration test'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-28'
+updated_at: '2026-10-28'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, pr_ci_green,
+    knowledge_closeout'
+  at: '2026-10-28T02:38:28Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: new gateway test seen failing against a broken stamp and passing on the
+    real SQL; go vet both tag sets clean; full integration suite green on Postgres
+    16
+  at: '2026-10-28T02:38:28Z'
+  operator: claude
+- phase: 'gate pr_ci_green: absent -> pending'
+  agent: pm
+  reason: the new pull_request vet workflow runs and passes on the PR to staging
+  at: '2026-10-28T02:38:28Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-28T02:38:28Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'On db93108 (PR #86): new TestUpdatePaymentStateStampsPaymentGateway passes
+    on the real SQL and fails on each mutated query (never stamp: returned gateway
+    = "", want PromptPay; always overwrite: gateway after empty stamp = "", want Apple
+    Pay; no pending guard: replay restamps to Apple Pay). go vet ./... and go vet
+    -tags integration ./... clean, go build clean, go test ./... green; integration
+    suite on empty postgres:16-alpine 34 pass, 0 fail, 0 skip. Workflow RED: origin/prod
+    aedf982 fails go vet -tags integration with purchase_test.go:141:89 not enough
+    arguments in call to repo.UpdatePaymentState. No test weakened.'
+  at: '2026-10-28T02:42:09Z'
+  operator: claude
+- phase: 'gate pr_ci_green: pending -> pass'
+  agent: reviewer
+  reason: 'Vet workflow run 40622446974 on PR #86 head db93108 (event pull_request)
+    completed success: Configure private modules (GH_PAT netrc) ok, go vet ./... ok,
+    go vet -tags integration ./... ok.'
+  at: '2026-10-28T02:44:14Z'
+  operator: claude
+- phase: merged to staging and deployed
+  agent: devops
+  reason: 'Operator approved the merge ("merge เข้า staging ได้เลย"). PR #86 merged
+    to staging as b096c13 (merge commit, head db93108). Deploy STAGING run 40623359399
+    success (build-push, deploy-ecs). games-labs-order-staging:103 image staging-sha-b096c13,
+    task RUNNING HEALTHY, service event "deployment completed" and steady state at
+    2026-10-28T02:56:08Z. Test- and CI-only change, no runtime behavior change.'
+  at: '2026-10-28T02:57:00Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: reviewer
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261028T034258Z-games-labs-order-pr-vet-tagged-tests.yaml'
+  at: '2026-10-28T03:42:58Z'
+  operator: claude
+- phase: assigned -> done
+  agent: dev
+  reason: 'Implemented in the Claude lane at operator request. Order PR #86 merged
+    to staging (b096c13) and deployed (games-labs-order-staging:103, steady state);
+    all three gates passed (implementation_verification, pr_ci_green, knowledge_closeout
+    with KB a50d0cb). Prod picks up the TASK-EAR-403 compile fix only via release
+    PR #83 (TASK-EAR-402 train).'
+  at: '2026-10-28T03:43:21Z'
+  operator: claude
+next_action:
+  agent: done
+  description: >-
+    None. Prod still fails the integration vet until release PR #83 merges;
+    that belongs to the TASK-EAR-402 train, not this run.
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'On db93108 (PR #86): new TestUpdatePaymentStateStampsPaymentGateway passes
+      on the real SQL and fails on each mutated query (never stamp: returned gateway
+      = "", want PromptPay; always overwrite: gateway after empty stamp = "", want
+      Apple Pay; no pending guard: replay restamps to Apple Pay). go vet ./... and
+      go vet -tags integration ./... clean, go build clean, go test ./... green; integration
+      suite on empty postgres:16-alpine 34 pass, 0 fail, 0 skip. Workflow RED: origin/prod
+      aedf982 fails go vet -tags integration with purchase_test.go:141:89 not enough
+      arguments in call to repo.UpdatePaymentState. No test weakened.'
+    updated_at: '2026-10-28T02:42:09Z'
+    evidence_refs: []
+    ran:
+      by: claude
+      ref: db93108
+      url: https://github.com/SparqLab/Games-Labs-Order/pull/86
+  pr_ci_green:
+    status: pass
+    actor: reviewer
+    reason: 'Vet workflow run 40622446974 on PR #86 head db93108 (event pull_request)
+      completed success: Configure private modules (GH_PAT netrc) ok, go vet ./...
+      ok, go vet -tags integration ./... ok.'
+    updated_at: '2026-10-28T02:44:14Z'
+    evidence_refs: []
+    ran:
+      by: claude
+      ref: Vet run 40622446974 / db93108
+      url: https://github.com/SparqLab/Games-Labs-Order/actions/runs/40622446974
+  knowledge_closeout:
+    status: pass
+    actor: reviewer
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261028T034258Z-games-labs-order-pr-vet-tagged-tests.yaml'
+    updated_at: '2026-10-28T03:42:58Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route
