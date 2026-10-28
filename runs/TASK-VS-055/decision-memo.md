@@ -260,3 +260,60 @@ After that, the code can go main → staging → prod as usual. Staging builds t
 - **Order:** revert the code first, then `DROP INDEX CONCURRENTLY IF EXISTS verifications_bank_flow_pair_idx;`.
 - **Why the index goes last:** the added predicates have no statistics without the index.
 - **Index on its own:** leaving the index in place after a code revert is harmless; it only costs one more insert per verified row.
+
+### Record of the production pre-build (2026-10-28, Claude, at Earth's request)
+
+Earth changed D2 in chat: Claude builds now, and merges #108 only once the index is valid. Staging and production promotion stay with Earth.
+
+**Precheck:**
+- The index was absent.
+- `slipadmin` (the app role) owns `verifications`.
+- No transaction was older than a few ms.
+- goose was at version 66.
+
+**How it ran:**
+- `CREATE INDEX CONCURRENTLY` exactly as in migration 067, started detached (`setsid`) inside slip-api task `10bd1d5e…` through ECS Exec.
+- `statement_timeout = 0`.
+
+**Timing (ev-015, ev-016):**
+
+| step | duration | at (Bangkok) |
+|---|---|---|
+| started | — | 17:54:31 |
+| `CREATE INDEX` | **2m58s** | |
+| `ANALYZE verifications` | 1m08s | |
+| finished | — | 17:58:37 |
+
+- The build was VALID first time, with no retry. Size: **458 MB**, 9.67M entries (the estimate had been ~0.8 GB).
+- 2m58s is longer than the ~150 s window a booting task survives, which confirms that a boot-time build would have looped.
+
+**Production plans after the build (ev-018, new query shape, read-only):**
+
+| case | before (Codex) | after |
+|---|---|---|
+| out/073 page 1 | 2.6 s | 3.1 ms |
+| out/073 offset 5000 | cancelled at 5 s | 43 ms |
+| generic plan | — | 1.6 ms (`= $n`) |
+
+All three used `verifications_bank_flow_pair_idx` with 0 rows removed by the filter.
+
+**Customer impact caused by the build (ev-019, ev-020, ev-021):**
+- **What happened:** `POST /v1/slips/verify` returned **12 × 504** (`context deadline exceeded`, about 3 s) between 17:56:02 and 17:56:03. All 12 came from one merchant and one branch.
+  - These are the only verify 504s in the 7 days since 2026-10-21.
+  - **11** of the 12 left no `verifications` row.
+  - **1** was saved as `rejected` while the client got 504.
+- **RDS at the same minutes:**
+
+  | metric | normal | 17:55–17:56 |
+  |---|---|---|
+  | WriteLatency (max) | about 2 ms | 59 ms |
+  | DiskQueueDepth | 0.1 | 7.3 |
+  | ReadIOPS | about 20 | up to 1,039 |
+  | CPU | — | up to 53 % |
+
+- **Likely cause:** writing the index and its WAL saturated I/O, so verify inserts overran their 3 s deadline. This was not a lock: `CONCURRENTLY` does not block inserts.
+- **Lesson:** low average CPU is not I/O headroom. Run index builds on `verifications` only in the 01:00–05:00 Bangkok window. With hindsight, the original D2 (a quiet window) was right, and my "build now" recommendation was wrong.
+
+**#108:** merged into main as `ff38f76` at 11:03:10Z, after the index was valid.
+- No deploy workflow ran; deploys trigger on `staging` / `prod` pushes only.
+- `origin/staging` (227561c) and `origin/prod` (1dd7ab3) are unchanged.

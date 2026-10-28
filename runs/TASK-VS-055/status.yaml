@@ -73,6 +73,31 @@ history:
     prod-index-prebuild.md.'
   at: '2026-10-28T10:27:30Z'
   operator: claude
+- phase: assigned -> assigned
+  agent: pm
+  reason: 'Earth changed D2 in chat (2026-10-28 17:5x Bangkok): Claude builds verifications_bank_flow_pair_idx
+    on production now (CREATE INDEX CONCURRENTLY via ECS Exec with the app role, detached, then
+    indisvalid check and ANALYZE), and merges SparqLab/slip-api#108 into main only after the index
+    is valid. Staging and production promotion are not authorized.'
+  at: '2026-10-28T10:53:51Z'
+  operator: claude
+- phase: assigned -> assigned
+  agent: devops
+  reason: 'Production pre-build done by Claude at Earth''s request: verifications_bank_flow_pair_idx
+    built CONCURRENTLY 17:54:31-17:57:29 Bangkok (2m58s), VALID, 458 MB, ANALYZE 1m08s (ev-015,
+    ev-016); production plans for the new query shape use it (out/073 page 1 3.1 ms, offset 5000
+    43 ms, generic plan 1.6 ms; ev-018). Customer impact: the build saturated I/O and POST /v1/slips/verify
+    returned 12 x 504 at 17:56:02-03 (one merchant/branch; the only verify 504s in 7 days; 11 left
+    no verification row, 1 saved as rejected) (ev-019..ev-021). Lesson recorded in decision-memo.md
+    section 8.'
+  at: '2026-10-28T11:03:40Z'
+  operator: claude
+- phase: assigned -> assigned
+  agent: devops
+  reason: 'Merged SparqLab/slip-api#108 into main as ff38f76 (head guarded at 7f982ee) after the
+    production index was valid. No workflow ran; staging 227561c and prod 1dd7ab3 unchanged.'
+  at: '2026-10-28T11:03:40Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -104,8 +129,8 @@ completion_gates:
 next_action:
   agent: devops
   description: >-
-    1) Earth pre-builds verifications_bank_flow_pair_idx on production per decision-memo.md section 8
-    (quiet window, auto-commit, check indisvalid, ANALYZE). 2) Review and merge SparqLab/slip-api#108
-    into main, then promote main -> staging -> prod only after step 1. 3) After deploy, watch
-    `admin bank flow transfers` logs and transfers 5xx; then record knowledge_closeout. Search (count
-    timeouts) stays open until those logs show how often it happens.
+    Earth (or a teammate) promotes slip-api main ff38f76 -> staging -> prod; the production index
+    already exists, so migration 067 is a no-op there. After deploy, check transfers 5xx and the
+    `admin bank flow transfers` log, then record knowledge_closeout. Earth may want to tell the
+    affected merchant about the 12 verify 504s at 17:56 Bangkok on 2026-10-28 (decision-memo.md
+    section 8). Search (count timeouts) stays open until the new log shows how often it happens.
