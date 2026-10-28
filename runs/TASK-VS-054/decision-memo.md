@@ -68,8 +68,15 @@ Codex's investigation found:
 - **PR:** SparqLab/slip-api#109 into main.
   - Merged on Earth's go at 2026-10-28 13:50Z, pinned to the reviewed head b2fe22f.
   - Merge commit: 9524b15. Its tree equals b2fe22f.
-  - Not deployed. No workflow ran, and staging and prod are unchanged.
+  - At merge time it was not deployed: no workflow ran, and staging and prod were unchanged.
   - main now also carries TASK-VS-055 (ff38f76), so the next promotion ships both.
+- **Promotion (Earth's go, 2026-10-28; ev-009):**
+  - staging: `227561c..5b705b4` at 14:15Z, `slip-api-staging:161`.
+  - production: `1dd7ab3..d7f7249` at 14:28Z, `slip-api-production:118`, all 5 tasks HEALTHY on `production-sha-d7f7249`.
+  - A dry-run merge matched the #108 + #109 diff exactly.
+  - From 14:28Z to 14:41Z there were 0 ERROR lines and 0 HTTP 5xx.
+  - The first digest on this code is 2026-10-29 08:00 Bangkok.
+  - Rollback: point the service back to `slip-api-production:117`.
 - **Review finding (independent reviewer agent, approve-with-nits):**
   - **Problem:** with a deadline per part, five parts could take 75 s inside the 45 s run. That would leave `SendText` (a 10 s Lark client) too little time. A send timeout after Lark had accepted the post would release the claim and post the digest twice.
   - **Fix:** `Collect` now ends within two stage budgets (30 s in production), still with a deadline per part.

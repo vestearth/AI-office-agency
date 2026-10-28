@@ -98,6 +98,17 @@ history:
     production index was valid. No workflow ran; staging 227561c and prod 1dd7ab3 unchanged.'
   at: '2026-10-28T11:03:40Z'
   operator: claude
+- phase: assigned -> assigned
+  agent: devops
+  reason: 'Earth: promote main. Claude promoted main 9524b15 (with TASK-VS-054) the way the team
+    does: staging 227561c..5b705b4 (Deploy STAGING green, slip-api-staging:161, 067 built the
+    index in 96 ms) then prod 1dd7ab3..d7f7249 (Deploy PRODUCTION green, slip-api-production:118,
+    5/5 healthy, 067 a no-op in 18 ms on one task, goose 67, index VALID 465 MB). Before the push,
+    a dry-run merge matched the #108+#109 diff exactly, and production had the index VALID, no
+    conflicting lock and no autovacuum. 0 ERROR and 0 HTTP 5xx 14:28-14:41Z (ev-022). Rollback:
+    service back to slip-api-production:117.'
+  at: '2026-10-28T14:42:00Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -129,8 +140,8 @@ completion_gates:
 next_action:
   agent: devops
   description: >-
-    Earth (or a teammate) promotes slip-api main ff38f76 -> staging -> prod; the production index
-    already exists, so migration 067 is a no-op there. After deploy, check transfers 5xx and the
-    `admin bank flow transfers` log, then record knowledge_closeout. Earth may want to tell the
+    Deployed to staging and prod on 2026-10-28 (prod d7f7249, slip-api-production:118). Over the
+    next days check transfers 5xx and the `admin bank flow transfers` log, then record
+    knowledge_closeout. Earth may want to tell the
     affected merchant about the 12 verify 504s at 17:56 Bangkok on 2026-10-28 (decision-memo.md
     section 8). Search (count timeouts) stays open until the new log shows how often it happens.

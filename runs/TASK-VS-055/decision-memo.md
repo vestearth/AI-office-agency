@@ -317,3 +317,28 @@ All three used `verifications_bank_flow_pair_idx` with 0 rows removed by the fil
 **#108:** merged into main as `ff38f76` at 11:03:10Z, after the index was valid.
 - No deploy workflow ran; deploys trigger on `staging` / `prod` pushes only.
 - `origin/staging` (227561c) and `origin/prod` (1dd7ab3) are unchanged.
+
+### Promotion (2026-10-28, Claude, at Earth's request; ev-022)
+
+main `9524b15` carries this change and TASK-VS-054. Before pushing, a dry-run merge showed the change prod would receive is exactly the #108 + #109 diff.
+
+| | staging | production |
+|---|---|---|
+| push | `227561c..5b705b4` at 14:15Z | `1dd7ab3..d7f7249` at 14:28Z |
+| task definition | `slip-api-staging:161` | `slip-api-production:118` (5 tasks) |
+| migration 067 at boot | built the index in 96 ms (692 rows) | 18 ms on one task: the index already existed, so `IF NOT EXISTS` skipped it |
+| index after deploy | VALID, 48 kB | VALID, 465 MB |
+| rollout | COMPLETED, HEALTHY | COMPLETED, all 5 HEALTHY |
+
+**Pre-push checks on production:**
+- the index was VALID;
+- no session held a conflicting lock on `verifications`;
+- no autovacuum worker was running.
+
+The migration runner takes a goose advisory lock, so only the first new task ran 067.
+
+**After the production deploy (14:28Z–14:41Z):**
+- 0 ERROR lines and 0 HTTP 5xx, against 0 HTTP 5xx in the hour before.
+- 4xx traffic as usual.
+
+**Rollback:** point the service back to `slip-api-production:117` (or `slip-api-staging:160` on staging). The index can stay: the old code ignores it, and its write cost has existed since the pre-build.

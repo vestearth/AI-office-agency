@@ -71,6 +71,15 @@ history:
     unchanged, so nothing is deployed. main now carries TASK-VS-055 ff38f76 and this change.'
   at: '2026-10-28T13:51:21Z'
   operator: claude
+- phase: assigned -> assigned
+  agent: devops
+  reason: 'Earth: promote main. Claude promoted main 9524b15 (with TASK-VS-055): staging 227561c..5b705b4
+    (Deploy STAGING green, slip-api-staging:161) then prod 1dd7ab3..d7f7249 (Deploy PRODUCTION
+    green, slip-api-production:118, image production-sha-d7f7249, 5/5 healthy). A dry-run merge
+    matched the #108+#109 diff exactly. 0 ERROR and 0 HTTP 5xx 14:28-14:41Z (ev-009). The first
+    digest on this code is 2026-10-29 08:00 Bangkok. Rollback: service back to slip-api-production:117.'
+  at: '2026-10-28T14:42:00Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -100,7 +109,7 @@ completion_gates:
 next_action:
   agent: devops
   description: >-
-    Earth or a teammate promotes slip-api main 9524b15 to staging and prod (it also carries TASK-VS-055
-    ff38f76; no schema in this change, no deploy-order constraint). After deploy, check the 08:00
-    Bangkok digest logs for `daily digest sent` with no `daily digest` errors, then record
+    Deployed to staging and prod on 2026-10-28 (prod d7f7249, slip-api-production:118). On
+    2026-10-29 after 08:00 Bangkok (01:00Z), check /ecs/slip-api-production for `daily digest sent`
+    with no `daily digest` errors and note how long after 01:00 it was sent, then record
     knowledge_closeout.
