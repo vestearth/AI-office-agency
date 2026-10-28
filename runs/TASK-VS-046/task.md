@@ -165,7 +165,7 @@ The backend checks in this order and stops at the first failure: bank verify →
 | `slip not verified` | bank did not confirm the transfer | `not_found` | destination ✖ |
 | `เกิดข้อผิดพลาด เนื่องจากสลิปเกินเวลา โปรดติดต่อแอดมิน` | transferred more than 24h ago (`20bbd6f`) | `expired` | destination ✖ |
 | `slip must be transferred within 24 hours` | transfer time in the future (clock skew, rare) | `expired` or a generic rejected message | destination ✖ |
-| `slip transfer date unavailable` | bank response has no transfer time | pending decision D2 (recommended `unreadable`) | destination ✖ |
+| `slip transfer date unavailable` | bank response has no transfer time | `unreadable`, with transfer-time copy (D2) | destination ✖ |
 | `receiver does not match configured accounts` | wrong destination account | `destination` | destination ✔ |
 | `slip amount unavailable` | amount unreadable | `unreadable` | destination ✖ |
 | `slip must be transferred today` | legacy rows before `1fd81a9`, seen in `GET /v1/payments` history only | `expired` | n/a |
@@ -188,11 +188,18 @@ The backend checks in this order and stops at the first failure: bank verify →
 
 - A committed regression test covers every row of table A: feed the body above with HTTP 422 and assert the resulting reject kind.
 - The test is seen **failing on the unfixed code** first, then passing. ev-004 shows 5 of 6 cases failing on `8b9906f`.
+- The expired screen has a working contact admin/CS action (D1). `slip transfer date unavailable` shows transfer-time copy, not the amount copy (D2). Both credit top-up and branch purchase top-up are checked.
 - slip-front-end CI runs only lint and typecheck, so the PR includes the test run output. Use the same runner as the existing `tests/*.test.ts` (`node:test`; there is no `test` script in `package.json`).
 - PR into `main` first. No direct push to prod (`8b9906f` went to prod without a PR).
 
-### Decisions for Earth (pending)
+### Decisions (Earth, 2026-10-28)
 
-- **D1, expired screen action:** the chip says `เกินกำหนด 24 ชม. · ต้องแนบสลิปใบใหม่`, but a customer who paid more than 24h ago has no newer slip. The backend text says to contact admin, and admin can credit through Users → Top-up. Recommended: a contact admin/CS action on the expired screen.
-- **D2, `slip transfer date unavailable`:** recommended `'unreadable'` (transfer time unreadable), not `'expired'`, because the expired copy `สลิปมีอายุเกิน 24 ชั่วโมง` would be false.
-- **D3, later and outside this task:** ask slip-api for a stable `rejection_code` beside the text, so a copy change no longer breaks the front end. This is a contract change.
+- **D1, decided: the expired screen gets a contact admin/CS action.**
+  - Why: the chip says `เกินกำหนด 24 ชม. · ต้องแนบสลิปใบใหม่`, but a customer who paid more than 24h ago has no newer slip. The backend text already says to contact admin, and admin can credit the money through Users → Top-up.
+  - Change the chip so it no longer tells the customer only to attach a new slip.
+  - **Trap:** the existing `contactSupport()` in `useCreditTopup.ts:717` and `useBranchPurchase.ts:1331` only shows the toast `เปิดเคสพร้อมแนบข้อมูลรายการนี้แล้ว`. It opens no case, so wiring the new button to it would tell the customer a case exists when none does.
+  - The button must reach a real channel. The repo already has one pattern: `useSuspended.ts` builds `mailto:${authSupportEmail}` (`support@up-slip.com`, `app/features/auth/constants.ts`) with the reference in the subject. Reuse it with the payment reference (`paymentDisplayId`) unless Earth names another channel (for example LINE OA).
+- **D2, decided: `slip transfer date unavailable` → `'unreadable'`, with copy that says the transfer date and time could not be read.**
+  - The current unreadable copy is amount-specific: `branchTopupUnreadableTitle` `อ่านยอดจากสลิปไม่ได้`, and the body talks about the amount. This case needs its own title/body (for example `อ่านวันเวลาโอนจากสลิปไม่ได้`), either as a copy variant on the unreadable kind or a separate constant.
+  - Not `'expired'`, because `สลิปมีอายุเกิน 24 ชั่วโมง` would be false.
+- **D3, open, later and outside this task:** ask slip-api for a stable `rejection_code` beside the text, so a copy change no longer breaks the front end. This is a contract change.
