@@ -57,10 +57,12 @@ force_done() {
 }
 validate() { ruby "$VALIDATOR" "$1" >"$RUNS/validate.log" 2>&1; }
 
-# Replay the checked-in TASK-VS-004 status. Move its existing Wave 2 prose
-# wait into the branch while preserving the independent staging approval wait.
+# Replay TASK-VS-004's status as checked in on 2026-10-15 (blob 0df445bb),
+# frozen under fixtures/ because the live run moves on: 6ad49d25 rewrote its
+# waits when the operator chose code preparation only. Move its existing Wave 2
+# prose wait into the branch while preserving the independent staging approval wait.
 D="$(task TASK-VS-004)"
-cp "$ROOT/runs/TASK-VS-004/status.yaml" "$D/status.yaml"
+cp "$ROOT/tests/integration/fixtures/TASK-VS-004.status.yaml" "$D/status.yaml"
 ruby -ryaml -rdate - "$D/status.yaml" <<'RUBY'
 p = ARGV[0]
 s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time], aliases: true)
