@@ -39,7 +39,7 @@ describe('isComplete', () => {
 
 describe('gateRungProgress', () => {
   const g = (name: string, status: string) => ({ name, status }) as GateEntry;
-  const view = (gates: GateEntry[]) => ({ readable: true, problem: null, finishedPhase: null, summary: { total: gates.length, resolved: 0, passable: 0, byStatus: {} }, gates }) as GateView;
+  const view = (gates: GateEntry[]) => ({ readable: true, problem: null, finishedPhase: null, ledgerReadable: true, summary: { total: gates.length, resolved: 0, passable: 0, byStatus: {} }, gates }) as GateView;
   it('reads the ladder from the task gates, so the detail header is not left with a stale hand-off note', () => {
     // 2026-10-17: TASK-VS-028's last note said "Not merged; deploy slip-api first" while its gates had passed deploy_production.
     expect(gateRungProgress(view([g('implementation_verification', 'pass'), g('deploy_staging', 'pass'), g('staging_acceptance', 'pass'), g('deploy_production', 'pass'), g('production_acceptance', 'pending')])))

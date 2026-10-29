@@ -160,6 +160,8 @@ export interface GateEntry {
   requiresAuthorization: string | null;
   /** Pending bound gates only; unknown = the authorization ledger cannot be read. */
   grant: 'available' | 'missing' | 'unknown' | null;
+  /** When an available grant stops covering this gate (UTC); null when it never expires or none is available. */
+  grantValidUntil: string | null;
   requiresRecord: boolean;
   /** The 2C run record of a pass gate (by, ref, url); null otherwise. */
   ran: Record<string, string> | null;
@@ -175,9 +177,20 @@ export interface GateView {
   readable: boolean;
   problem: string | null;
   finishedPhase: string | null;
+  /** Whether authorization.yaml loads (absent = an empty ledger), bound gates or not; null when the view was not built. */
+  ledgerReadable: boolean | null;
   summary: { total: number; resolved: number; passable: number; byStatus: Record<string, number> };
   gates: GateEntry[];
 }
+
+/** Issue #56: a pending gate that waits for a grant of `action`. */
+export interface AwaitingGrant { gate: string; action: string }
+/** Who a dashboard grant is recorded as: the office.team.yaml owner of this checkout's task prefix. */
+export type Grantor = { actor: string; prefix: string } | { actor: null; problem: string };
+/** GET /api/authorizations/:taskId */
+export interface AuthorizationGrantsView { taskId: string; awaiting: AwaitingGrant[]; problem: string | null; grantor: Grantor }
+/** POST /api/authorizations/:taskId/grant, 201 */
+export interface RecordedGrant { id: string; action: string; actor: string; expiresAt: string | null }
 
 /**
  * Read-only Review read model. Every field is a projection of a contracted

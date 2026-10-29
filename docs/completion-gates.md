@@ -254,25 +254,34 @@ with the problem.
 - **Action Center.** For a task with `completion_gates`, three kinds come
   right after `decision_pending`:
   - `gates_unreadable`: the view is unreadable, or `authorization.yaml` cannot
-    be read.
+    be read (the view's top-level `ledger_readable: false`, reported even when
+    no gate is bound to the ledger, since a grant recorded on it would be refused).
   - `authorization_required`: a pending bound gate waits only for a grant. It
-    names the gate and shows the
+    names the gate, shows the
     `ruby scripts/record-authorization.rb <TASK> grant --action <action> …`
-    command, with placeholders for scope, actor, channel and reason.
+    command, with placeholders for scope, actor, channel and reason, and has a
+    **Record grant** button (#56, below).
   - `completion_held`: the review approved, but unresolved gates hold `done`.
     This replaces the misleading `awaiting_review` for such a task.
 
   A bound gate still waiting on another gate, and any gate on a `done`/`aborted`
   task, is not flagged.
 - **Monitor.** A **Completion Gates** card lists every gate with its status and
-  the CLI text, plus an `open run` link for an `http(s)` `ran.url`. An
-  unreadable view shows `Gate state unreadable: <problem>` instead of a list.
+  the CLI text, plus an `open run` link for an `http(s)` `ran.url` and, for an
+  available grant that expires, `grant valid until <time>` (`grant_valid_until`:
+  the latest `expires_at` among the valid grants of the gate's action; null when
+  one never expires). An unreadable view shows `Gate state unreadable: <problem>`
+  instead of a list, and an unreadable ledger adds a line saying so.
 
 Tasks without `completion_gates` never run the script, and their Action Center
 result and JSON are unchanged. Any failure to get the view (no Ruby, a timeout,
-unexpected output) is shown as unreadable, never as nothing to do. The
-dashboard stays read-only: it shows the command and never records a grant or
-passes a gate. Spec:
+unexpected output) is shown as unreadable, never as nothing to do. At most eight
+gate-view processes run at once; a refresh of many gated tasks queues the rest.
+A grant that expires changes no file, so the server re-announces the task's
+ledger as changed a second after the earliest expiry it has seen, and open views
+refresh. The dashboard never passes a gate; since #56 it can record a grant
+(see [authorization-ledger.md](authorization-ledger.md#recording-a-grant-from-the-dashboard-56)).
+Spec:
 [`superpowers/specs/2026-10-08-dashboard-gates-phase-2f-design.md`](superpowers/specs/2026-10-08-dashboard-gates-phase-2f-design.md).
 
 ## Opening a task with gates (#55)

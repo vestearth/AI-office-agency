@@ -22,7 +22,7 @@ module GateViewJson
 
   def unreadable(problem)
     {
-      "readable" => false, "problem" => problem, "finished_phase" => nil,
+      "readable" => false, "problem" => problem, "finished_phase" => nil, "ledger_readable" => nil,
       "summary" => { "total" => 0, "resolved" => 0, "passable" => 0, "by_status" => {} },
       "gates" => []
     }
@@ -35,7 +35,8 @@ module GateViewJson
 
     finished = view["finished_phase"]
     gates = view["gates"].map { |gate| gate.merge("detail" => GateStatusText.suffix(gate, finished).sub(/\A — /, "")) }
-    { "readable" => true, "problem" => nil, "finished_phase" => finished, "summary" => view["summary"], "gates" => gates }
+    { "readable" => true, "problem" => nil, "finished_phase" => finished, "ledger_readable" => view["ledger_readable"],
+      "summary" => view["summary"], "gates" => gates }
   end
 end
 

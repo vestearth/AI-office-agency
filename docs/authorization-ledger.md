@@ -58,6 +58,21 @@ ruby scripts/record-authorization.rb <TASK> revoke <authz-NNN> --actor X --via V
 
 It takes the task lock and the ownership fence, writes `at` itself (never caller-supplied), allocates the next id, and records an `authorization_recorded` event in `meta.yaml`. On success it prints `authz-NNN grant` or `authz-NNN revoke`. It refuses a grant on a `done`/`aborted` task (exit `2`); a revoke is always allowed. Arguments are read as UTF-8 whatever the locale, so Thai free text is stored as plain text. Exit codes: `0` ok; `2` usage error (including an argument that is not valid UTF-8), invalid flag combination or an append that would break a ledger integrity rule; `3` missing or corrupt `status.yaml`, or an unreadable / integrity-violating ledger; `9` ownership fence refused.
 
+## Recording a grant from the dashboard (#56)
+
+An `authorization_required` row in the Action Center has a **Record grant** button. The dialog lists the actions that a pending gate of the task waits for (grant `missing`), takes a scope, a reason and an optional expiry (none, 1 h, 4 h, 24 h or 7 days), and calls the same writer:
+
+```
+ruby scripts/record-authorization.rb <TASK> grant --action A --scope S --actor <grantor> --via dashboard --reason R [--expires-at TS]
+```
+
+- **Who may grant.** The grant is recorded as the **grantor**: the `office.team.yaml` owner of this checkout's task prefix (`office.config.local.yaml`, else `office.config.yaml`). That is the name the dashboard's "Your name" field registers. The server resolves it; a name sent by the browser is never used. With no prefix, or a prefix without an owner, the dialog says so and records nothing.
+- **Where from.** `POST /api/authorizations/:taskId/grant` and `GET /api/authorizations/:taskId` are behind the shared token (when `DASHBOARD_AUTH_TOKEN` is set) and accept only localhost callers with an allowed dashboard Origin, the same guard as a task step.
+- **What.** Only an action that a pending gate of the task waits for, whether or not that gate still waits on another gate (an operator may approve a whole chain at once). A task that is `done`/`aborted`, whose gate view or ledger cannot be read, or whose gates already hold a valid grant for the action is refused with 409, and nothing is written.
+- **Audit.** The writer adds the ledger row (`actor`, `via: dashboard`, `reason`, `at`) and the `authorization_recorded` meta event. The dashboard runs it with the harness markers removed, so the history operator names no AI tool.
+
+The grantor is a configuration fact, not an authenticated identity: anyone who can reach the dashboard on this machine records as that person. That is no weaker than the CLI, where `--actor` is free text (see Documented limits).
+
 ## Validity: `(T, S)`
 
 A grant is valid as of time `T` and snapshot `S` (an authorization id) iff `id <= S`, `at <= T`, (`expires_at` absent or `T < expires_at`), and no revoke of it with `id <= S`. Timestamps decide only a grant's start and expiry.

@@ -15,9 +15,11 @@ import reportRoutes from './routes/reports';
 import knowledgeReviewRoutes from './routes/knowledgeReviews';
 import launchRoutes from './routes/launch';
 import signalRoutes from './routes/signals';
+import authorizationRoutes from './routes/authorizations';
 import { globalWatcher } from './services/watcher';
 import { globalScanner } from './services/runScanner';
 import { globalReviewModel } from './services/reviewModel';
+import { globalGateViews } from './services/gateView';
 import { createAuthMiddleware } from './middleware/auth';
 
 const app = express();
@@ -41,6 +43,7 @@ app.use('/api/identity', identityRoutes);
 app.use('/api/knowledge-reviews', knowledgeReviewRoutes);
 app.use('/api/launch', launchRoutes);
 app.use('/api/signals', signalRoutes);
+app.use('/api/authorizations', authorizationRoutes);
 
 // Serve the built client same-origin when a build exists. Guarded on the dist
 // dir: in dev it hasn't been built, so this is a no-op and the Vite dev server
@@ -63,6 +66,8 @@ globalWatcher.on('update', () => {
   globalReviewModel.invalidate();
 });
 globalWatcher.start();
+// A grant expiring changes no file, so the gate view announces it as a ledger change.
+globalGateViews.onGrantExpiry((taskDir) => globalWatcher.queueUpdate('change', path.join(taskDir, 'authorization.yaml')));
 
 app.listen(config.port, () => {
   console.log(`AI Dashboard Server running on http://localhost:${config.port}`);

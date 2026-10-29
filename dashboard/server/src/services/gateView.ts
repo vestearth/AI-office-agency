@@ -24,6 +24,7 @@ export function unreadableGateView(problem: string): GateView {
     readable: false,
     problem,
     finishedPhase: null,
+    ledgerReadable: null,
     summary: { total: 0, resolved: 0, passable: 0, byStatus: {} },
     gates: [],
   };
@@ -46,6 +47,10 @@ function bool(value: unknown, field: string): boolean {
 function num(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`${field} is not a number`);
   return value;
+}
+
+function boolOrNull(value: unknown, field: string): boolean | null {
+  return value === null ? null : bool(value, field);
 }
 
 function str(value: unknown, field: string): string {
@@ -79,6 +84,7 @@ function parseGateEntry(value: unknown, i: number): GateEntry {
     waitsOn: stringList(gate.waits_on, field('waits_on')),
     requiresAuthorization: strOrNull(gate.requires_authorization, field('requires_authorization')),
     grant,
+    grantValidUntil: strOrNull(gate.grant_valid_until, field('grant_valid_until')),
     requiresRecord: bool(gate.requires_record, field('requires_record')),
     ran: gate.ran === null ? null : stringMap(gate.ran, field('ran')),
     passable: bool(gate.passable, field('passable')),
@@ -97,6 +103,7 @@ export function parseGateView(stdout: string): GateView {
     readable: bool(data.readable, 'readable'),
     problem: strOrNull(data.problem, 'problem'),
     finishedPhase: strOrNull(data.finished_phase, 'finished_phase'),
+    ledgerReadable: boolOrNull(data.ledger_readable, 'ledger_readable'),
     summary: {
       total: num(summary.total, 'summary.total'),
       resolved: num(summary.resolved, 'summary.resolved'),
@@ -116,14 +123,86 @@ function failureReason(error: unknown, timeoutMs: number): string {
   return 'ruby failed';
 }
 
+/** The clock and timer the expiry watch uses; injectable for tests. */
+export interface ExpiryTimers {
+  now: () => number;
+  set: (callback: () => void, ms: number) => NodeJS.Timeout;
+  clear: (timer: NodeJS.Timeout) => void;
+}
+
+const REAL_TIMERS: ExpiryTimers = { now: Date.now, set: (callback, ms) => setTimeout(callback, ms).unref(), clear: clearTimeout };
+// The guard floors "now" to whole seconds, so a re-read lands a second after the expiry.
+const EXPIRY_SLACK_MS = 1_000;
+// setTimeout cannot wait longer than this; a later expiry is watched by a later load.
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 export class GateViewService {
+  private running = 0;
+  private readonly queued: Array<() => void> = [];
+  private expiry: { at: number; timer: NodeJS.Timeout } | null = null;
+  private expiryListener: ((taskDir: string) => void) | null = null;
+
   constructor(
     private readonly scriptPath: string = path.join(config.aiOfficeRoot, 'scripts', 'gate-view-json.rb'),
     private readonly timeoutMs: number = 5_000,
+    /**
+     * Ruby processes at once: a refresh loads every gated task, so the rest wait their turn.
+     * 8 kept a 588-run scan (63 gated) as fast as uncapped on 2026-10-29; 4 added ~0.5 s.
+     */
+    private readonly concurrency: number = 8,
+    private readonly timers: ExpiryTimers = REAL_TIMERS,
   ) {}
+
+  /**
+   * Called when a grant a loaded view counted as available has expired. Nothing on
+   * disk changes then, so without this the file watcher would never refresh the view.
+   */
+  onGrantExpiry(listener: (taskDir: string) => void): void {
+    this.expiryListener = listener;
+  }
 
   /** Never rejects: any failure is an unreadable view, never an empty all-clear. */
   async load(taskDir: string): Promise<GateView> {
+    await this.acquire();
+    try {
+      const view = await this.run(taskDir);
+      this.watchExpiry(taskDir, view);
+      return view;
+    } finally {
+      this.release();
+    }
+  }
+
+  private acquire(): Promise<void> {
+    if (this.running < this.concurrency) {
+      this.running += 1;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => this.queued.push(resolve));
+  }
+
+  /** Hands the slot straight to the next waiter, so a new load cannot slip in between. */
+  private release(): void {
+    const next = this.queued.shift();
+    if (next) next();
+    else this.running -= 1;
+  }
+
+  /** Keeps one timer, for the earliest expiry seen; when it fires, the refresh it causes watches the next. */
+  private watchExpiry(taskDir: string, view: GateView): void {
+    const at = Math.min(...view.gates.map((gate) => (gate.grantValidUntil ? Date.parse(gate.grantValidUntil) : NaN)).filter(Number.isFinite));
+    if (!Number.isFinite(at) || (this.expiry && this.expiry.at <= at)) return;
+    const ms = Math.max(0, at - this.timers.now()) + EXPIRY_SLACK_MS;
+    if (ms > MAX_TIMER_MS) return;
+    if (this.expiry) this.timers.clear(this.expiry.timer);
+    const timer = this.timers.set(() => {
+      this.expiry = null;
+      this.expiryListener?.(taskDir);
+    }, ms);
+    this.expiry = { at, timer };
+  }
+
+  private async run(taskDir: string): Promise<GateView> {
     let stdout: string;
     try {
       ({ stdout } = await execFileAsync('ruby', [this.scriptPath, taskDir], {

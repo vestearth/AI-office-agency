@@ -12,8 +12,8 @@ const TONE_COLOR: Record<GateTone, string> = {
 
 /**
  * Issue #28 Phase 2F: a task's completion gates in Monitor, with the same text as
- * `run-agent.sh status`. Read-only: no buttons; the Action Center names the
- * command when a human has to act.
+ * `run-agent.sh status`. Read-only: no buttons; a missing grant is recorded from
+ * the Action Center (#56).
  */
 export function GatesCard({ view }: { view: GateView }) {
   return (
@@ -29,26 +29,34 @@ export function GatesCard({ view }: { view: GateView }) {
           Gate state unreadable: {view.problem ?? 'unknown problem'}
         </div>
       ) : (
-        <ul className="gate-list">
-          {view.gates.map((gate) => {
-            const color = TONE_COLOR[gateTone(gate)];
-            const runUrl = safeRunUrl(gate.ran?.url);
-            return (
-              <li key={gate.name} className="gate-item">
-                <div className="gate-row">
-                  <span className="gate-name">{gate.name}</span>
-                  <span className="gate-pill" style={{ color, borderColor: color }}>{gate.status}</span>
-                </div>
-                {gate.detail && <div className="gate-detail">{gate.detail}</div>}
-                {runUrl && (
-                  <a className="gate-run-link" href={runUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink size={11} /> open run
-                  </a>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          {view.ledgerReadable === false && (
+            <div className="gates-card-unreadable" role="alert">
+              Authorization ledger unreadable: repair authorization.yaml before recording a grant.
+            </div>
+          )}
+          <ul className="gate-list">
+            {view.gates.map((gate) => {
+              const color = TONE_COLOR[gateTone(gate)];
+              const runUrl = safeRunUrl(gate.ran?.url);
+              return (
+                <li key={gate.name} className="gate-item">
+                  <div className="gate-row">
+                    <span className="gate-name">{gate.name}</span>
+                    <span className="gate-pill" style={{ color, borderColor: color }}>{gate.status}</span>
+                  </div>
+                  {gate.detail && <div className="gate-detail">{gate.detail}</div>}
+                  {gate.grantValidUntil && <div className="gate-detail">grant valid until {new Date(gate.grantValidUntil).toLocaleString()}</div>}
+                  {runUrl && (
+                    <a className="gate-run-link" href={runUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink size={11} /> open run
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </div>
   );
