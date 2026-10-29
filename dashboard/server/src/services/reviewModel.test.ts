@@ -228,11 +228,11 @@ test('getReviewSummaries titles a task from task.md, then pm-output, when status
 type GateFixture = Partial<GateEntry> & { name: string };
 function gateView(entries: GateFixture[], extra: Partial<GateView> = {}): GateView {
   const gates: GateEntry[] = entries.map((entry) => ({
-    status: 'pending', resolved: false, waitsOn: [], requiresAuthorization: null, grant: null,
+    status: 'pending', resolved: false, waitsOn: [], requiresAuthorization: null, grant: null, grantValidUntil: null,
     requiresRecord: false, ran: null, passable: true, unresolvedReason: null, detail: 'can pass now', ...entry,
   }));
   return {
-    readable: true, problem: null, finishedPhase: null,
+    readable: true, problem: null, finishedPhase: null, ledgerReadable: true,
     summary: {
       total: gates.length,
       resolved: gates.filter((gate) => gate.resolved).length,
@@ -292,10 +292,12 @@ test('an unreadable gate view is gates_unreadable, with the problem', () => {
   assert.deepEqual(r.gates, { readable: false, total: 0, resolved: 0, passable: 0, items: [] });
 });
 
-test('an unreadable authorization ledger is gates_unreadable, whether the gate is pending or passed', () => {
-  const pending = gateView([{ ...BOUND_MISSING, grant: 'unknown' }]);
-  const passed = gateView([{ name: 'deploy', status: 'pass', passable: false, unresolvedReason: 'authorization ledger unreadable' }]);
-  for (const view of [pending, passed]) {
+test('an unreadable authorization ledger is gates_unreadable, whether the gate is pending, passed or unbound', () => {
+  const pending = gateView([{ ...BOUND_MISSING, grant: 'unknown' }], { ledgerReadable: false });
+  const passed = gateView([{ name: 'deploy', status: 'pass', passable: false, unresolvedReason: 'authorization ledger unreadable' }], { ledgerReadable: false });
+  // #56: a corrupt ledger changes no unbound gate, but a grant recorded on it would be refused.
+  const unbound = gateView([{ name: 'smoke' }], { ledgerReadable: false });
+  for (const view of [pending, passed, unbound]) {
     const r = buildReviewSummary('T', { phase: 'assigned' }, null, null, null, view);
     assert.equal(r.actionKind, 'gates_unreadable');
     assert.equal(r.actionReason, 'Gate state cannot be read: the authorization ledger cannot be read.');
@@ -326,7 +328,7 @@ test('gate kinds follow decision_pending, then unreadable, authorization, comple
   const decision = { decision: 'approve' as const, actor: 'alice', decidedAt: '2026-06-05T00:00:00Z' };
   const unreadable = gateView([], { readable: false, problem: 'x' });
   assert.equal(buildReviewSummary('T', { phase: 'in_review' }, null, null, decision, unreadable).actionKind, 'decision_pending');
-  const ledgerAndGrant = gateView([{ ...BOUND_MISSING, grant: 'unknown' }, { ...BOUND_MISSING, name: 'other' }]);
+  const ledgerAndGrant = gateView([{ ...BOUND_MISSING, grant: 'unknown' }, { ...BOUND_MISSING, name: 'other' }], { ledgerReadable: false });
   assert.equal(buildReviewSummary('T', { phase: 'assigned' }, null, null, null, ledgerAndGrant).actionKind, 'gates_unreadable');
   const approvedWithGrant = gateView([BOUND_MISSING]);
   assert.equal(buildReviewSummary('T', { phase: 'in_review' }, { review_verdict: 'approved' }, null, null, approvedWithGrant).actionKind, 'authorization_required');
@@ -499,7 +501,7 @@ test('25 gated tasks read at once all come back readable', async () => {
 });
 
 test('a finished task is never flagged by gates, even when its gate state cannot be read', () => {
-  const ledger = gateView([{ name: 'deploy', status: 'pass', passable: false, unresolvedReason: 'authorization ledger unreadable' }]);
+  const ledger = gateView([{ name: 'deploy', status: 'pass', passable: false, unresolvedReason: 'authorization ledger unreadable' }], { ledgerReadable: false });
   const done = buildReviewSummary('T', { phase: 'done' }, { review_verdict: 'approved' }, null, null, ledger);
   assert.equal(done.actionKind, null);
   assert.deepEqual(done.gates, { readable: true, total: 1, resolved: 0, passable: 0, items: [{ name: 'deploy', status: 'pass', resolved: false }] });

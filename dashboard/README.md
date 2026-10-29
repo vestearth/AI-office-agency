@@ -151,6 +151,13 @@ fails instead of downgrading every audit to a malformed file.
   `status.yaml` directly.
 - Identity setup may claim a task prefix in `office.team.yaml` and, when no
   prefix exists, initialize the ignored `office.config.local.yaml`.
+- **Record grant** (Action Center, `authorization_required` rows; #56) appends a
+  grant to `runs/<task-id>/authorization.yaml` through
+  `scripts/record-authorization.rb`, as the `office.team.yaml` owner of this
+  checkout's prefix and `via: dashboard`, only for an action a pending gate of
+  the task waits for. Localhost only: `GET /api/authorizations/:taskId` and
+  `POST /api/authorizations/:taskId/grant`. See
+  `docs/authorization-ledger.md` ("Recording a grant from the dashboard").
 - Recommended next actions remain previews. Task details offer **Start or open
   task** (slice 4 of `docs/start-task-redesign-spec.md`, D1/D15): two actions,
   **Run** (the default) and **Open**, sharing the role (defaulted from
@@ -603,8 +610,9 @@ fails instead of downgrading every audit to a malformed file.
   routes were removed in slice 3 (spec D8/D10): Run is the one launch
   path, so every task step goes through the lease and the office scripts.
 - Completion gates come from `scripts/gate-view-json.rb` (the guard's own view,
-  read-only). The dashboard shows the grant command; it never records a grant or
-  passes a gate. See [../docs/completion-gates.md](../docs/completion-gates.md).
+  read-only). The dashboard shows the grant command and can record a grant
+  (**Record grant**, above); it never passes a gate. See
+  [../docs/completion-gates.md](../docs/completion-gates.md).
 
 ## Current Limitations
 

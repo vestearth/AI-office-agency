@@ -95,10 +95,25 @@ module AuthorizationLedger
     # (at, through)? Phase 1B.2 (dispatch-time check) asks this for "now" and
     # the current high-water id; the validity rule is valid_grant?'s, unchanged.
     def any_valid_grant?(action:, at:, through:)
-      @by_number.any? do |number, entry|
+      valid_grants(action: action, at: at, through: through).any?
+    end
+
+    # When the last grant of `action` valid as of (at, through) expires: the
+    # latest expires_at among them, or nil when none is valid or one never expires.
+    def valid_grant_until(action:, at:, through:)
+      grants = valid_grants(action: action, at: at, through: through)
+      return nil if grants.empty? || grants.any? { |grant| !grant.key?("expires_at") }
+
+      grants.map { |grant| AuthorizationLedger.parse_time(grant["expires_at"]) }.max
+    end
+
+    private
+
+    def valid_grants(action:, at:, through:)
+      @by_number.select do |number, entry|
         entry.is_a?(Hash) && entry["type"] == "grant" &&
           valid_grant?(AuthorizationLedger.format_id(number), action: action, at: at, through: through)
-      end
+      end.values
     end
   end
 

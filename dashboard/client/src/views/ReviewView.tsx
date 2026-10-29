@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2, ScanSearch } from 'lucide-react';
+import { Activity, AlertCircle, ClipboardCopy, ExternalLink, Inbox, Loader2, ScanSearch, ShieldCheck } from 'lucide-react';
 import type { ActionKind, ReviewModelResponse, ReviewSummary } from '../../../shared/types';
 import { apiFetchJson } from '../api';
 import { navigateTo } from '../navigation';
@@ -7,6 +7,7 @@ import { distinctTitle } from './runTitle';
 import { formatAge } from './formatAge';
 import { useToast } from '../components/Toast';
 import { QuickDecisionPanel } from './QuickDecisionPanel';
+import { GrantDialog } from './GrantDialog';
 import { PROD_SIGNALS_ANCHOR, ProdSignalsPanel } from './ProdSignalsPanel';
 import { CommandCopy, isShellCommand } from './CommandCopy';
 import { BookkeepingPanel } from './BookkeepingPanel';
@@ -74,7 +75,8 @@ const ACTION_META: Record<ActionKind, { label: string; description: string; colo
   completion_held: {
     label: 'Completion held',
     description: 'Approved; open gates hold done',
-    color: '#34d399',
+    // Held, not finished: blue, so it never reads as a green "done".
+    color: '#60a5fa',
   },
   stale_work: {
     label: 'Stale work',
@@ -137,6 +139,7 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
   const reviewAlive = useRef(true);
   const reviewController = useRef<AbortController | null>(null);
   const [deciding, setDeciding] = useState<ReviewSummary | null>(null);
+  const [granting, setGranting] = useState<string | null>(null);
   // The filter lives in the URL (?kind=) so Flow's chips and shared links land filtered.
   const filter: ActionFilter = isActionKind(kind) ? kind : 'all';
   const setFilter = (next: ActionFilter) => onKindChange(next === 'all' ? null : next);
@@ -391,6 +394,11 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
                       onClick={() => setDeciding(action)} aria-label={`Review and decide ${action.taskId}`}>
                       <ScanSearch size={13} /> Review &amp; decide
                     </button>
+                  ) : action.actionKind === 'authorization_required' ? (
+                    <button type="button" className="form-button action-open-button action-decide-button"
+                      onClick={() => setGranting(action.taskId)} aria-label={`Record a grant for ${action.taskId}`}>
+                      <ShieldCheck size={13} /> Record grant
+                    </button>
                   ) : (
                     <button type="button" className="form-button action-open-button"
                       onClick={() => navigateTo('monitor', action.taskId)} aria-label={`Open ${action.taskId} in Monitor`}>
@@ -416,6 +424,10 @@ export const ReviewView: React.FC<{ kind?: string | null; onKindChange?: (kind: 
           onClose={() => setDeciding(null)}
           onDecided={() => { setDeciding(null); load(); }}
         />
+      )}
+
+      {granting && (
+        <GrantDialog taskId={granting} onCancel={() => setGranting(null)} onDone={() => { setGranting(null); load(); }} />
       )}
     </div>
   );

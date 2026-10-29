@@ -8,7 +8,7 @@ set -euo pipefail
 # build is readable=false with the problem, never an empty "all clear".
 # Sections: G1 fields, G2 parity with the CLI text, G3 unreadable ledger,
 # G4 unreadable view, G5 finished task, G6 garbage input, G7 read-only,
-# G8 hand-written gates.
+# G8 hand-written gates, G9 ledger readability (#56), G10 grant expiry (#56).
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNS="$(mktemp -d)"
@@ -26,6 +26,7 @@ trap finish EXIT
 export AI_OFFICE_RUNS_DIR="$RUNS"
 unset AI_DEV_OFFICE_OWNERSHIP_EPOCH AI_DEV_OFFICE_RUN_ID AI_OFFICE_NOW
 GATE="$ROOT/scripts/update-completion-gate.rb"
+AUTHZ="$ROOT/scripts/record-authorization.rb"
 VIEW_JSON="$ROOT/scripts/gate-view-json.rb"
 TEXT="$ROOT/scripts/gate-status-text.rb"
 
@@ -54,6 +55,8 @@ YAML
   echo "$dir"
 }
 gate() { ruby "$GATE" "$@"; }
+# grant <TASK_ID> <action> [--expires-at TS] — one ledger grant through the writer.
+grant() { local id="$1" action="$2"; shift 2; ruby "$AUTHZ" "$id" grant --action "$action" --scope s --actor operator --via test --reason r "$@" >/dev/null; }
 # set_gate <status.yaml> <gate> <ruby hash literal> — hand-edit one gate record (stored-state cases).
 set_gate() {
   ruby -ryaml -rdate -e 'p = ARGV[0]; s = YAML.safe_load(File.read(p), permitted_classes: [Date, Time])
@@ -97,10 +100,10 @@ gate TASK-1501 pass e --actor dev-2 --reason merged --ran-by operator --ran-ref 
 set_gate "$D/status.yaml" f "{$PASSED, \"requires_record\" => true}"
 gate TASK-1501 declare u --actor pm --reason u >/dev/null
 gate TASK-1501 pass u --actor devops --reason deployed --ran-by operator --ran-url https://example.test/run/1 >/dev/null
-assert_eq "$(jv "$D" 'j.keys.sort')" '["finished_phase","gates","problem","readable","summary"]' "G1 top-level keys"
-assert_eq "$(jv "$D" 'j.values_at("readable", "problem", "finished_phase")')" '[true,null,null]' "G1 readable"
+assert_eq "$(jv "$D" 'j.keys.sort')" '["finished_phase","gates","ledger_readable","problem","readable","summary"]' "G1 top-level keys"
+assert_eq "$(jv "$D" 'j.values_at("readable", "problem", "finished_phase", "ledger_readable")')" '[true,null,null,true]' "G1 readable"
 assert_eq "$(jv "$D" 'j["gates"].map { |x| x["name"] }.join(",")')" "a,b,c,d,e,f,u" "G1 stored order"
-assert_eq "$(jv "$D" 'g.("a").keys.sort')" '["detail","grant","name","passable","ran","requires_authorization","requires_record","resolved","status","unresolved_reason","waits_on"]' "G1 gate keys"
+assert_eq "$(jv "$D" 'g.("a").keys.sort')" '["detail","grant","grant_valid_until","name","passable","ran","requires_authorization","requires_record","resolved","status","unresolved_reason","waits_on"]' "G1 gate keys"
 assert_eq "$(jv "$D" 'g.("a").values_at("status", "resolved", "passable", "waits_on", "detail")')" '["pending",false,true,[],"can pass now"]' "G1 passable"
 assert_eq "$(jv "$D" 'g.("b").values_at("passable", "waits_on", "detail")')" '[false,["a (pending)"],"waits on a (pending)"]' "G1 waits on"
 assert_eq "$(jv "$D" 'g.("c").values_at("requires_authorization", "grant", "passable", "detail")')" '["deploy_staging","missing",false,"waits for a deploy_staging grant"]' "G1 bound without a grant"
@@ -117,13 +120,13 @@ parity "$D"
 D="$(task TASK-1503)"
 gate TASK-1503 declare deploy --actor pm --reason d --requires-authorization deploy_staging >/dev/null
 printf 'authorizations: [\n' > "$D/authorization.yaml"
-assert_eq "$(jv "$D" '[j["readable"], g.("deploy")["grant"], g.("deploy")["detail"]]')" '[true,"unknown","waits for a deploy_staging grant (authorization ledger unreadable)"]' "G3 unreadable ledger"
+assert_eq "$(jv "$D" '[j["readable"], j["ledger_readable"], g.("deploy")["grant"], g.("deploy")["detail"]]')" '[true,false,"unknown","waits for a deploy_staging grant (authorization ledger unreadable)"]' "G3 unreadable ledger"
 parity "$D"
 
 # --- G4: a view gate_view cannot build is readable=false, with no gates ---
 D="$(task TASK-1504)"
 printf 'completion_gates: oops\n' >> "$D/status.yaml"
-assert_eq "$(jv "$D" 'j.values_at("readable", "problem", "finished_phase", "gates", "summary")')" '[false,"completion_gates is not a map",null,[],{"total":0,"resolved":0,"passable":0,"by_status":{}}]' "G4 non-map gates"
+assert_eq "$(jv "$D" 'j.values_at("readable", "problem", "finished_phase", "gates", "summary", "ledger_readable")')" '[false,"completion_gates is not a map",null,[],{"total":0,"resolved":0,"passable":0,"by_status":{}},null]' "G4 non-map gates"
 
 # --- G5: a finished task: nothing is passable, and the detail says why ---
 D="$(task TASK-1505 aborted)"
@@ -138,7 +141,7 @@ printf 'phase: [\n' > "$D/status.yaml"
 assert_eq "$(jv "$D" 'j.values_at("readable", "problem")')" '[false,"gate view failed: Psych::SyntaxError"]' "G6 unparseable status.yaml"
 printf 'just a string\n' > "$D/status.yaml"
 assert_eq "$(jv "$D" 'j.values_at("readable", "problem")')" '[false,"status.yaml is not a map"]' "G6 non-map status"
-assert_eq "$(jv "$D" 'j.keys.sort')" '["finished_phase","gates","problem","readable","summary"]' "G6 keeps every top-level key"
+assert_eq "$(jv "$D" 'j.keys.sort')" '["finished_phase","gates","ledger_readable","problem","readable","summary"]' "G6 keeps every top-level key"
 # Non-ASCII text survives without a locale (the dashboard may spawn ruby with LANG unset).
 D="$(task TASK-1507)"
 gate TASK-1507 declare smoke --actor pm --reason "ทดสอบ" >/dev/null
@@ -151,6 +154,32 @@ D="$(task TASK-1508 in_review)"
 set_gate "$D/status.yaml" persistence '{"status" => "pending", "reason" => "reviewer sign-off pending"}'
 set_gate "$D/status.yaml" staging '{"status" => "pending", "reason" => "partial smoke"}'
 assert_eq "$(jv "$D" '[j["readable"], j["gates"].map { |x| [x["name"], x["passable"], x["detail"]] }]')" '[true,[["persistence",true,"can pass now"],["staging",true,"can pass now"]]]' "G8 hand-written pending gates"
+parity "$D"
+
+# --- G9: ledger_readable reports the ledger even when no gate is bound to it ---
+D="$(task TASK-1509)"
+gate TASK-1509 declare smoke --actor pm --reason s >/dev/null
+assert_eq "$(jv "$D" 'j["ledger_readable"]')" "true" "G9 an absent ledger is an empty, readable one"
+grant TASK-1509 deploy_staging
+assert_eq "$(jv "$D" 'j["ledger_readable"]')" "true" "G9 a valid ledger"
+printf 'authorizations: [\n' > "$D/authorization.yaml"
+assert_eq "$(jv "$D" '[j["readable"], j["ledger_readable"], g.("smoke").values_at("passable", "detail")]')" '[true,false,[true,"can pass now"]]' "G9 a corrupt ledger with no bound gate: flagged, gates unchanged"
+parity "$D"
+
+# --- G10: grant_valid_until is when an available grant stops covering its gate ---
+D="$(task TASK-1510)"
+gate TASK-1510 declare stg --actor pm --reason s --requires-authorization deploy_staging >/dev/null
+gate TASK-1510 declare prod --actor pm --reason p --requires-authorization deploy_production >/dev/null
+gate TASK-1510 declare plain --actor pm --reason p >/dev/null
+assert_eq "$(jv "$D" '[g.("stg"), g.("plain")].map { |x| x.values_at("grant", "grant_valid_until") }')" '[["missing",null],[null,null]]' "G10 missing and unbound: no expiry"
+grant TASK-1510 deploy_staging --expires-at 2099-01-01T00:00:00Z
+grant TASK-1510 deploy_staging --expires-at 2099-06-01T00:00:00Z
+grant TASK-1510 deploy_production --expires-at 2099-03-01T00:00:00Z
+assert_eq "$(jv "$D" '[g.("stg"), g.("prod")].map { |x| x.values_at("grant", "grant_valid_until") }')" '[["available","2099-06-01T00:00:00Z"],["available","2099-03-01T00:00:00Z"]]' "G10 the latest expiry among valid grants of the gate's action"
+ruby "$AUTHZ" TASK-1510 revoke authz-002 --actor operator --via test --reason r >/dev/null
+assert_eq "$(jv "$D" 'g.("stg")["grant_valid_until"]')" "2099-01-01T00:00:00Z" "G10 a revoked grant no longer counts"
+grant TASK-1510 deploy_staging
+assert_eq "$(jv "$D" 'g.("stg")["grant_valid_until"]')" "null" "G10 a grant without expiry: valid until revoked"
 parity "$D"
 
 # --- G7: read-only ---

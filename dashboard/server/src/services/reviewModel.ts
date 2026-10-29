@@ -77,10 +77,7 @@ function classifyGateAction(
   // actionable; the Monitor card still shows its gate state (spec: not flagged).
   if (phase !== null && TERMINAL_PHASES.includes(phase)) return null;
 
-  const ledgerUnreadable = gateView.gates.some(
-    (gate) => gate.grant === 'unknown' || gate.unresolvedReason === 'authorization ledger unreadable',
-  );
-  if (!gateView.readable || ledgerUnreadable) {
+  if (!gateView.readable || gateView.ledgerReadable === false) {
     const problem = gateView.readable ? 'the authorization ledger cannot be read' : (gateView.problem ?? 'unknown problem');
     return {
       kind: 'gates_unreadable',

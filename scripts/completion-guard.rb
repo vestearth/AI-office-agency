@@ -491,7 +491,7 @@ module CompletionGuard
   # authorization ledger gives grant "unknown" and status-only judgement.
   def gate_view(status, task_dir, now: nil)
     view = {
-      "readable" => true, "problem" => nil, "gates" => [],
+      "readable" => true, "problem" => nil, "gates" => [], "ledger_readable" => nil,
       "summary" => { "total" => 0, "resolved" => 0, "passable" => 0, "by_status" => {} },
       "revisions" => revision_summary(status)
     }
@@ -512,17 +512,18 @@ module CompletionGuard
     # closed: the index stays nil, so gate_resolved? leaves every bound gate
     # unresolved (na included), and pending bound gates show grant "unknown".
     # An ABSENT ledger file is an empty index (AuthorizationLedger.load), not nil.
-    index = nil
-    ledger_unreadable = false
-    if gates.values.any? { |gate| gate.key?("requires_authorization") }
-      begin
-        raise AuthorizationLedger::Error, "no task directory" unless task_dir
+    # ledger_readable reports the ledger even when no gate is bound to it: such a
+    # task's gates do not change, but a grant recorded on it would be refused.
+    ledger = begin
+      raise AuthorizationLedger::Error, "no task directory" unless task_dir
 
-        index = AuthorizationLedger.load(task_dir)
-      rescue AuthorizationLedger::Error
-        ledger_unreadable = true
-      end
+      AuthorizationLedger.load(task_dir)
+    rescue AuthorizationLedger::Error
+      nil
     end
+    bound = gates.values.any? { |gate| gate.key?("requires_authorization") }
+    index = bound ? ledger : nil
+    ledger_unreadable = bound && ledger.nil?
     finished_phase = %w[done aborted].include?(status["phase"].to_s.strip) ? status["phase"].to_s.strip : nil
     now ||= begin
       AuthorizationLedger.now_utc
@@ -534,6 +535,7 @@ module CompletionGuard
     by_status = entries.each_with_object({}) { |entry, counts| counts[entry["status"]] = counts.fetch(entry["status"], 0) + 1 }
     view.merge(
       "finished_phase" => finished_phase,
+      "ledger_readable" => !ledger.nil?,
       "gates" => entries,
       "summary" => {
         "total" => entries.size,
@@ -580,6 +582,7 @@ module CompletionGuard
               else "missing"
               end
     end
+    valid_until = grant == "available" ? index.valid_grant_until(action: action, at: now, through: index.high_water_id) : nil
     unresolved_reason = nil
     if %w[pass na].include?(state) && !resolved
       unresolved_reason = if missing_run_record?(gate) then "missing ran record"
@@ -595,6 +598,8 @@ module CompletionGuard
       "waits_on" => waits_on,
       "requires_authorization" => action,
       "grant" => grant,
+      # When an available grant stops covering this gate; nil when it never expires.
+      "grant_valid_until" => valid_until && AuthorizationLedger.format_time(valid_until),
       "requires_record" => gate["requires_record"] == true,
       "ran" => state == "pass" && gate["ran"].is_a?(Hash) ? gate["ran"] : nil,
       # The writer refuses every edit on a finished task, so nothing there can pass.

@@ -213,7 +213,9 @@ writers enforce:
   It is always `false` on a `done`/`aborted` task, and an unreadable
   authorization ledger fails closed (bound gates unresolved).
 - `grant` is `available`, `missing` or `unknown` (ledger unreadable) for a
-  pending bound gate.
+  pending bound gate. `grant_valid_until` (#56) is when an `available` grant
+  stops covering the gate (UTC), or null when one of its valid grants never
+  expires; it is null for every other gate.
 - When the stored gates are malformed (including a present but unknown
   `requires_authorization`, or `ran` text that is not UTF-8), `completion_gates`
   is `[]` and `gates_readable: false` plus `gates_problem` are added.

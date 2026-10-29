@@ -311,10 +311,10 @@ test('getRunDetail adds the gate view only for a task with completion_gates (#28
   const plainId = `${base}-PLAIN`;
   const runsRoot = path.resolve(__dirname, '../../../..', 'runs');
   const view: GateView = {
-    readable: true, problem: null, finishedPhase: null,
+    readable: true, problem: null, finishedPhase: null, ledgerReadable: true,
     summary: { total: 1, resolved: 0, passable: 1, byStatus: { pending: 1 } },
     gates: [{
-      name: 'smoke', status: 'pending', resolved: false, waitsOn: [], requiresAuthorization: null, grant: null,
+      name: 'smoke', status: 'pending', resolved: false, waitsOn: [], requiresAuthorization: null, grant: null, grantValidUntil: null,
       requiresRecord: false, ran: null, passable: true, unresolvedReason: null, detail: 'can pass now',
     }],
   };

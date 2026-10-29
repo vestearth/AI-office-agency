@@ -5,11 +5,11 @@ import { buildReleaseLadder, ladderTask, taskPrefix } from './releaseLadder';
 
 const run = (id: string, over: Partial<RunSummary> = {}): RunSummary => ({ id, title: `${id} title`, status: 'completed', runPath: `runs/${id}`, updatedAt: '2026-10-14', ...over });
 const gate = (name: string, status: string, over: Partial<GateEntry> = {}): GateEntry => ({
-  name, status, resolved: status !== 'pending', waitsOn: [], requiresAuthorization: null, grant: null, requiresRecord: false,
+  name, status, resolved: status !== 'pending', waitsOn: [], requiresAuthorization: null, grant: null, grantValidUntil: null, requiresRecord: false,
   ran: status === 'pass' ? { by: 'claude-conductor', ref: 'abc123' } : null, passable: false, unresolvedReason: null, detail: '', ...over,
 });
 const view = (gates: GateEntry[], readable = true): GateView => ({
-  readable, problem: readable ? null : 'authorization.yaml unreadable', finishedPhase: null,
+  readable, problem: readable ? null : 'authorization.yaml unreadable', finishedPhase: null, ledgerReadable: readable ? true : null,
   summary: { total: gates.length, resolved: 0, passable: 0, byStatus: {} }, gates,
 });
 

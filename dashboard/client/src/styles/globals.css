@@ -1459,6 +1459,12 @@ body {
   gap: 4px;
   margin-top: 4px;
   font-size: 11px;
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.gate-run-link:hover {
+  text-decoration: underline;
 }
 
 .monitor-error-card {
