@@ -1,0 +1,22 @@
+---
+task_id: TASK-VS-050
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: codex_chat
+  reason: Operator explicitly requested merge/deploy staging and continue testing
+    on 2026-10-26
+  at: '2026-10-26T03:48:22Z'
+  action: deploy_staging
+  scope: 'slip-api and slip-front-end: merge implementation PRs, promote main to staging,
+    deploy and test shop summaries'
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: codex_chat
+  reason: Operator explicitly requested production deployment on 2026-10-26
+  at: '2026-10-26T04:16:43Z'
+  action: deploy_production
+  scope: Promote slip-api and slip-front-end staging to prod, deploy, and perform
+    read-only production smoke checks

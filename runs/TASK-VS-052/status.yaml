@@ -1,0 +1,253 @@
+---
+task_id: TASK-VS-052
+task_label: Bound sibling quota history with the VS-049 cursor contract
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-10-26'
+updated_at: '2026-10-28'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-10-26T08:10:09Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-26T08:10:09Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-26T08:10:09Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-26T08:10:09Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-26T08:10:09Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: RED HTTP cursor/envelope ev-001; focused PostgreSQL keyset/range/adjustment
+    tests ev-003 and ev-007 pass, full repository suite ev-006 passes with PostgreSQL
+    repository DSN, vet ev-004 and readonly build ev-005 pass. Reviewed final tree
+    committed as056a60f; no migration required, existing migration021 indexes reused.
+  at: '2026-10-26T08:31:57Z'
+  operator: codex
+- phase: pending -> in_review
+  agent: dev
+  reason: Cursor contract implementation reviewed; PR102 main, regressions/real PostgreSQL/full
+    test/build/vet pass. Staging rollout and real authenticated acceptance remain.
+  at: '2026-10-26T08:31:57Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261026T084257Z-knowledge-review-queue-status-audit.yaml'
+  at: '2026-10-26T08:42:57Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Run40293499491 succeeded on staging mergea4e246f containing reviewed056a60f.
+    ECS task158 rollout COMPLETED, desired/running1/1 pending0 failed0; /health200.
+    Authenticated quota-history acceptance remains pending; production unchanged.
+  at: '2026-10-26T08:49:03Z'
+  operator: codex
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Authenticated staging runtime ev-018: page200/items2 then next page200/items2
+    no overlapping IDs; no total/offset; legacy filter/offset ignored; invalid cursor/inverted
+    dates400; unknown merchant404; date rows in range with zero parse/out-of-range
+    errors. One account/branch only, not full live cross-account RBAC; service denial
+    tests separately recorded. Helper timestamp issue fixed/reproduced ev-015/016;
+    pending ev-017 not counted as API acceptance.'
+  at: '2026-10-26T11:14:10Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261026T111411Z-knowledge-review-queue-status-audit.yaml'
+  at: '2026-10-26T11:14:11Z'
+  operator: codex
+- phase: in_review -> done
+  agent: reviewer
+  reason: Implementation and staging rollout/acceptance pass with scoped runtime evidence
+    ev-018; knowledge closeout recorded. No production promotion; production queue
+    boundary remains open.
+  at: '2026-10-26T11:14:11Z'
+  operator: codex
+- phase: done -> assigned
+  agent: devops
+  reason: Operator conditionally authorized production promotion if readiness is confirmed;
+    audit staged candidate before deployment.
+  at: '2026-10-28T04:32:39Z'
+  operator: codex
+- phase: 'gate deploy_production: absent -> pending'
+  agent: devops
+  reason: Promote verified staging code while preserving prod deployment settings
+  at: '2026-10-28T04:32:39Z'
+  operator: codex
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: reviewer
+  reason: Authenticated sibling quota-history cursor/date/ownership smoke after deploy
+  at: '2026-10-28T04:32:39Z'
+  operator: codex
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: PR107 prod52b4e99; workflow40633470223 success; ECS task116 production-sha-52b4e99
+    COMPLETED3/3; VS053 retained and prod settings preserved
+  at: '2026-10-28T04:54:28Z'
+  operator: codex
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Authenticated Be shop/be-tt on healthy new task116 with old running0: two
+    cursor pages2+2 no overlap, correct envelope/date bounds, ignored legacy keys,
+    invalid inputs400, unknown scope404. Six matching access logs across all3 new
+    tasks, max7ms. COUNT sibling32 HTTP200 max47ms. Browser control later disabled;
+    no post-COMPLETED UI repeat or full second-account RBAC claim.'
+  at: '2026-10-28T04:54:28Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261028T045524Z-verifyslip-quota-history-production-20261028.yaml'
+  at: '2026-10-28T04:55:24Z'
+  operator: codex
+- phase: assigned -> done
+  agent: reviewer
+  reason: Authorized production promotion complete. Image52b4e99 task116 COMPLETED3/3;
+    new-revision authenticated cursor/date/negative probes pass and COUNT sibling
+    healthy. Browser-disabled final-repeat and one-account limits documented.
+  at: '2026-10-28T04:57:04Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: RED HTTP cursor/envelope ev-001; focused PostgreSQL keyset/range/adjustment
+      tests ev-003 and ev-007 pass, full repository suite ev-006 passes with PostgreSQL
+      repository DSN, vet ev-004 and readonly build ev-005 pass. Reviewed final tree
+      committed as056a60f; no migration required, existing migration021 indexes reused.
+    updated_at: '2026-10-26T08:31:57Z'
+    evidence_refs:
+    - ev-001
+    - ev-003
+    - ev-004
+    - ev-005
+    - ev-006
+    - ev-007
+    requires_record: true
+    ran:
+      by: codex
+      ref: 056a60fdcecadf80bd7809161c624a1f1b1843e0
+      url: https://github.com/SparqLab/slip-api/pull/102
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: Run40293499491 succeeded on staging mergea4e246f containing reviewed056a60f.
+      ECS task158 rollout COMPLETED, desired/running1/1 pending0 failed0; /health200.
+      Authenticated quota-history acceptance remains pending; production unchanged.
+    updated_at: '2026-10-26T08:49:03Z'
+    evidence_refs:
+    - ev-009
+    - ev-012
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: codex
+      ref: a4e246ff3564000bf74425db0dded7220eec52c2
+      url: https://github.com/SparqLab/slip-api/actions/runs/40293499491
+  staging_acceptance:
+    status: pass
+    actor: reviewer
+    reason: 'Authenticated staging runtime ev-018: page200/items2 then next page200/items2
+      no overlapping IDs; no total/offset; legacy filter/offset ignored; invalid cursor/inverted
+      dates400; unknown merchant404; date rows in range with zero parse/out-of-range
+      errors. One account/branch only, not full live cross-account RBAC; service denial
+      tests separately recorded. Helper timestamp issue fixed/reproduced ev-015/016;
+      pending ev-017 not counted as API acceptance.'
+    updated_at: '2026-10-26T11:14:10Z'
+    evidence_refs:
+    - ev-018
+    - ev-015
+    - ev-016
+    - ev-007
+    - ev-012
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: codex
+      ref: a4e246ff3564000bf74425db0dded7220eec52c2
+      url: https://api-staging.up-slip.com
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261028T045524Z-verifyslip-quota-history-production-20261028.yaml'
+    updated_at: '2026-10-28T04:55:24Z'
+    evidence_refs: []
+  deploy_production:
+    status: pass
+    actor: devops
+    reason: PR107 prod52b4e99; workflow40633470223 success; ECS task116 production-sha-52b4e99
+      COMPLETED3/3; VS053 retained and prod settings preserved
+    updated_at: '2026-10-28T04:54:28Z'
+    evidence_refs:
+    - ev-023
+    - ev-029
+    - ev-030
+    requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
+    after:
+    - staging_acceptance
+    ran:
+      by: github-actions
+      ref: 52b4e99903a6dace4d51ff101e7916ea3aca0eef
+      url: https://github.com/SparqLab/slip-api/actions/runs/40633470223
+  production_acceptance:
+    status: pass
+    actor: reviewer
+    reason: 'Authenticated Be shop/be-tt on healthy new task116 with old running0:
+      two cursor pages2+2 no overlap, correct envelope/date bounds, ignored legacy
+      keys, invalid inputs400, unknown scope404. Six matching access logs across all3
+      new tasks, max7ms. COUNT sibling32 HTTP200 max47ms. Browser control later disabled;
+      no post-COMPLETED UI repeat or full second-account RBAC claim.'
+    updated_at: '2026-10-28T04:54:28Z'
+    evidence_refs:
+    - ev-026
+    - ev-027
+    - ev-028
+    - ev-030
+    after:
+    - deploy_production
+    ran:
+      by: codex
+      ref: 52b4e99903a6dace4d51ff101e7916ea3aca0eef
+      url: https://api.up-slip.com
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route

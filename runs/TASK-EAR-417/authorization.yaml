@@ -1,0 +1,14 @@
+---
+task_id: TASK-EAR-417
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Operator requested following through all Review Queue closures and authorized
+    necessary remediation; staging observation is required for this scoped UI fix.
+    No production compute authorization is inferred.
+  at: '2026-10-26T08:31:20Z'
+  action: deploy_staging
+  scope: 'Backoffice staging only: reviewed unavailable-profile/status and wallet-loading
+    display fix; no production or real wallet mutation'

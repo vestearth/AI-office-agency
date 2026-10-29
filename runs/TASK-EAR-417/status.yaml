@@ -1,0 +1,170 @@
+---
+task_id: TASK-EAR-417
+task_label: Player Edit unavailable identity must not look Active
+phase: done
+state: done
+iteration: 0
+current_agent: reviewer
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-10-26'
+updated_at: '2026-10-26'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-10-26T08:06:23Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-26T08:06:23Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-26T08:06:23Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-26T08:06:23Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-26T08:06:23Z'
+  operator: codex
+- phase: pending -> in_review
+  agent: dev
+  reason: Scoped status-unavailable fix in Backoffice PR178 to main; regressions red/green,
+    33 focused pass and build pass; 3 baseline monitoring tests preserved. Staging
+    deploy and UI acceptance remain pending.
+  at: '2026-10-26T08:17:25Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: RED ev-002; GREEN33/33 focused ev-003, build ev-004; full738/741 ev-005
+    has3 monitoring failures independently reproduced on untouched base in ev-006.
+    Existing tests preserved.
+  at: '2026-10-26T08:19:05Z'
+  operator: codex
+- phase: 'gate implementation_verification: pass -> pass'
+  agent: reviewer
+  reason: 'Final wallet-loading follow-up75a14c5: RED ev-007; focused48/48 ev-008,
+    build ev-010 pass; full740/743 ev-009 retains same3 independently reproduced baseline
+    failures ev-006. Status regression evidence ev-002 retained.'
+  at: '2026-10-26T08:41:26Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Build and Deploy run40293489007 succeeded on merge b3052a3 containing reviewed75a14c5;
+    build/push/staging pin complete. Latest served UI acceptance remains pending because
+    local browser control is disabled in Work settings.
+  at: '2026-10-26T08:41:42Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261026T084248Z-knowledge-review-queue-status-audit.yaml'
+  at: '2026-10-26T08:42:48Z'
+  operator: codex
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Manual authenticated native Opera UI: unavailable UUID has disabled emdash
+    status and no mock seed; real listed identity renders Active/nonzero wallet; returning
+    to absent UUID clears prior balances. Screenshot/manual limits in task.md; overlapping-response
+    timing covered by RED ev-007/GREEN ev-008, not claimed manually frozen. No wallet/status
+    mutation.'
+  at: '2026-10-26T10:20:57Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261026T104730Z-knowledge-review-queue-status-audit.yaml'
+  at: '2026-10-26T10:47:30Z'
+  operator: codex
+- phase: in_review -> done
+  agent: reviewer
+  reason: Scoped unavailable-status/wallet-loading fixes merged/deployed; tests and
+    authenticated native UI follow-up recorded; all completion gates pass. Broader
+    Player Admin queue item remains open.
+  at: '2026-10-26T10:47:30Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'Final wallet-loading follow-up75a14c5: RED ev-007; focused48/48 ev-008,
+      build ev-010 pass; full740/743 ev-009 retains same3 independently reproduced
+      baseline failures ev-006. Status regression evidence ev-002 retained.'
+    updated_at: '2026-10-26T08:41:26Z'
+    evidence_refs:
+    - ev-002
+    - ev-006
+    - ev-007
+    - ev-008
+    - ev-009
+    - ev-010
+    requires_record: true
+    ran:
+      by: codex
+      ref: 75a14c5e80daa294f2fc04071e5f1b203002a034
+      url: https://github.com/SparqLab/Games-Labs-backoffice/pull/179
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: Build and Deploy run40293489007 succeeded on merge b3052a3 containing
+      reviewed75a14c5; build/push/staging pin complete. Latest served UI acceptance
+      remains pending because local browser control is disabled in Work settings.
+    updated_at: '2026-10-26T08:41:42Z'
+    evidence_refs:
+    - ev-011
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: codex
+      ref: b3052a316b647ce9ca5c36883a2b3408f28d75be
+      url: https://github.com/SparqLab/Games-Labs-backoffice/actions/runs/40293489007
+  staging_acceptance:
+    status: pass
+    actor: reviewer
+    reason: 'Manual authenticated native Opera UI: unavailable UUID has disabled emdash
+      status and no mock seed; real listed identity renders Active/nonzero wallet;
+      returning to absent UUID clears prior balances. Screenshot/manual limits in
+      task.md; overlapping-response timing covered by RED ev-007/GREEN ev-008, not
+      claimed manually frozen. No wallet/status mutation.'
+    updated_at: '2026-10-26T10:20:57Z'
+    evidence_refs:
+    - ev-007
+    - ev-008
+    - ev-011
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: codex
+      ref: b3052a316b647ce9ca5c36883a2b3408f28d75be
+      url: https://admin-dev.gameslabs.app/admin/manage/player
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261026T104730Z-knowledge-review-queue-status-audit.yaml'
+    updated_at: '2026-10-26T10:47:30Z'
+    evidence_refs: []
+handoff:
+  from: reviewer
+  to: reviewer
+  artifact: forced-route

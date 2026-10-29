@@ -1,0 +1,22 @@
+---
+task_id: TASK-VS-052
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Operator selected adapting the endpoint to VS-049 and requested following
+    through Review Queue closure; this authorizes the necessary staging validation.
+    No production promotion authorization is inferred.
+  at: '2026-10-26T08:31:20Z'
+  action: deploy_staging
+  scope: 'slip-api staging only: reviewed sibling quota-history cursor contract'
+- id: authz-002
+  type: grant
+  actor: earth
+  via: chat
+  reason: Operator explicitly permits promoting VS052 alongside already-deployed VS053
+    if VS052 is ready; fresh source/tests and staging evidence must pass.
+  at: '2026-10-28T04:32:39Z'
+  action: deploy_production
+  scope: slip-api:TASK-VS-052-after-readiness

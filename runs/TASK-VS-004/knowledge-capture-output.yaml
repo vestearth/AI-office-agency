@@ -1,0 +1,18 @@
+---
+task_id: TASK-VS-004
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/Review Queue.md
+summary: Operator chose all-active-branch purchased daily quota sum times per-merchant
+  multiplier default1. Prepared paired API/connector code in isolated local worktrees,
+  full tests/real Redis/PostgreSQL/focused race/build/vet pass; no commit or activation.
+  Runtime fairness/queue p95 remains unverified. Operator explicitly chose preparation
+  only.
+sources:
+- ai-dev-office/runs/TASK-VS-004/task.md
+- ai-dev-office/runs/TASK-VS-004/evidence.yaml
+recommended_action: update_note
+requires_human_review: true
+note_patch: Update existing fairness queue wording to distinguish prepared local implementation
+  from deployed runtime, preserve open measured service-level gate and unset customer
+  overrides.

@@ -1,0 +1,14 @@
+task_id: TASK-VS-051
+capture_type: decision
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Project Map.md
+summary: Operator chose one versioned current-design authority, retained ADR-VS-0001 historical rationale, and made slip-doc a pointer. Applied by the conductor under the direct request; backend AGENTS docs pointers merged main in slip-api101 and slip-system17. No architecture behavior or deployment changed.
+sources:
+- ai-dev-office/runs/TASK-VS-051/task.md
+- knowledge-base/Knowledge Base/10 Projects/VerifySlip/Project Map.md
+- slip-doc/STRUCTURE.md
+- slip-api/AGENTS.md
+- slip-system/AGENTS.md
+recommended_action: update_note
+requires_human_review: true
+note_patch: Already applied authority section in Project Map and dated historical header in slip-doc. Review these existing edits; do not create another note or rewrite accepted ADR-VS-0001.

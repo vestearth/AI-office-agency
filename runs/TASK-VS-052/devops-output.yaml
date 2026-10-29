@@ -1,0 +1,24 @@
+summary: |
+  Audited and promoted TASK-VS-052 from verified staging into prod via PR107, retaining deployed VS053 and prod deployment settings. Fresh full PostgreSQL tests/build/vet pass. Production task116 image52b4e99 is COMPLETED3/3; authenticated Be shop/be-tt cursor/date/envelope/negative checks pass on new tasks. COUNT sibling sample32 HTTP200 max47ms. Work settings later disabled browser control, so planned post-COMPLETED UI repeat was not performed; deployment completion was verified through AWS/GitHub and earlier new-revision API evidence is preserved.
+artifacts:
+  - path: ai-dev-office/runs/TASK-VS-052/evidence/production-acceptance.json
+    action: created
+    description: Sanitized authenticated production checks, without credentials/auth headers or row payloads.
+infra_checks:
+  - check: Fresh candidate verification
+    result: pass
+    details: Full PostgreSQL-enabled suite ev-022, readonly build ev-019, vet ev-020, exact staged source/doc parity ev-021.
+  - check: Production rollout and release scope
+    result: pass
+    details: PR107 prod52b4e99, successful workflow40633470223, task116 COMPLETED3/3; ev-023/029/030. No config/schema change; VS053 retained. Rollback task115.
+  - check: Authenticated production API acceptance
+    result: pass
+    details: New-task116 probes ev-026 pass pages2+2/no overlap, envelope, legacy ignored keys, invalid cursor/dates400, unknown scope404 and date bounds. Logs ev-027 across all3 new tasks max7ms. One account/branch; no full live RBAC matrix or post-COMPLETED UI repeat.
+  - check: Retained COUNT behavior
+    result: pass
+    details: Existing monthly Report refresh produces32 HTTP200 across3 new tasks, max47ms (ev-028); no new rendered screenshot due disabled browser control.
+evidence_refs: [ev-019, ev-020, ev-021, ev-022, ev-023, ev-024, ev-026, ev-027, ev-028, ev-029, ev-030]
+next_action:
+  agent: done
+  reason: Authorized production deployment and scoped API acceptance complete; limitations documented.
+blockers: []

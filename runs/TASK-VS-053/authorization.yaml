@@ -1,0 +1,21 @@
+---
+task_id: TASK-VS-053
+authorizations:
+- id: authz-001
+  type: grant
+  actor: earth
+  via: chat
+  reason: Operator explicitly authorized merge/deploy and post-deploy observation
+    of TASK-VS-053.
+  at: '2026-10-28T04:00:46Z'
+  action: deploy_staging
+  scope: slip-api
+- id: authz-002
+  type: grant
+  actor: earth
+  via: chat
+  reason: Operator explicitly authorized merge/deploy TASK-VS-053. Exclude separately
+    unapproved TASK-VS-052 from production promotion.
+  at: '2026-10-28T04:00:46Z'
+  action: deploy_production
+  scope: slip-api:TASK-VS-053-only

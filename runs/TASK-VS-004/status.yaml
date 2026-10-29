@@ -1,28 +1,27 @@
 ---
 task_id: TASK-VS-004
-phase: assigned
-state: assigned
-current_agent: dev
+phase: in_review
+state: in_review
+current_agent: reviewer
 iteration: 1
 assigned_to: pm
 created_at: '2026-09-25'
-updated_at: '2026-09-25'
+updated_at: '2026-10-26'
 ready: true
 blocked_on: []
 waiting_for:
-- 'operator: fairness policy decision (A per-merchant cap / B min share / C weighted)
-  and fairness unit (merchant vs branch), for wave 2'
-- 'operator: approval for the staging multi-merchant run'
+- operator chose code preparation only on2026-10-26; runtime activation and live bank
+  tests withheld
+- review prepared API/connector diffs, then authorize safe staging verification separately
 assignment:
   primary: dev
   parallel: false
   workstream: backend
 next_action:
   agent: dev
-  description: 'Wave 1 (operator-decided 2026-09-25, independent of the A/B/C policy):
-    (1) live bank-budget 429 from slip-system -> enqueue as 202 on the sync verify
-    paths; (2) move slip-api per-merchant/global admission to Redis (cluster-wide).
-    Wave 2 (limiter policy) stays blocked on the decision.'
+  description: Review local prepared wave1/weighted merchant implementation and recorded
+    tests. Keep Redis URL unset and both fairness flags false. Staging activation,
+    measured light-merchant/p95 acceptance and any production rollout remain unverified.
 history:
 - phase: created -> blocked
   agent: pm
@@ -53,6 +52,94 @@ history:
   reason: 'Backfilled 2026-10-15 (operator-confirmed) from this task''s waiting_for:
     approval for the staging multi-merchant run.'
   at: '2026-10-15T01:24:24Z'
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: dev
+  reason: Local code preparation verified against the recorded API/connector worktree
+    manifests; runtime acceptance separate.
+  at: '2026-10-26T10:48:06Z'
+  operator: codex
+- phase: 'gate runtime_fairness_acceptance: absent -> pending'
+  agent: pm
+  reason: Light merchants meet measured service-level/p95 criteria under a heavy merchant;
+    operator currently chose preparation only, so no activation/live run.
+  at: '2026-10-26T10:48:06Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: Record prepared code, selected policy and explicit activation hold.
+  at: '2026-10-26T10:48:06Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Local prepared diffs only: HTTP429/202 RED ev-001/003; cross-instance RED
+    ev-007; long-backoff RED ev-017. Final full tests with real local Redis/PostgreSQL,
+    focused race, readonly builds/vet pass ev-022..029. Worktree manifests ev-030/031;
+    no commit, deploy, bank run or runtime acceptance.'
+  at: '2026-10-26T10:49:17Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: Prepared local API/connector implementation and verified real Redis/PostgreSQL
+    tests, focused race, build and vet; operator explicitly holds activation. Runtime
+    service-level gate remains pending.
+  at: '2026-10-26T10:49:17Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261026T104917Z-knowledge-review-queue-status-audit.yaml'
+  at: '2026-10-26T10:49:17Z'
+  operator: codex
 waits_on:
 - kind: operator_decision
 - kind: operator_approval
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'Local prepared diffs only: HTTP429/202 RED ev-001/003; cross-instance
+      RED ev-007; long-backoff RED ev-017. Final full tests with real local Redis/PostgreSQL,
+      focused race, readonly builds/vet pass ev-022..029. Worktree manifests ev-030/031;
+      no commit, deploy, bank run or runtime acceptance.'
+    updated_at: '2026-10-26T10:49:17Z'
+    evidence_refs:
+    - ev-001
+    - ev-003
+    - ev-007
+    - ev-017
+    - ev-022
+    - ev-023
+    - ev-024
+    - ev-025
+    - ev-026
+    - ev-027
+    - ev-028
+    - ev-029
+    - ev-030
+    - ev-031
+    requires_record: true
+    ran:
+      by: codex
+      ref: local-uncommitted api-manifest:1d4dc7bc1480f0d0d320fe5c972b42573843cfdd5f1b3fdb2e438f63c0ebffde
+        system-manifest:e760e630357f78049d79410edd8cfe6c31ced7127171117a3cdb5dd9a04d1743
+  runtime_fairness_acceptance:
+    status: pending
+    actor: pm
+    reason: Light merchants meet measured service-level/p95 criteria under a heavy
+      merchant; operator currently chose preparation only, so no activation/live run.
+    updated_at: '2026-10-26T10:48:06Z'
+    evidence_refs: []
+    after:
+    - implementation_verification
+    requires_record: true
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261026T104917Z-knowledge-review-queue-status-audit.yaml'
+    updated_at: '2026-10-26T10:49:17Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: forced-route

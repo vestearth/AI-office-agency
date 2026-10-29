@@ -1,0 +1,49 @@
+---
+task_id: TASK-VS-053
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count
+  Indexes — 2026-10-15.md
+summary: Valid indexes did not bound large raw exact counts. Scoped admin counts now
+  reuse the hourly rollup; production rollout and sampled authenticated Report recovery
+  are verified. Long-term recurrence and unbounded raw paths remain outside this acceptance.
+sources:
+- ai-dev-office/runs/TASK-VS-053/task.md
+- ai-dev-office/runs/TASK-VS-053/evidence.yaml
+- ai-dev-office/runs/TASK-VS-053/evidence/ev-001.log
+- slip-api/internal/repositories/verification_admin_counts.go
+- slip-api/internal/repositories/verification_summary_test.go
+- ai-dev-office/runs/TASK-VS-053/devops-output.yaml
+- ai-dev-office/runs/TASK-VS-053/evidence/ev-020.log
+- ai-dev-office/runs/TASK-VS-053/evidence/ev-021.log
+- ai-dev-office/runs/TASK-VS-053/evidence/ev-022.log
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-10-28'
+  task_id: TASK-VS-053
+  evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-004
+  - ev-005
+  - ev-006
+  - ev-014
+  - ev-015
+  - ev-020
+  - ev-021
+  - ev-022
+  - ev-023
+  repo_origin: SparqLab/slip-api
+  repo_sha: 742df4fd905f97514d70baae77213934262e264f
+  confidence: high
+note_patch: |
+  Append a dated implementation follow-up, preserving the earlier index incident as history:
+  TASK-VS-053 adds hourly rollup reads to scoped, bounded CountAll and CountAllByStatus (PR https://github.com/SparqLab/slip-api/pull/104, base main, commit ecaf2ab). It reuses splitUsageRange and coverage metadata, reads uncovered history and inclusive partial-hour edges raw, and combines both sources in one statement snapshot. No new schema or timeout change. Global/open-ended/uncovered raw paths are retained and can remain expensive.
+  Representative production raw/rollup counts matched in one SQL snapshot for 28 days (verified 8,804,386; rejected 107,985; duplicate 191,436). Regression failed before the change and passed after; full PostgreSQL-enabled suite/build/vet pass. At the initial implementation checkpoint deployment and HTTP verification were pending; the release follow-up below supersedes that checkpoint. The original request's exact plan/values remain unknown.
+  Sources: TASK-VS-053 task.md, evidence.yaml, ev-001 through ev-006, and the two owning repository files listed above.
+  Related: Merchant Usage Hourly Rollup — 2026-10-26; VerifySlip Project Map.
+
+  Release follow-up 2026-10-28: PR104 merged main, PR105 staging succeeded, scoped prod PR106 merged as742df4f. Production task115 runs production-sha-742df4f, COMPLETED3/3. VS-052 was explicitly excluded. Same authenticated Report that showed Could not load the report before deployment now succeeds; month O2p/5G and seven-day scopes and repeated refreshes pass, including after COMPLETED. New-task access sample224 requests all200, max265ms, zero COUNT deadlines over04:19-04:26Z observation. Values are separate live snapshots; raw/rollup same-snapshot equality remains ev-001. Long-term/all-filter success, unbounded and old uncovered fallback remain unverified; do not claim the other error classes fixed. Sources: task.md/devops-output.yaml, ev-015, ev-020 through ev-023.

@@ -8,12 +8,13 @@ iteration: 2
 current_agent: reviewer
 ready: true
 blocked_on: []
-waiting_for: []
+waiting_for:
+- 'operator/QA: one new COIN round on non-paying staging test channel and userID/roundID; checked Game/Wallet/Logs have no post-deploy sample'
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-10-13'
-updated_at: '2026-10-24'
+updated_at: '2026-10-26'
 history:
 - phase: created -> pending
   agent: pm

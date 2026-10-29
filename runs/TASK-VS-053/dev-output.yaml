@@ -1,0 +1,27 @@
+summary: |
+  Scoped bounded admin totals and grouped status counts now reuse the existing hourly rollup, with coverage-aware raw history and partial-hour edges in one SQL statement. Production representative raw/rollup values matched in one snapshot; regression was observed failing before the fix. Full PostgreSQL-enabled tests, build and vet pass. PR #104 targets main; no merge/deployment or runtime recovery claim.
+artifacts:
+  - path: slip-api/internal/repositories/verification.go
+    action: modified
+  - path: slip-api/internal/repositories/verification_admin_counts.go
+    action: created
+  - path: slip-api/internal/repositories/verification_summary_test.go
+    action: modified
+evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006]
+next_action:
+  agent: reviewer
+  reason: Review PR 104 into main; deployment is outside scope.
+context_sources:
+  github:
+    branch: task/TASK-VS-053
+    pr: https://github.com/SparqLab/slip-api/pull/104
+  socraticode:
+    status: used
+    queries:
+      - slip-api usageRowsSQL splitUsageRange verification_usage_hourly CountAll admin count
+    relevant_symbols:
+      - splitUsageRange
+      - usageCoveredFrom
+      - adminVerificationWhere
+    notes: Remote index discovery verified against current source and production DB.
+blockers: []

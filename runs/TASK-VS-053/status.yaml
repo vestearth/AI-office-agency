@@ -1,0 +1,192 @@
+---
+task_id: TASK-VS-053
+task_label: Use hourly rollup for scoped admin verification counts
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-10-28'
+updated_at: '2026-10-28'
+history:
+- phase: created -> assigned
+  agent: dev
+  reason: 'opened with completion gates: knowledge_closeout (no delivery gates: Implementation
+    PR to main only; runtime deployment is outside this task.)'
+  at: '2026-10-28T03:43:35Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: dev
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-28T03:43:35Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: PR 104 OPEN into main at ecaf2ab; RED/GREEN regression, production one-snapshot
+    parity, full PostgreSQL tests/build/vet pass. No deployment.
+  at: '2026-10-28T03:52:08Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261028T035218Z-verifyslip-frequent-error-log-20261028.yaml'
+  at: '2026-10-28T03:52:18Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: devops
+  reason: Deploy merged COUNT fix to staging before production
+  at: '2026-10-28T04:00:46Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: reviewer
+  reason: Authenticated scoped count smoke and exact totals
+  at: '2026-10-28T04:00:46Z'
+  operator: codex
+- phase: 'gate deploy_production: absent -> pending'
+  agent: devops
+  reason: Promote only staged/tested TASK-VS-053 patch
+  at: '2026-10-28T04:00:46Z'
+  operator: codex
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: reviewer
+  reason: Verify scoped count endpoint after rollout; observe timeout recurrence
+  at: '2026-10-28T04:00:46Z'
+  operator: codex
+- phase: in_review -> assigned
+  agent: devops
+  reason: Operator authorized merge/deploy. Staging smoke passed on task159; waiting
+    rollout completion before isolated production promotion.
+  at: '2026-10-28T04:10:59Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Deploy STAGING 40629983263 successful; ECS :159 staging-sha-7a611b9 COMPLETED
+    1/1
+  at: '2026-10-28T04:13:37Z'
+  operator: codex
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: Authenticated month merchant 7/10 and branch 2/3 render successfully; global
+    sibling 401/521. New-task log sample 318 HTTP200, max80ms; representative production
+    equality established separately.
+  at: '2026-10-28T04:13:37Z'
+  operator: codex
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: Deploy PRODUCTION 40631130025 successful; ECS :115 production-sha-742df4f
+    COMPLETED 3/3, only T53 delta
+  at: '2026-10-28T04:26:09Z'
+  operator: codex
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: reviewer
+  reason: Same authenticated Report failed before deploy and succeeds after. Global/month
+    O2p/5G, seven days and repeated month pass, including after COMPLETED. New-task
+    log sample 224 HTTP200 across all3 tasks, max265ms, no COUNT deadline errors during
+    04:19-04:26Z observation. Scope is tested bounded windows.
+  at: '2026-10-28T04:28:16Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261028T042835Z-verifyslip-frequent-error-log-20261028.yaml'
+  at: '2026-10-28T04:28:35Z'
+  operator: codex
+- phase: assigned -> done
+  agent: reviewer
+  reason: Authorized staging/prod deployed and all gates pass. Same Report failure
+    reproduced before and successful after; new task115 COMPLETED3/3, 224 HTTP200
+    max265ms no COUNT timeout in bounded observation. Long-term/all-filter behavior
+    not claimed.
+  at: '2026-10-28T04:29:16Z'
+  operator: codex
+completion_gates:
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261028T042835Z-verifyslip-frequent-error-log-20261028.yaml'
+    updated_at: '2026-10-28T04:28:35Z'
+    evidence_refs: []
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: Deploy STAGING 40629983263 successful; ECS :159 staging-sha-7a611b9 COMPLETED
+      1/1
+    updated_at: '2026-10-28T04:13:37Z'
+    evidence_refs:
+    - ev-011
+    - ev-012
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-002
+    ran:
+      by: github-actions
+      ref: 7a611b9f1082f643ae57c46dee8e42b0450c8f78
+      url: https://github.com/SparqLab/slip-api/actions/runs/40629983263
+  staging_acceptance:
+    status: pass
+    actor: reviewer
+    reason: Authenticated month merchant 7/10 and branch 2/3 render successfully;
+      global sibling 401/521. New-task log sample 318 HTTP200, max80ms; representative
+      production equality established separately.
+    updated_at: '2026-10-28T04:13:37Z'
+    evidence_refs:
+    - ev-009
+    - ev-013
+    after:
+    - deploy_staging
+    ran:
+      by: codex
+      ref: 7a611b9f1082f643ae57c46dee8e42b0450c8f78
+      url: https://admin-staging.up-slip.com/
+  deploy_production:
+    status: pass
+    actor: devops
+    reason: Deploy PRODUCTION 40631130025 successful; ECS :115 production-sha-742df4f
+      COMPLETED 3/3, only T53 delta
+    updated_at: '2026-10-28T04:26:09Z'
+    evidence_refs:
+    - ev-014
+    - ev-019
+    - ev-020
+    requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
+    after:
+    - staging_acceptance
+    ran:
+      by: github-actions
+      ref: 742df4fd905f97514d70baae77213934262e264f
+      url: https://github.com/SparqLab/slip-api/actions/runs/40631130025
+  production_acceptance:
+    status: pass
+    actor: reviewer
+    reason: Same authenticated Report failed before deploy and succeeds after. Global/month
+      O2p/5G, seven days and repeated month pass, including after COMPLETED. New-task
+      log sample 224 HTTP200 across all3 tasks, max265ms, no COUNT deadline errors
+      during 04:19-04:26Z observation. Scope is tested bounded windows.
+    updated_at: '2026-10-28T04:28:16Z'
+    evidence_refs:
+    - ev-015
+    - ev-020
+    - ev-021
+    - ev-022
+    - ev-023
+    after:
+    - deploy_production
+    ran:
+      by: codex
+      ref: 742df4fd905f97514d70baae77213934262e264f
+      url: https://admin.up-slip.com/
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route

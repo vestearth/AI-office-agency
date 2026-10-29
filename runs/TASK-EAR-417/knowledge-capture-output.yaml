@@ -1,0 +1,19 @@
+---
+task_id: TASK-EAR-417
+capture_type: lesson
+target_repo: knowledge-base
+target_note: Knowledge Base/Review Queue.md
+summary: Scoped Player Edit unavailable status and wallet-loading/stale-route fixes
+  corrected; PR178/179 merged and staging pipeline passed. Authenticated native Opera
+  UI verified known identity/status/nonzero wallet and unavailable identity/disabled
+  status/no prior settled balance. Pending-null and overlap timing remain RED/GREEN
+  test evidence, not manually frozen requests. Task417 done; broader Player Admin
+  queue acceptance remains open. Three baseline monitoring failures remain.
+sources:
+- ai-dev-office/runs/TASK-EAR-417/task.md
+- ai-dev-office/runs/TASK-EAR-417/evidence.yaml
+- https://github.com/SparqLab/Games-Labs-backoffice/pull/179
+recommended_action: update_note
+requires_human_review: true
+note_patch: Conductor updated existing queue under direct operator request. Audit
+  wording and remaining boundaries; do not create duplicate notes or claim full closure.

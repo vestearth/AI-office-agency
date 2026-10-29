@@ -275,3 +275,94 @@ Tests:
     after;
   - two limiter instances sharing Redis enforce one combined limit, whereas
     today each allows the full limit.
+
+## Operator policy selection — 2026-10-26
+
+Earth selected weighted/package fairness in the Review Queue follow-up. This
+selects the policy family, not numerical weights, grouping/unit semantics,
+implementation or measured service levels. Wave 1's 2026-09-25 choices remain
+decided. No bank load test or limiter change was performed by this follow-up.
+
+### Earlier weight aggregation selection — superseded later on 2026-10-26
+
+After an explanation comparing summed active branch packages versus the highest
+active package, Earth selected **the highest package per merchant only**. Do not
+sum active branch packages. The comparison was framed in quota per day; current
+Package has Quota and DurationDays, not a stored daily-quota field, so the
+implementation design must make that normalization explicit. No numeric
+weight, Redis algorithm, unused-share borrowing, zero-duration rule or bank
+load test has been silently selected or implemented by this record.
+
+
+### Revised operator-approved policy — 2026-10-26
+
+Earth reconsidered the highest-package choice after comparison and approved the
+recommendation: sum the quota-based weights of active packages across all
+branches of a merchant, then multiply by a merchant-specific multiplier.
+Default multiplier is1. Internal customers may receive an explicit override;
+record its reason and optional expiration. No customer IDs or non-default
+multipliers have been selected. Highest-package-only aggregation above is
+superseded, not an alternative current policy.
+
+Conceptual weight = sum(active branch package weights) × merchant multiplier.
+Normalization was still pending at policy-selection time. The prepared
+implementation below now uses purchased periods, active effective packages,
+active branches and the existing unique branch/channel package slots. Runtime
+acceptance remains open. The multiplier changes proportional allocation during
+contention within the existing bank budget; it neither bypasses that budget nor
+guarantees a minimum rate. No limiter implementation, schema change, runtime
+configuration, deployment or paid bank test is performed by this decision record.
+Source: Earth’s approval in the current chat after the all-branches plus
+merchant-multiplier recommendation, 2026-10-26.
+
+
+## Prepared implementation — 2026-10-26
+
+Operator authorized follow-through, then explicitly chose **prepare code only,
+no Redis activation**. Isolated worktrees:
+- /tmp/vs004-slip-api, feat/TASK-VS-004-merchant-fairness, based main ea74b63.
+- /tmp/vs004-slip-system, feat/TASK-VS-004-bank-fairness, based main8c5f29a.
+Root working branches and other operators' changes were not altered.
+
+Prepared HTTP image/payload bank-budget429 -> queue202 with stable scope/key,
+Location/status_url and Retry-After; test/bypass/unavailable queue/non-budget
+errors preserve synchronous behavior. RED ev-001 and Retry-After RED ev-003.
+Prepared optional Redis API admission shares global/branch tokens atomically;
+two local instances admitted4 before vs2 after (RED ev-007, GREEN ev-008).
+Demo remains local. Redis outage falls back to local guard with bounded warning;
+this does not preserve a cluster-wide edge cap during outages. Independent bank
+minute budget still caps all real attempts. Runtime URL remains unset.
+
+Prepared merchant weighting: sum purchased quota_limit / purchased period-days
+for effective active packages across active branches and all channels, cache
+base weights30seconds, multiply by per-merchant override (default1). Overrides
+require reason and may expire; expiry checked per call. No actual overrides set.
+Current catalog edits and quota consumption do not change purchased weights.
+Migration006 already indexes branch_packages.merchant_id; no schema change.
+
+API emits trusted merchant/weight metadata on bank and legacy verification RPCs;
+queue/LINE/payment reuse VerifyBank. Connector keeps package knowledge out of its
+DB and applies global short-token smoothing plus weighted merchant buckets,
+while retaining the SAME original Redis minute-budget key for rollback/mixed
+versions. Active demand horizon2seconds; inactive shares return to pool. Unused
+shares of still-active merchants are not borrowed. No minimum-rate guarantee.
+Two connector instances with3:1 test weights admitted52:17 in ev-016, real local
+Redis only. Original bank cap, legacy/default weight1, bad-weight rejection,
+cache context and merchant-vs-branch identity have focused coverage.
+
+A retry delay above1minute previously fell back to1second. RED ev-017 reproduced
+this; now waits cap at1minute. Queue retry timers still occupy workers, so live
+queue latency and task's light-merchant service-level/p95 acceptance are OPEN.
+No bank measurement or production-readiness claim is made.
+
+Final validation: API ev-026 full suite with real PostgreSQL18.3 + Redis7,
+ev-027 focused race, ev-028 readonly build, ev-029 vet pass. Connector ev-022
+full suite with real Redis, ev-023 focused race, ev-024 readonly build, ev-025
+vet pass. Optional migration integration DSN was not set; no migration changed.
+All code remains local/uncommitted; no commit/push/PR/deploy or real env edit.
+Both MERCHANT_FAIRNESS_ENABLED defaults arefalse; no live bank load test.
+
+Future rollout when authorized: connector code disabled -> all API replicas
+emit validated metadata -> safe staging fixture checks -> connector enable.
+Rollback connector flag before API metadata; edge Redis URL may then be cleared.
+Current instruction is preparation only, so no activation was attempted.

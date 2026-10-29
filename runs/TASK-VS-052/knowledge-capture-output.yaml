@@ -1,0 +1,45 @@
+---
+task_id: TASK-VS-052
+capture_type: lesson
+target_repo: knowledge-base
+target_note: Knowledge Base/Review Queue.md
+summary: 'VS052 production promotion is now authorized and verified: PR107 prod52b4e99,
+  task116 COMPLETED3/3, scoped authenticated cursor/date/envelope probes pass. Production-only
+  pending boundary can be reconciled; one-account and browser-repeat limits remain
+  explicit.'
+sources:
+- ai-dev-office/runs/TASK-VS-052/task.md
+- ai-dev-office/runs/TASK-VS-052/evidence.yaml
+- https://github.com/SparqLab/slip-api/pull/103
+- ai-dev-office/runs/TASK-VS-052/evidence/ev-018.log
+- ai-dev-office/runs/TASK-VS-052/devops-output.yaml
+- ai-dev-office/runs/TASK-VS-052/evidence/ev-026.log
+- ai-dev-office/runs/TASK-VS-052/evidence/ev-027.log
+- ai-dev-office/runs/TASK-VS-052/evidence/ev-028.log
+- ai-dev-office/runs/TASK-VS-052/evidence/ev-030.log
+- https://github.com/SparqLab/slip-api/pull/107
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  Proposal only: reconcile the existing sibling quota-history Review Queue entry (lines46-78 at inspection) and Branch Quota History Cursor Page note. Earlier statements that production remains unapproved/unchanged are now historical. Operator approved promotion after readiness audit. Fresh full PostgreSQL-enabled suite/build/vet and staging source parity pass. PR107 promotes staging into prod52b4e99, preserving prod config and the VS053 COUNT fix; task116/image production-sha-52b4e99 is COMPLETED3/3 (ev-029/030). No schema/data migration.
+  Scoped new-revision acceptance on Be shop/be-tt: ev-026 has two pages2+2, no overlaps, no total/offset, ignored legacy channel/offset, invalid cursor/inverted dates400, nonexistent merchant404, valid returned dates. This is one real account/branch and an unknown-scope probe, not a second real account RBAC matrix. ev-027 confirms6 requests across3 new tasks, expected200/400/404, max7ms. ev-028 confirms retained COUNT sample32 HTTP200 max47ms.
+  Browser control became disabled in Work settings before a planned final UI repeat. No cookie/token extraction or alternate control was attempted. Authenticated evidence predates workflow COMPLETED but was observed after all3 new tasks were healthy and old tasks running0; final deployed revision is independently verified. Do not claim a post-COMPLETED browser repeat, all external-client compatibility, large-tenant throughput, all-account isolation or long-term behavior.
+  Sources: task.md/devops-output.yaml, ev-019 through ev-023, ev-026 through ev-030, PR107. Related: Branch Quota History Cursor Page — 2026-10-26; the existing Review Queue sibling endpoint entry; VS053 scoped admin count fix.
+provenance:
+  freshness: current
+  verified_at: '2026-10-28'
+  task_id: TASK-VS-052
+  evidence_refs:
+  - ev-019
+  - ev-020
+  - ev-021
+  - ev-022
+  - ev-023
+  - ev-026
+  - ev-027
+  - ev-028
+  - ev-029
+  - ev-030
+  repo_origin: SparqLab/slip-api
+  repo_sha: 52b4e99903a6dace4d51ff101e7916ea3aca0eef
+  confidence: high
