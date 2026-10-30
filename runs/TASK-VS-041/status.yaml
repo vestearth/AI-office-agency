@@ -2,18 +2,18 @@
 task_id: TASK-VS-041
 task_label: 'slip-system: turn off Redis result cache on staging (keep bank attempt
   limiter)'
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: devops
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: devops
   parallel: false
 created_at: '2026-10-19'
-updated_at: '2026-10-20'
+updated_at: '2026-10-31'
 history:
 - phase: created -> assigned
   agent: pm
@@ -62,6 +62,15 @@ history:
   reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
     in knowledge-reviews/closeouts/20261020T035828Z-vs041-slip-system-result-cache.yaml'
   at: '2026-10-20T03:58:28Z'
+- phase: assigned -> done
+  agent: reviewer
+  reason: 'Earth: close. All four gates pass (implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout). Checked 2026-10-31: slip-system-staging
+    runs task definition :31 with RESULT_CACHE_MODE=off. Production (slip-system-production:26,
+    RESULT_CACHE_MODE=redis) was out of scope; turning it off there needs its own
+    task and approval.'
+  at: '2026-10-30T21:18:47Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -121,3 +130,7 @@ completion_gates:
       in knowledge-reviews/closeouts/20261020T035828Z-vs041-slip-system-result-cache.yaml'
     updated_at: '2026-10-20T03:58:28Z'
     evidence_refs: []
+handoff:
+  from: reviewer
+  to: done
+  artifact: forced-route
