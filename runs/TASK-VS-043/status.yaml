@@ -48,6 +48,19 @@ history:
     (redis.go) has no test: needs live Redis. PR SparqLab/slip-system#18.'
   at: '2026-10-30T22:00:37Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: reviewer
+  reason: Earth approved the merge. SparqLab/slip-system#18 merged as cc80e8d, pinned
+    to the tested head 4cc0008; main's tree equals 4cc0008's. Full go test and readonly
+    build pass on origin/main cc80e8d (ev-004). Not on staging or prod; deploys run
+    only on pushes to staging/prod.
+  at: '2026-10-30T22:01:54Z'
+  operator: claude
+- phase: 'check_after: 2026-11-04T02:00:00Z'
+  agent: pm
+  reason: 'Same rule as TASK-VS-044: close after prod'
+  at: '2026-10-30T22:01:54Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -75,7 +88,15 @@ handoff:
   to: reviewer
   artifact: forced-route
 next_action:
-  agent: reviewer
-  description: Review and merge SparqLab/slip-system#18 into main. Then knowledge_closeout.
-    Promotion to staging/prod needs Earth; after prod, a slip-api 502 bank-unavailable
-    should always have a slip-system line (8500 or kbank verify unavailable).
+  agent: pm
+  description: 'Merged to slip-system main cc80e8d; not on staging or prod. Close
+    after prod, as with TASK-VS-044: when cc80e8d is on prod, every slip-api 502 bank-unavailable
+    should have a slip-system line (8500 or ''kbank verify unavailable''). Then knowledge_closeout
+    and close. Promotion needs Earth.'
+check_after:
+  at: '2026-11-04T02:00:00Z'
+  what: 'Is slip-system cc80e8d an ancestor of origin/prod and in the running slip-system-production
+    image? If not, set a new check. If yes, join slip-api 502 ''bank verifier unavailable''
+    since that deploy to slip-system lines by request_id: every one should have an
+    8500 or ''kbank verify unavailable: cause=...'' line; then record knowledge_closeout
+    and close.'
