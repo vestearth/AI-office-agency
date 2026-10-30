@@ -136,9 +136,8 @@ completion_gates:
     evidence_refs: []
 next_action:
   agent: pm
-  description: 'Done. Knowledge follow-up from the 2026-10-30 closeout: write runs/TASK-VS-054/knowledge-capture-output.yaml
-    and update Knowledge Base/10 Projects/VerifySlip/Merchant Usage Hourly Rollup
-    — 2026-10-26.md, which still lists digest timeouts as open under this task.'
+  description: 'Done. Knowledge follow-up applied 2026-10-31: knowledge-capture-output.yaml
+    written and the Merchant Usage Hourly Rollup note updated in knowledge-base 3f759d2.'
 handoff:
   from: reviewer
   to: done

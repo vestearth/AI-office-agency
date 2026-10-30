@@ -1,0 +1,33 @@
+---
+task_id: TASK-VS-054
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26.md
+summary: "The daily digest reads the merchant usage hourly rollup (slip-api PR 109, prod
+  d7f7249 on 2026-10-28) and was sent on time on 2026-10-29 and 2026-10-30 with no
+  digest errors, so the rollup note no longer lists digest timeouts as open."
+sources:
+- ai-dev-office/runs/TASK-VS-054/task.md
+- ai-dev-office/runs/TASK-VS-054/decision-memo.md
+- ai-dev-office/runs/TASK-VS-054/evidence/ev-009.log
+- ai-dev-office/runs/TASK-VS-054/evidence/ev-010.log
+- slip-api/internal/core/service/daily_digest.go
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-10-31'
+  task_id: TASK-VS-054
+  evidence_refs:
+  - ev-009
+  - ev-010
+  repo_origin: SparqLab/slip-api
+  repo_sha: d7f7249ea7f08d9f16dc41fcfc4a90cbb43becba
+  confidence: high
+note_patch: |
+  In "Open / not covered", replace "Email-alert and daily-digest timeouts belong to
+  separate tasks (digest: TASK-VS-054)" with: email-alert timeouts belong to a separate
+  task; the daily digest now reads this rollup too (TASK-VS-054, slip-api #109, prod
+  d7f7249 2026-10-28) and was sent on time on 2026-10-29 (08:00:20 ICT) and 2026-10-30
+  (08:00:08), with no digest errors (ev-010, checked 2026-10-31). Applied in
+  knowledge-base on 2026-10-31.
