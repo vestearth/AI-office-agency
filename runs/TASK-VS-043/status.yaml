@@ -61,6 +61,22 @@ history:
   reason: 'Same rule as TASK-VS-044: close after prod'
   at: '2026-10-30T22:01:54Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'Earth approved staging and prod. Claude promoted slip-system main cc80e8d
+    the team way (merge commits, dry-run trees matched; carries 80db370 docs too):
+    staging 4d04e06..356313b (Deploy STAGING success, slip-system-staging:32, clean
+    boot, result cache still off), then prod 5a61e5b..e87a03e (Deploy PRODUCTION success,
+    slip-system-production:27, image production-sha-e87a03e, 3/3). Env and secrets
+    unchanged from :26. slip-api 22:16-22:28Z: 0 5xx (ev-005). Rollback: service back
+    to slip-system-production:26.'
+  at: '2026-10-30T22:28:14Z'
+  operator: claude
+- phase: 'check_after: 2026-11-04T02:00:00Z'
+  agent: pm
+  reason: promoted to prod 2026-10-30 22:16Z; the check now measures the effect
+  at: '2026-10-30T22:28:14Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -89,14 +105,13 @@ handoff:
   artifact: forced-route
 next_action:
   agent: pm
-  description: 'Merged to slip-system main cc80e8d; not on staging or prod. Close
-    after prod, as with TASK-VS-044: when cc80e8d is on prod, every slip-api 502 bank-unavailable
-    should have a slip-system line (8500 or ''kbank verify unavailable''). Then knowledge_closeout
-    and close. Promotion needs Earth.'
+  description: 'On prod since 2026-10-30 22:16Z (slip-system-production:27). On the
+    2026-11-04 check: join every slip-api 502 bank-unavailable since then to slip-system
+    lines by request_id; each needs an 8500 or ''kbank verify unavailable: cause=...''
+    line. Then knowledge_closeout and close.'
 check_after:
   at: '2026-11-04T02:00:00Z'
-  what: 'Is slip-system cc80e8d an ancestor of origin/prod and in the running slip-system-production
-    image? If not, set a new check. If yes, join slip-api 502 ''bank verifier unavailable''
-    since that deploy to slip-system lines by request_id: every one should have an
-    8500 or ''kbank verify unavailable: cause=...'' line; then record knowledge_closeout
-    and close.'
+  what: 'Join every slip-api 502 ''bank verifier unavailable'' since 2026-10-30 22:16Z
+    (prod slip-system-production:27 has the change) to /ecs/slip-system-production
+    lines by request_id: each needs an 8500 or ''kbank verify unavailable: cause=...''
+    line. Then record knowledge_closeout and close.'
