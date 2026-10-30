@@ -123,6 +123,12 @@ history:
     still unknown.'
   at: '2026-10-30T17:39:14Z'
   operator: claude
+- phase: 'check_after: 2026-11-03T02:00:00Z'
+  agent: devops
+  reason: Search count timeouts stay open until the slow log shows a search request
+    (none by 2026-10-31, ev-023)
+  at: '2026-10-30T20:44:02Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -159,3 +165,8 @@ next_action:
     Flow Summary and Transfers.md does not yet describe the cached_summary/range_count
     paths or the slow log). Earth may still want to tell the affected merchant about
     the 12 verify 504s at 17:56 Bangkok on 2026-10-28 (decision-memo.md section 8).'
+check_after:
+  at: '2026-11-03T02:00:00Z'
+  what: 'Read ''admin bank flow transfers'' in /ecs/slip-api-production since 2026-10-28
+    14:30Z: any search=true lines, and how many of them timed out (error_kind). If
+    there are none yet, set a new check; if there are, record knowledge_closeout.'
