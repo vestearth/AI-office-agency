@@ -1,11 +1,11 @@
 ---
 task_id: TASK-EAR-401
 task_label: Make task-input-integrity T10 pass in a fresh checkout (gitignored evidence.yaml)
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -34,20 +34,42 @@ history:
     fixture diverge. PR vestearth/AI-office-agency#141.'
   at: '2026-10-30T20:53:53Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'T10 passes in a fresh detached worktree of origin/main 1c5d5214 after PR
+    #141 merged: 15 frozen runs, 0 diverged, task-input-integrity exit 0 (ev-003).
+    Regression proof: origin/main 859083bf failed T10 in a fresh worktree, 53 of 588
+    diverged (ev-001); the fix branch passed (ev-002).'
+  at: '2026-10-30T21:17:20Z'
+  operator: claude
+- phase: in_review -> done
+  agent: reviewer
+  reason: 'Earth approved the merge. PR vestearth/AI-office-agency#141 merged as 1c5d5214
+    after its CI passed (dashboard, integration). implementation_verification passed
+    on a fresh worktree of origin/main (ev-003). T10 no longer reads the live runs/;
+    it compares 15 runs frozen at 458bc7b. In CI T10 is still skipped: the shallow
+    clone cannot reach 458bc7b.'
+  at: '2026-10-30T21:17:20Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: tests/run-integration.sh passes T10 in a fresh detached worktree of origin/main,
-      with the fix's own regression proof
-    updated_at: '2026-10-12T06:40:19Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'T10 passes in a fresh detached worktree of origin/main 1c5d5214 after
+      PR #141 merged: 15 frozen runs, 0 diverged, task-input-integrity exit 0 (ev-003).
+      Regression proof: origin/main 859083bf failed T10 in a fresh worktree, 53 of
+      588 diverged (ev-001); the fix branch passed (ev-002).'
+    updated_at: '2026-10-30T21:17:20Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
 handoff:
-  from: dev
-  to: reviewer
+  from: reviewer
+  to: done
   artifact: forced-route
 next_action:
-  agent: reviewer
-  description: 'Review and merge vestearth/AI-office-agency#141. Then pass implementation_verification:
-    run tests/integration/task-input-integrity.sh in a fresh detached worktree of
-    origin/main (the ev-001/ev-002 script) and record it as evidence.'
+  agent: pm
+  description: 'Done. Open follow-up if wanted: T10 is still skipped in CI because
+    the shallow clone cannot reach 458bc7b; running it there needs a deeper fetch
+    or the pre-#22 validator stored beside the fixtures.'
