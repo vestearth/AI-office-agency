@@ -1,0 +1,76 @@
+---
+summary: |
+  Aligned the Quest overview "Current Streak" with GET /api/v1/missions/streak.
+
+  Mobile/FE asked which endpoint is the source of truth for the Quest page
+  "Current Streak:" after QA saw missions/streak return current_streak=0 /
+  is_broken=true. Root cause: two paths diverged. GetStreak (missions/streak)
+  reads the DB (user_streaks) and recomputes is_broken from LastDate, but
+  GetProgress (quest/overview) read only the per-process in-memory map
+  s.userStreaks - never the DB even when repo was set - so a cold or different
+  pod, or a user who had not checked in this process lifetime, showed streak 0 /
+  not_started while the streak endpoint returned the real value.
+
+  Fix in Games-Labs-Missions/internal/services/mission_service.go: extracted
+  streakFromDB(ctx, userID) (lock-free DB read + UTC is_broken recompute,
+  mirroring GetStreak), refactored GetStreak to use it, and made GetProgress
+  prefer the persisted streak (read after s.mu.Unlock() to avoid deadlock with
+  GetStreak's lock and keep the DB round-trip off the mutex).
+
+  Answer delivered to FE: yes, /api/v1/missions/streak is the source of truth;
+  bind the UI to it. After this fix overview reads the same persisted value. The
+  QA case current_streak=0/is_broken=true reflects actual DB state; if a non-zero
+  value was expected the issue is upstream (check-in not persisting, or stale
+  last_date marking it broken).
+
+  Verification: go build ./..., go vet ./internal/services, and
+  go test ./internal/services all pass. repo is a concrete *MissionRepository
+  (not an interface), so there is no cheap DB-path unit test in this package;
+  correctness is by construction (identical DB call + is_broken logic as
+  GetStreak). Authoritative verification = compare overview
+  items[key=streak].progress.current against missions/streak current_streak on a
+  deployed env with a populated user_streaks row.
+decision:
+  action: fix
+  details: >-
+    Make GetProgress (quest/overview) read the persisted streak via a shared
+    streakFromDB helper instead of the per-process in-memory map, so it matches
+    GetStreak (missions/streak). Single-service, two-function change; no contract
+    or response-shape change.
+artifacts:
+  - path: Games-Labs-Missions/internal/services/mission_service.go
+    action: modified
+    description: >-
+      Added streakFromDB(ctx, userID); refactored GetStreak to use it; GetProgress
+      now prefers the DB streak (read outside s.mu) so overview matches
+      missions/streak.
+  - path: Games-Labs-Missions/internal/services/get_progress_streak_test.go
+    action: created
+    description: >-
+      sqlmock regression test (review evidence): proves GetProgress reads streak
+      from the DB (current_streak=5 with an empty in-memory map). RED→GREEN
+      verified by temporarily disabling the override.
+  - path: ai-dev-office/runs/TASK-EAR-030/status.yaml
+    action: created
+    description: Opened TASK-EAR-030 run for the streak source-of-truth alignment.
+  - path: ai-dev-office/runs/TASK-EAR-030/free-roam-output.yaml
+    action: created
+    description: Recorded the Claude advisory-lane output and the FE answer.
+next_action:
+  agent: reviewer
+  reason: >-
+    Two-function service change on a user-facing read path; needs review and a
+    deployed-env check that overview streak now equals missions/streak. Left
+    UNCOMMITTED for operator review + push.
+context_sources:
+  github:
+    branch: ''
+    pr: ''
+  socraticode:
+    status: skipped
+    notes: Root cause traced directly via repo reads (quest_overview_service.go, mission_service.go GetStreak/GetProgress, mission_repo.go).
+caveats:
+  - is_broken is recomputed in UTC in both paths while daily windows elsewhere in
+    GetProgress use Asia/Bangkok (bangkokLocation). Possible off-by-timezone near
+    midnight; pre-existing, not changed here. Candidate follow-up.
+blockers: []

@@ -1,0 +1,28 @@
+summary: |
+  Swapped the Pass Duration Permanent/Day toggle to be Day-locked (mirror of
+  the Avatar toggle, which stays Permanent-locked). Permanent radio disabled +
+  greyed, Day radio + stepper enabled, default durationType = Day. Avatar
+  Create/Edit untouched.
+artifacts:
+  - path: Games-Labs-backoffice/app/pages/admin/manage/store/items.vue
+    action: modified
+  - path: Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue
+    action: modified
+next_action:
+  agent: reviewer
+  reason: |
+    Operator opens Pass Create step 2 and Pass Edit; confirm Day radio +
+    stepper enabled and Permanent greyed/disabled. Avatar unchanged.
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - Games-Labs-backoffice/app/pages/admin/manage/store/items.vue
+      - Games-Labs-backoffice/app/pages/admin/manage/store/pass/edit/[id].vue
+      - Games-Labs-backoffice/app/pages/admin/manage/store/avatar/edit/[id].vue
+    notes: Mirrored the Avatar duration-lock pattern, inverted for Pass.
+blockers: []

@@ -1,0 +1,31 @@
+task_id: "TASK-036"
+phase: "done"
+state: "done"
+current_agent: "done"
+iteration: 1
+assigned_to: "reviewer"
+updated_at: "2026-05-06"
+ready: true
+assignment:
+  primary: dev
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: "runs/TASK-036/reviewer-output.yaml"
+history:
+  - phase: "pending -> assigned"
+    agent: "pm"
+    reason: "Task scope and validation requirements are clear."
+  - phase: "assigned -> review"
+    agent: "dev"
+    reason: "Implementation is complete and the collection JSON plus required request-body checks pass."
+  - phase: "review -> devops_needed"
+    agent: "reviewer"
+    reason: "Repository dependency guard and sandbox compile failures must be resolved before reviewer approval can proceed."
+  - phase: "devops_needed -> review"
+    agent: "devops"
+    reason: "shared-lib dependencies were aligned and the dependency guard compile check passed."
+  - phase: "review -> done"
+    agent: "reviewer"
+    reason: "TASK-036 artifact checks and dependency guard checks pass."

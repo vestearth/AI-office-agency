@@ -16,7 +16,7 @@
 #         (F-prot-style mechanical check, not an assertion in a comment).
 #  T9:    performance — snapshot+verify overhead on an ordinary run.
 #  T10:   backward compatibility — validate-yaml.rb at 458bc7b (pre-#22) vs
-#         current, across every real runs/TASK-* dir, byte-identical output.
+#         current, across runs frozen at 458bc7b, byte-identical output.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -502,12 +502,18 @@ if git -C "$ROOT" cat-file -e 458bc7b:validate-yaml.rb 2>/dev/null; then
   NEW_ALL="$WORK/new-all.txt"
   : > "$OLD_ALL"
   : > "$NEW_ALL"
-  for task_dir in "$ROOT"/runs/TASK-*; do
+  # Runs frozen as they were at 458bc7b (TASK-EAR-401), never the live runs/: live runs gain
+  # evidence_refs whose evidence.yaml is gitignored, so a fresh checkout diverged on every one of
+  # them. Fixture files are the runs' YAML only (validate-yaml.rb reads no markdown). The 15 cover
+  # every output kind of that era, aborted/blocked/in_review/assigned phases, decision.yaml, and
+  # one run both validators reject (TASK-EAR-258). Of the 392 runs at 458bc7b, 22 now diverge on
+  # purpose (legacy skip, strict YAML parse, branch-name rule) and are not fixtures.
+  for task_dir in "$ROOT"/tests/integration/fixtures/t10-pre22-runs/TASK-*; do
     [[ -d "$task_dir" ]] || continue
     tid="$(basename "$task_dir")"
     COUNT=$((COUNT + 1))
-    old_out="$(cd "$ROOT" && ruby "$PRE22_VALIDATOR" "$tid" 2>&1)"; old_rc=$?
-    new_out="$(cd "$ROOT" && ruby "$VALIDATOR" "$tid" 2>&1)"; new_rc=$?
+    old_out="$(cd "$ROOT" && ruby "$PRE22_VALIDATOR" "$task_dir" 2>&1)"; old_rc=$?
+    new_out="$(cd "$ROOT" && ruby "$VALIDATOR" "$task_dir" 2>&1)"; new_rc=$?
     if [[ "$old_rc" != "$new_rc" || "$old_out" != "$new_out" ]]; then
       MISMATCHES=$((MISMATCHES + 1))
       echo "  DIVERGED: $tid (old rc=$old_rc new rc=$new_rc)"
@@ -522,7 +528,7 @@ if git -C "$ROOT" cat-file -e 458bc7b:validate-yaml.rb 2>/dev/null; then
   echo "  combined stdout+stderr+rc hash (current): $NEW_HASH"
   [[ "$MISMATCHES" -eq 0 ]] || fail "T10: $MISMATCHES task(s) validate differently after #22 — backward compatibility broken"
   [[ "$OLD_HASH" == "$NEW_HASH" ]] || fail "T10: combined output hash differs even though no per-task mismatch was flagged (should not happen)"
-  ok "T10: $COUNT real runs/TASK-* dirs validate byte-identically before and after #22"
+  ok "T10: $COUNT runs frozen at 458bc7b validate byte-identically before and after #22"
 else
   echo "  SKIP: base commit 458bc7b not reachable in this checkout (shallow clone?) — cannot run the sweep"
 fi

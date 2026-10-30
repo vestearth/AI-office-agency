@@ -1,0 +1,8 @@
+task_id: TASK-025
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-06-08T10:37:30.915Z'
+    note: Force Done
+    against_verdict: approved
+    against_phase: null

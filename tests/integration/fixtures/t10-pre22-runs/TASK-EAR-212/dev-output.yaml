@@ -1,0 +1,43 @@
+summary: |
+  Retired Games-Labs-Missions local store_packages catalog (TASK-EAR-212).
+  Removed baseline CREATE/seed, guarded 010/046 for missing table, added
+  052 DROP TABLE IF EXISTS. Deleted StoreRepository package CRUD and removed
+  StoreService DB fallback so USE_ORDERS_CATALOG=true fails closed to empty
+  in-memory (Order remains SoT). Local flag=false still uses in-memory seed.
+  Verified: go test ./internal/services ./internal/repositories
+  ./internal/handlers/mission/http; GOWORK=off go build -mod=readonly ./...
+artifacts:
+  - path: Games-Labs-Missions/migrations/001_baseline_compacted.sql
+    action: modified
+  - path: Games-Labs-Missions/migrations/010_refactor_coin_store.sql
+    action: modified
+  - path: Games-Labs-Missions/migrations/046_canonical_store_item_operations.sql
+    action: modified
+  - path: Games-Labs-Missions/migrations/052_drop_store_packages.sql
+    action: created
+  - path: Games-Labs-Missions/internal/repositories/store_repo.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    action: modified
+next_action:
+  agent: reviewer
+  reason: |
+    Implementation complete and tests/build green; needs review before merge.
+    Schema: store_packages dropped via 052; deploy order is same-boot migration
+    then code (replay runner). Rollback: forward-only recreate would need a new
+    migration if ever required — not provided (catalog is Order).
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: fallback
+    queries:
+      - store_packages USE_ORDERS_CATALOG retirement
+    relevant_symbols:
+      - Games-Labs-Missions/migrations/052_drop_store_packages.sql
+      - Games-Labs-Missions/internal/services/store_service.go
+    notes: Direct repo evidence from prior impact analysis; MCP search timed out
+blockers: []

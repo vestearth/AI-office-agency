@@ -1,0 +1,78 @@
+task_id: TASK-EAR-188
+phase: in_review
+state: in_review
+current_agent: reviewer
+iteration: 3
+assigned_to: dev
+created_at: '2026-08-01'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+  workstream: backend
+next_action:
+  agent: reviewer
+  description: >-
+    Both PRs open on staging, code-reviewed and re-verified independently
+    (build/vet/test rerun by coordinator, not just trusted from agent
+    report): Games-Labs-Order#26 (GrantRedemptionItem, no voucher-code leak,
+    denied/failed classified via MetaError code 1002) and
+    Games-Labs-Missions#95 (GrantPass/ResetStreak/ResetDailyMissions/
+    ForceCompleteMission; catalog/config writes explicitly listed as
+    skipped). Both stalled once mid-run (Missions twice) — resumed via
+    direct worktree inspection per the stalled-agent-triage pattern rather
+    than blind re-dispatch; both times real work was salvaged, not
+    restarted from scratch. KNOWN GAP found in both repos, NOT introduced
+    by this run: Order has RABBITMQ_URL wired nowhere in its staging
+    workflow at all (publisher stays disabled after merge); Missions'
+    ecs/env.names got the new queue var but .github/workflows/*.yml
+    couldn't be touched (workflow-scope OAuth block, same class as
+    TASK-EAR-207) — falls back safely to the default queue name so it's
+    not blocking, just hygiene. Neither PR verified live on staging (no
+    credentials available this session) — unit tests only, explicitly
+    flagged in both PR bodies rather than fabricated. Full original scope
+    is in runs/TASK-EAR-188/task.md.
+history:
+  - phase: assigned -> in_review
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Both PRs landed: Games-Labs-Order#26, Games-Labs-Missions#95. The
+      Missions dispatch stalled twice (600s no-progress each time); both
+      times the coordinator inspected the worktree directly rather than
+      blind-redispatching — first stall had only a config accessor + a
+      ported publisher file uncommitted, salvaged by continuing in-place;
+      second stall turned out to already have a pushed commit AND an open
+      PR, the agent just hadn't reported back before the watchdog killed
+      it. Coordinator independently reran build/vet/test on the Missions
+      branch before trusting it. Reopened as in_review pending PR review
+      and the two known non-blocking gaps (Order's staging RabbitMQ never
+      wired at all; Missions' workflow-file queue-name export deferred on
+      the same OAuth workflow-scope block hit in TASK-EAR-207). Claude
+      advisory lane.
+  - phase: assigned -> assigned
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Dispatched (had sat unstarted since 08-01). Independent of the
+      TASK-EAR-214 SG block on TASK-EAR-207/208 — this run only publishes
+      events, does not call the new audit-read route — so picked as the
+      next unblocked work while operator arranges the devops SG change.
+      Two parallel dev dispatches: Order e-voucher grant, Missions admin
+      writes. Claude advisory lane.
+  - phase: pending -> assigned
+    agent: pm
+    at: '2026-08-01'
+    reason: >-
+      Split out of TASK-EAR-181 at operator request once that run's
+      foundation was verified end to end. 181 had absorbed a job decision, a
+      storage decision, two corrected premises, four PRs, a circuit-breaker
+      rollback and a data-loss incident; its history is worth keeping but is
+      no longer readable as a single thread, while the remaining work is
+      mechanical against a pattern that now exists and is proven.
+      Order's e-voucher grant is named explicitly here because it was in
+      181's acceptance criteria — carrying it by name is what stops the
+      split from becoming a quiet scope reduction. Claude advisory lane.
