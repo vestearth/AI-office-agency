@@ -71,6 +71,11 @@ history:
     Race tests passed on the fix commit (ev-006).'
   at: '2026-10-30T21:45:03Z'
   operator: claude
+- phase: 'check_after: 2026-11-04T02:00:00Z'
+  agent: pm
+  reason: 'Earth: close only after the fix reaches prod'
+  at: '2026-10-30T21:45:58Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -106,3 +111,9 @@ handoff:
   from: dev
   to: reviewer
   artifact: forced-route
+check_after:
+  at: '2026-11-04T02:00:00Z'
+  what: Is slip-api 3feafe5 an ancestor of origin/prod and in the running slip-api-production
+    image? If not, set a new check. If yes, count 'persist duplicate slip attempt
+    failed' in /ecs/slip-api-production since that deploy (was 4 in 9 days, all context
+    canceled on branch 816d9bc9), then record knowledge_closeout (skip) and close.
