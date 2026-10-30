@@ -1,10 +1,10 @@
 ---
 task_id: TASK-EAR-401
 task_label: Make task-input-integrity T10 pass in a fresh checkout (gitignored evidence.yaml)
-phase: assigned
-state: assigned
+phase: in_review
+state: in_review
 iteration: 0
-current_agent: dev
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -12,7 +12,7 @@ assignment:
   primary: dev
   parallel: false
 created_at: '2026-10-12'
-updated_at: '2026-10-12'
+updated_at: '2026-10-31'
 history:
 - phase: created -> assigned
   agent: pm
@@ -23,6 +23,17 @@ history:
   reason: tests/run-integration.sh passes T10 in a fresh detached worktree of origin/main,
     with the fix's own regression proof
   at: '2026-10-12T06:40:19Z'
+- phase: assigned -> in_review
+  agent: dev
+  reason: 'Earth chose option 2 (frozen fixtures). T10 now compares 15 runs frozen
+    at 458bc7b under tests/integration/fixtures/t10-pre22-runs instead of the live
+    runs/; 22 of the 392 runs at 458bc7b diverge on purpose (legacy skip, strict YAML
+    parse, branch-name rule) and are not fixtures. In a fresh detached worktree: origin/main
+    859083bf fails T10, 588 compared / 53 diverged (ev-001); branch 8621d456 passes,
+    15 compared / 0 diverged (ev-002). Mutating the validator''s output makes every
+    fixture diverge. PR vestearth/AI-office-agency#141.'
+  at: '2026-10-30T20:53:53Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
@@ -31,3 +42,12 @@ completion_gates:
       with the fix's own regression proof
     updated_at: '2026-10-12T06:40:19Z'
     evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: forced-route
+next_action:
+  agent: reviewer
+  description: 'Review and merge vestearth/AI-office-agency#141. Then pass implementation_verification:
+    run tests/integration/task-input-integrity.sh in a fresh detached worktree of
+    origin/main (the ev-001/ev-002 script) and record it as evidence.'
