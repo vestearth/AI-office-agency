@@ -10,7 +10,9 @@ import { AuthorizationGrants, awaitingGrants, resolveGrantor, type Grantor } fro
 import { GateViewService } from './gateView';
 
 const OFFICE_ROOT = path.resolve(__dirname, '../../../..');
-const NOW = new Date('2026-10-29T10:00:00.000Z');
+// The real time, in whole seconds: the ledger writer and the gate view read the real clock, so a fixed
+// date here put the 4-hour expiry behind them once that date passed (2026-10-29 after 14:00Z).
+const NOW = new Date(Math.floor(Date.now() / 1000) * 1000);
 const EARTH: Grantor = { actor: 'Earth', prefix: 'EAR' };
 
 function gate(over: Partial<GateEntry> & { name: string }): GateEntry {
@@ -102,11 +104,12 @@ test('record writes one grant through the ledger writer, as the grantor and via 
 
   const result = await grants.record('TASK-001', { ...VALID, expiresInHours: 4 });
 
-  assert.deepEqual(result, { ok: true, id: 'authz-001', action: 'deploy_staging', actor: 'Earth', expiresAt: '2026-10-29T14:00:00Z' });
+  const expiresAt = new Date(NOW.getTime() + 4 * 3_600_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  assert.deepEqual(result, { ok: true, id: 'authz-001', action: 'deploy_staging', actor: 'Earth', expiresAt });
   const [entry] = await ledger(runsDir);
   assert.deepEqual(
     { ...entry, at: typeof entry.at },
-    { id: 'authz-001', type: 'grant', actor: 'Earth', via: 'dashboard', reason: VALID.reason, at: 'string', action: 'deploy_staging', scope: VALID.scope, expires_at: '2026-10-29T14:00:00Z' },
+    { id: 'authz-001', type: 'grant', actor: 'Earth', via: 'dashboard', reason: VALID.reason, at: 'string', action: 'deploy_staging', scope: VALID.scope, expires_at: expiresAt },
   );
   const meta = await fs.readFile(path.join(runsDir, 'TASK-001', 'meta.yaml'), 'utf8');
   assert.match(meta, /authorization_recorded/);
