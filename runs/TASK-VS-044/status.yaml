@@ -60,14 +60,34 @@ history:
     test and readonly build pass (ev-008).'
   at: '2026-10-30T21:43:02Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'RED: TestPersistDuplicateAttemptSavesAfterClientCancel failed before the
+    fix with the prod error ''generate verification id: context canceled'' (ev-002).
+    Earth approved the merges: SparqLab/slip-api#112 (a9b3abc, migrations count 67->68)
+    then #111 (3feafe5, WithoutCancel + 3s). On origin/main 3feafe5, whose tree equals
+    the locally tested #111+#112 combination (ev-008), full GOWORK=off go test -count=1
+    ./... and go build -mod=readonly ./... pass, and the new test passes (ev-009).
+    Race tests passed on the fix commit (ev-006).'
+  at: '2026-10-30T21:45:03Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: RED regression test seen failing, then full go test + readonly build pass
-      on the fix branch
-    updated_at: '2026-10-21T08:08:42Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'RED: TestPersistDuplicateAttemptSavesAfterClientCancel failed before
+      the fix with the prod error ''generate verification id: context canceled'' (ev-002).
+      Earth approved the merges: SparqLab/slip-api#112 (a9b3abc, migrations count
+      67->68) then #111 (3feafe5, WithoutCancel + 3s). On origin/main 3feafe5, whose
+      tree equals the locally tested #111+#112 combination (ev-008), full GOWORK=off
+      go test -count=1 ./... and go build -mod=readonly ./... pass, and the new test
+      passes (ev-009). Race tests passed on the fix commit (ev-006).'
+    updated_at: '2026-10-30T21:45:03Z'
+    evidence_refs:
+    - ev-002
+    - ev-006
+    - ev-008
+    - ev-009
   knowledge_closeout:
     status: pending
     actor: pm
@@ -76,11 +96,12 @@ completion_gates:
     updated_at: '2026-10-21T08:08:42Z'
     evidence_refs: []
 next_action:
-  agent: reviewer
-  description: 'Review and merge SparqLab/slip-api#112, then #111. Then pass implementation_verification
-    on #111 with ev-002 (RED before the fix) plus a full go test + readonly build
-    on #111''s head after main has #112 (ev-008 shows the combination passes). Then
-    knowledge_closeout. Promotion to staging/prod needs Earth.'
+  agent: pm
+  description: 'Merged to slip-api main 3feafe5 (with #112); not on staging or prod.
+    Record knowledge_closeout, then close. Promotion to staging/prod needs Earth;
+    note the teammate may promote main on their own schedule. After it reaches prod,
+    persist duplicate slip attempt failed with context canceled should stop on branch
+    816d9bc9 (was 4 in 9 days).'
 handoff:
   from: dev
   to: reviewer
