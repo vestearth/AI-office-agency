@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import yaml from 'js-yaml';
 import { execFileSync } from 'node:child_process';
-import { assessStaleness, assessSupersession, buildReviewSummary, ReviewModelService, supersededIds } from './reviewModel';
+import { assessCheckDue, assessStaleness, assessSupersession, buildReviewSummary, ReviewModelService, supersededIds } from './reviewModel';
 import { buildFlowInsights } from './flowInsights';
 import { GateViewService } from './gateView';
 import { DecisionStore } from './decisionStore';
@@ -585,6 +585,58 @@ test('finished work and tasks without updated_at are never stale', () => {
   assert.equal(assessStaleness(buildReviewSummary('T', undated, null), undated, phases({}), NOW).actionKind, null);
 });
 
+// --- Scheduled checks: status.yaml check_after (scripts/update-check-after.rb) ---
+
+test('an open task whose check_after has passed is a due check naming what to check', () => {
+  const status = { phase: 'assigned', updated_at: '2026-10-28', check_after: { at: '2026-10-29T01:00:00Z', what: 'daily digest sent' } };
+  const r = assessCheckDue(buildReviewSummary('TASK-VS-054', status, null), status, new Date('2026-10-30T09:00:00Z'));
+  assert.equal(r.actionKind, 'check_due');
+  assert.equal(r.requiresAction, true);
+  assert.deepEqual(r.checkDue, { at: '2026-10-29T01:00:00Z', what: 'daily digest sent' });
+  assert.match(r.actionReason ?? '', /Check due since 2026-10-29T01:00:00Z: daily digest sent\./);
+  assert.match(r.recommendedAction ?? '', /scripts\/update-check-after\.rb TASK-VS-054 clear/);
+
+  const early = assessCheckDue(buildReviewSummary('TASK-VS-054', status, null), status, new Date('2026-10-29T00:59:00Z'));
+  assert.equal(early.actionKind, null);
+  assert.equal(early.checkDue ?? null, null);
+});
+
+test('a date-only check_after is due from midnight in the office time zone', () => {
+  const status = { phase: 'assigned', check_after: { at: '2026-10-29', what: 'w' } };
+  const due = (now: string) => assessCheckDue(buildReviewSummary('T', status, null), status, new Date(now)).actionKind;
+  assert.equal(due('2026-10-28T16:59:00Z'), null);
+  assert.equal(due('2026-10-28T17:00:00Z'), 'check_due');
+});
+
+test('a due check outranks stale work but leaves other kinds in place, adding itself to the reason', () => {
+  const check = { at: '2026-10-01', what: 'transfers 5xx flat' };
+  const idle = { phase: 'assigned', updated_at: '2026-09-01', check_after: check };
+  const stale = assessCheckDue(assessStaleness(buildReviewSummary('T', idle, null), idle, phases({}), NOW), idle, NOW);
+  assert.equal(stale.actionKind, 'check_due');
+  assert.deepEqual(stale.idle, { days: 38, thresholdDays: 14 });
+
+  const review = { phase: 'in_review', check_after: check };
+  const r = assessCheckDue(buildReviewSummary('T', review, null), review, NOW);
+  assert.equal(r.actionKind, 'awaiting_review');
+  assert.deepEqual(r.checkDue, check);
+  assert.match(r.actionReason ?? '', /a reviewer decision is required\. Also: check due since 2026-10-01: transfers 5xx flat\.$/);
+});
+
+test('finished tasks and unreadable check_after values never raise a due check', () => {
+  const past = { at: '2026-10-01', what: 'w' };
+  for (const status of [
+    { phase: 'done', check_after: past },
+    { phase: 'aborted', check_after: past },
+    { phase: 'assigned', check_after: { at: '2026-10-01' } },
+    { phase: 'assigned', check_after: { at: 'soon', what: 'w' } },
+    { phase: 'assigned', check_after: '2026-10-01' },
+  ]) {
+    const r = assessCheckDue(buildReviewSummary('T', status, null), status, NOW);
+    assert.equal(r.actionKind, null, JSON.stringify(status));
+    assert.equal(r.checkDue ?? null, null, JSON.stringify(status));
+  }
+});
+
 test('getReviewSummaries resolves blockers across tasks', async () => {
   const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-stale-'));
   const write = async (id: string, status: object) => {
@@ -593,10 +645,12 @@ test('getReviewSummaries resolves blockers across tasks', async () => {
   };
   await write('TASK-001', { phase: 'done', updated_at: '2026-10-01' });
   await write('TASK-002', { phase: 'blocked', updated_at: '2026-10-08', blocked_on: ['TASK-001'], waiting_for: [] });
+  await write('TASK-003', { phase: 'assigned', updated_at: '2026-10-08', check_after: { at: '2026-10-09T08:00:00Z', what: 'prod logs clean' } });
 
   const summaries = await new ReviewModelService(runsDir, undefined, () => NOW).getReviewSummaries();
   const blocked = summaries.find((s) => s.taskId === 'TASK-002');
   assert.equal(blocked?.actionKind, 'stale_work');
+  assert.equal(summaries.find((s) => s.taskId === 'TASK-003')?.actionKind, 'check_due');
 });
 
 test('an updated_at that is not a calendar date gets no idle age and does not hide the other tasks', async () => {

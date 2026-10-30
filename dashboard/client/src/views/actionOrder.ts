@@ -9,5 +9,6 @@ export const ACTION_ORDER: ActionKind[] = [
   'decision_pending',
   'workflow_exception',
   'artifact_drift',
+  'check_due',
   'stale_work',
 ];

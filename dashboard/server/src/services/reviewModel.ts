@@ -469,6 +469,34 @@ export function assessStaleness(
   return next;
 }
 
+/**
+ * status.yaml check_after (scripts/update-check-after.rb) whose `at` has passed on an open task.
+ * It replaces stale work, which it explains; any other kind stays and gains the check in its reason.
+ * An unreadable value raises nothing here: validate-yaml.rb reports it.
+ */
+export function assessCheckDue(summary: ReviewSummary, statusData: Record<string, any>, now: Date): ReviewSummary {
+  if (summary.phase === null || TERMINAL_PHASES.includes(summary.phase)) return summary;
+  const check = asObject(statusData.check_after);
+  const at = text(check.at);
+  const what = text(check.what);
+  if (!at || !what) return summary;
+  const due = officeMs(at);
+  if (!Number.isFinite(due) || now.getTime() < due) return summary;
+
+  const detail = `due since ${at}: ${what.replace(/\.+$/, '')}.`;
+  if (summary.actionKind !== null && summary.actionKind !== 'stale_work') {
+    return { ...summary, checkDue: { at, what }, actionReason: `${summary.actionReason ?? ''} Also: check ${detail}`.trim() };
+  }
+  return {
+    ...summary,
+    checkDue: { at, what },
+    actionKind: 'check_due',
+    requiresAction: true,
+    actionReason: `Check ${detail}`,
+    recommendedAction: `Run the check, record what it showed, then: ruby scripts/update-check-after.rb ${summary.taskId} clear --actor <role> --reason "<result>".`,
+  };
+}
+
 // "Supersedes TASK-A" / "Supersedes: TASK-A, TASK-B and TASK-C", any case, markdown emphasis allowed.
 // Only ids "supersedes" names directly: "supersedes the prior dependency on all of TASK-EAR-284"
 // (TASK-EAR-285) is not a supersession. The real phrasings are from runs/*/task.md, 2026-10-17.
@@ -595,7 +623,7 @@ export class ReviewModelService {
     }
     const now = this.clock();
     return summaries.map(({ summary, statusData }) => assessSupersession(
-      assessStaleness(summary, statusData, phaseByTask, now),
+      assessCheckDue(assessStaleness(summary, statusData, phaseByTask, now), statusData, now),
       (supersededBy.get(summary.taskId.toUpperCase()) ?? []).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })),
     ));
   }

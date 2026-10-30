@@ -293,6 +293,7 @@ const OTHER_LABEL: Partial<Record<ActionKind, string>> = {
   gates_unreadable: 'Gate unreadable',
   workflow_exception: 'Workflow exceptions',
   artifact_drift: 'Artifact drift',
+  check_due: 'Check due',
   stale_work: 'Stale work',
 };
 

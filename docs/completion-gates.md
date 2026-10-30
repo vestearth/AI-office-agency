@@ -421,6 +421,30 @@ are untouched. `validate-yaml.rb` checks the shape (`WAIT_KINDS`, parity with
 together with `waiting_for` when `dependency_policy.on_unblock.clear_waiting_for`
 is on. Branches keep prose waits only (V1).
 
+## Scheduled checks (`check_after`)
+
+A task that must be looked at again later ("after 08:00 tomorrow, confirm the
+prod deploy's daily digest was sent") records when and what, instead of leaving
+it in `next_action` prose that nothing watches (TASK-VS-054/055 missed their
+2026-10-29 check that way):
+
+```
+ruby scripts/update-check-after.rb TASK-VS-054 set --at 2026-10-29T01:00:00Z --what "daily digest sent, no daily digest errors" --actor devops --reason "post-deploy check"
+ruby scripts/update-check-after.rb TASK-VS-054 clear --actor devops --reason "checked: digest sent 08:00, no errors"
+```
+
+`--at` is a date (midnight in the office's time zone) or a timestamp with `Z`
+or an offset; a time without a zone is refused. A task holds one check: `set`
+replaces it. The writer takes the task lock and ownership fence, works only on
+a non-terminal task, does not touch `updated_at`, and appends a history row
+(`check_after: <at>` or `check_after: cleared`, not a phase transition) and a
+`check_after_updated` meta event. `validate-yaml.rb` checks the shape.
+
+Once `at` has passed, the dashboard's Attention lists the open task under
+**Check due**. That kind replaces `stale_work`; any other kind the task already
+has stays, with the check added to its reason. A scheduled check authorizes
+nothing and resolves no gate.
+
 ## Compatibility
 
 A task with no `completion_gates` key behaves exactly as before.
