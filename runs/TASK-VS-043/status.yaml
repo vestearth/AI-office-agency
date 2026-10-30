@@ -1,10 +1,10 @@
 ---
 task_id: TASK-VS-043
 task_label: 'slip-system: log cause class of silent bank-unavailable errors with request_id'
-phase: assigned
-state: assigned
+phase: in_review
+state: in_review
 iteration: 0
-current_agent: debugger
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -12,7 +12,7 @@ assignment:
   primary: debugger
   parallel: false
 created_at: '2026-10-21'
-updated_at: '2026-10-21'
+updated_at: '2026-10-31'
 history:
 - phase: created -> assigned
   agent: pm
@@ -28,14 +28,41 @@ history:
   reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-10-21T08:08:00Z'
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'On slip-system task/TASK-VS-043-unavailable-cause-log 4cc0008 from origin/main
+    8c5f29a: 13 RED tests failed before the fix (9 repository cause classes with class
+    empty; service log missing; invalid_amount) (ev-001); after it, full GOWORK=off
+    go test -count=1 ./... and -race for repositories, services, handlers pass (ev-002);
+    go build -mod=readonly, go vet, gofmt and diff-check are clean and the slip-contracts
+    replace stays (ev-003). PR SparqLab/slip-system#18 into main.'
+  at: '2026-10-30T22:00:37Z'
+  operator: claude
+- phase: assigned -> in_review
+  agent: dev
+  reason: 'Implemented on slip-system 4cc0008: 16 ErrUnavailable sites tagged with
+    fixed cause classes (models.WithUnavailableCause keeps text and errors.Is identity);
+    VerifyBank and Verify log ''kbank verify unavailable: cause=<class> [httpStatus=<n>]
+    request_id="..."'', unclassified as the fallback, 8500 not logged twice, no error
+    text or slip data. Prod baseline: 1 silent 502 of 10,503 (2026-10-21..30). concurrent_wait
+    (redis.go) has no test: needs live Redis. PR SparqLab/slip-system#18.'
+  at: '2026-10-30T22:00:37Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: RED regression test seen failing, then full go test + readonly build pass
-      on the fix branch
-    updated_at: '2026-10-21T08:08:00Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'On slip-system task/TASK-VS-043-unavailable-cause-log 4cc0008 from origin/main
+      8c5f29a: 13 RED tests failed before the fix (9 repository cause classes with
+      class empty; service log missing; invalid_amount) (ev-001); after it, full GOWORK=off
+      go test -count=1 ./... and -race for repositories, services, handlers pass (ev-002);
+      go build -mod=readonly, go vet, gofmt and diff-check are clean and the slip-contracts
+      replace stays (ev-003). PR SparqLab/slip-system#18 into main.'
+    updated_at: '2026-10-30T22:00:37Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
   knowledge_closeout:
     status: pending
     actor: pm
@@ -43,3 +70,12 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-10-21T08:08:00Z'
     evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: forced-route
+next_action:
+  agent: reviewer
+  description: Review and merge SparqLab/slip-system#18 into main. Then knowledge_closeout.
+    Promotion to staging/prod needs Earth; after prod, a slip-api 502 bank-unavailable
+    should always have a slip-system line (8500 or kbank verify unavailable).
