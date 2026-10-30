@@ -78,6 +78,11 @@ const ACTION_META: Record<ActionKind, { label: string; description: string; colo
     // Held, not finished: blue, so it never reads as a green "done".
     color: '#60a5fa',
   },
+  check_due: {
+    label: 'Check due',
+    description: 'A scheduled follow-up check (check_after) has come due',
+    color: '#2dd4bf',
+  },
   stale_work: {
     label: 'Stale work',
     description: 'Blocked only by finished tasks, or idle past its threshold',

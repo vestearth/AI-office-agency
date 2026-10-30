@@ -143,6 +143,7 @@ export type ActionKind =
   | 'gates_unreadable'
   | 'authorization_required'
   | 'completion_held'
+  | 'check_due'
   | 'stale_work';
 
 /**
@@ -235,6 +236,8 @@ export interface ReviewSummary {
   latestDecision: DecisionRecord | null;
   /** Days since status.yaml `updated_at` when past the stale threshold for its phase; else null. */
   idle: { days: number; thresholdDays: number } | null;
+  /** status.yaml `check_after` once its `at` has passed on an open task; absent otherwise. */
+  checkDue?: { at: string; what: string };
   /** Provenance: last status.yaml `history[]` phase transition (gate updates skipped); null if none. Reason is shown verbatim, never classified. */
   lastTransition: { agent: TimelineActor; phase: string; reason: string | null; at: string | null } | null;
   /** Provenance: how many status.yaml `history[]` transitions enter `debugging` from another phase (gate updates and `debugging -> debugging` rows skipped); 0 if never. Counts the `phase` field only. */

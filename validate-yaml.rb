@@ -22,6 +22,9 @@ PHASES = %w[
 WORKSTREAMS = %w[frontend backend devops framework docs general].freeze
 # What a waiting task waits on (status.yaml waits_on[].kind; scripts/update-waits-on.rb).
 WAIT_KINDS = %w[prod_run aws_permission operator_decision operator_approval qa external].freeze
+# status.yaml check_after.at (scripts/update-check-after.rb keeps the same rule):
+# a date, or a timestamp with Z or an offset. A zoneless time is refused.
+CHECK_AT_PATTERN = /\A\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?\z/.freeze
 # Task ids: TASK-NNN (legacy/unprefixed) or TASK-<NS>-NNN where <NS> is an
 # uppercase namespace — PKG for package tasks, or a per-user prefix from
 # office.config.local.yaml (multi-user git mode). Keep in sync with
@@ -516,6 +519,29 @@ def validate_carries(data, label, errors)
   errors << "#{label}.carries must not repeat a task id" unless carries.uniq.size == carries.size
 end
 
+# Scheduled follow-up (scripts/update-check-after.rb): {at, what}, both strings.
+def validate_check_after(data, label, errors)
+  return unless data.key?("check_after")
+
+  check = data["check_after"]
+  unless check.is_a?(Hash)
+    errors << "#{label}.check_after must be a map with at and what"
+    return
+  end
+  extra = check.keys - %w[at what]
+  errors << "#{label}.check_after has unknown key(s): #{extra.join(', ')}" unless extra.empty?
+  at = check["at"]
+  valid_at = at.is_a?(String) && at.match?(CHECK_AT_PATTERN) && begin
+    at.length == 10 ? Date.strptime(at, "%Y-%m-%d") : Time.iso8601(at)
+    true
+  rescue ArgumentError
+    false
+  end
+  errors << "#{label}.check_after.at must be a quoted date or a timestamp with Z or an offset" unless valid_at
+  what = check["what"]
+  errors << "#{label}.check_after.what must be non-empty text" unless what.is_a?(String) && !what.strip.empty?
+end
+
 def validate_branches(data, label, errors)
   return unless data.key?("branches")
 
@@ -717,6 +743,7 @@ def validate_status(data, label, errors, task_dir: nil)
   expect_string_array(data["waiting_for"], "#{label}.waiting_for", errors) if data.key?("waiting_for")
   validate_carries(data, label, errors)
   validate_waits_on(data, label, errors)
+  validate_check_after(data, label, errors)
   validate_branches(data, label, errors)
   validate_completion_gates(data, label, errors, task_dir)
   errors.concat(PlanRevisions.stored_errors(data, label))
