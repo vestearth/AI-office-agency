@@ -13,7 +13,7 @@ assignment:
   primary: dev
   parallel: false
 created_at: '2026-10-28'
-updated_at: '2026-10-28'
+updated_at: '2026-10-31'
 history:
 - phase: created -> assigned
   agent: pm
@@ -66,48 +66,62 @@ history:
 - phase: assigned -> assigned
   agent: dev
   reason: 'Claude implemented decision-memo.md section 7 on slip-api task/TASK-VS-055-bank-flow-pair-index
-    from origin/main 53dac50: c8dd94a (migration 067 verifications_bank_flow_pair_idx, implied
-    from_bank/to_bank predicates in bankFlowListSQL, slow/failed transfers request-shape log) and
-    7f982ee (review fixes: real generic-plan test, in direction, masked non-code bank). Opened
-    SparqLab/slip-api#108 into main; not merged, not deployed. Production index pre-build runbook:
-    prod-index-prebuild.md.'
+    from origin/main 53dac50: c8dd94a (migration 067 verifications_bank_flow_pair_idx,
+    implied from_bank/to_bank predicates in bankFlowListSQL, slow/failed transfers
+    request-shape log) and 7f982ee (review fixes: real generic-plan test, in direction,
+    masked non-code bank). Opened SparqLab/slip-api#108 into main; not merged, not
+    deployed. Production index pre-build runbook: prod-index-prebuild.md.'
   at: '2026-10-28T10:27:30Z'
   operator: claude
 - phase: assigned -> assigned
   agent: pm
   reason: 'Earth changed D2 in chat (2026-10-28 17:5x Bangkok): Claude builds verifications_bank_flow_pair_idx
-    on production now (CREATE INDEX CONCURRENTLY via ECS Exec with the app role, detached, then
-    indisvalid check and ANALYZE), and merges SparqLab/slip-api#108 into main only after the index
-    is valid. Staging and production promotion are not authorized.'
+    on production now (CREATE INDEX CONCURRENTLY via ECS Exec with the app role, detached,
+    then indisvalid check and ANALYZE), and merges SparqLab/slip-api#108 into main
+    only after the index is valid. Staging and production promotion are not authorized.'
   at: '2026-10-28T10:53:51Z'
   operator: claude
 - phase: assigned -> assigned
   agent: devops
   reason: 'Production pre-build done by Claude at Earth''s request: verifications_bank_flow_pair_idx
-    built CONCURRENTLY 17:54:31-17:57:29 Bangkok (2m58s), VALID, 458 MB, ANALYZE 1m08s (ev-015,
-    ev-016); production plans for the new query shape use it (out/073 page 1 3.1 ms, offset 5000
-    43 ms, generic plan 1.6 ms; ev-018). Customer impact: the build saturated I/O and POST /v1/slips/verify
-    returned 12 x 504 at 17:56:02-03 (one merchant/branch; the only verify 504s in 7 days; 11 left
-    no verification row, 1 saved as rejected) (ev-019..ev-021). Lesson recorded in decision-memo.md
+    built CONCURRENTLY 17:54:31-17:57:29 Bangkok (2m58s), VALID, 458 MB, ANALYZE 1m08s
+    (ev-015, ev-016); production plans for the new query shape use it (out/073 page
+    1 3.1 ms, offset 5000 43 ms, generic plan 1.6 ms; ev-018). Customer impact: the
+    build saturated I/O and POST /v1/slips/verify returned 12 x 504 at 17:56:02-03
+    (one merchant/branch; the only verify 504s in 7 days; 11 left no verification
+    row, 1 saved as rejected) (ev-019..ev-021). Lesson recorded in decision-memo.md
     section 8.'
   at: '2026-10-28T11:03:40Z'
   operator: claude
 - phase: assigned -> assigned
   agent: devops
-  reason: 'Merged SparqLab/slip-api#108 into main as ff38f76 (head guarded at 7f982ee) after the
-    production index was valid. No workflow ran; staging 227561c and prod 1dd7ab3 unchanged.'
+  reason: Merged SparqLab/slip-api#108 into main as ff38f76 (head guarded at 7f982ee)
+    after the production index was valid. No workflow ran; staging 227561c and prod
+    1dd7ab3 unchanged.
   at: '2026-10-28T11:03:40Z'
   operator: claude
 - phase: assigned -> assigned
   agent: devops
-  reason: 'Earth: promote main. Claude promoted main 9524b15 (with TASK-VS-054) the way the team
-    does: staging 227561c..5b705b4 (Deploy STAGING green, slip-api-staging:161, 067 built the
-    index in 96 ms) then prod 1dd7ab3..d7f7249 (Deploy PRODUCTION green, slip-api-production:118,
-    5/5 healthy, 067 a no-op in 18 ms on one task, goose 67, index VALID 465 MB). Before the push,
-    a dry-run merge matched the #108+#109 diff exactly, and production had the index VALID, no
-    conflicting lock and no autovacuum. 0 ERROR and 0 HTTP 5xx 14:28-14:41Z (ev-022). Rollback:
-    service back to slip-api-production:117.'
+  reason: 'Earth: promote main. Claude promoted main 9524b15 (with TASK-VS-054) the
+    way the team does: staging 227561c..5b705b4 (Deploy STAGING green, slip-api-staging:161,
+    067 built the index in 96 ms) then prod 1dd7ab3..d7f7249 (Deploy PRODUCTION green,
+    slip-api-production:118, 5/5 healthy, 067 a no-op in 18 ms on one task, goose
+    67, index VALID 465 MB). Before the push, a dry-run merge matched the #108+#109
+    diff exactly, and production had the index VALID, no conflicting lock and no autovacuum.
+    0 ERROR and 0 HTTP 5xx 14:28-14:41Z (ev-022). Rollback: service back to slip-api-production:117.'
   at: '2026-10-28T14:42:00Z'
+  operator: claude
+- phase: assigned -> assigned
+  agent: devops
+  reason: 'Post-deploy check, run 2026-10-31 at Earth''s request (ev-023). Prod now
+    runs slip-api-production:125 (bb00f3a, d7f7249 is its ancestor). GET /v1/admin/verifications/bank-flows/transfers,
+    all pages: before the deploy (2026-10-25 to 2026-10-28 14:30Z) 66 requests, 65x200
+    and 1x500 (15.1 s timeout, 2026-10-28 03:23Z), p95 5.0 s; after the deploy to
+    2026-10-31 00:00Z 27 requests, all 200, p95 2.0 s, max 2.3 s. ''admin bank flow
+    transfers'' since the deploy: 24 lines, all WARN (slow, 1.0-2.3 s), all transfers_path=cached_summary,
+    error_kind none. No request used search, so how often search counts time out is
+    still unknown.'
+  at: '2026-10-30T17:39:14Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -139,9 +153,9 @@ completion_gates:
     evidence_refs: []
 next_action:
   agent: devops
-  description: >-
-    Deployed to staging and prod on 2026-10-28 (prod d7f7249, slip-api-production:118). Over the
-    next days check transfers 5xx and the `admin bank flow transfers` log, then record
-    knowledge_closeout. Earth may want to tell the
-    affected merchant about the 12 verify 504s at 17:56 Bangkok on 2026-10-28 (decision-memo.md
-    section 8). Search (count timeouts) stays open until the new log shows how often it happens.
+  description: 'Keep watching transfers: search (count timeouts) stays open until
+    an ''admin bank flow transfers'' line with search=true shows how often it happens;
+    then record knowledge_closeout (Knowledge Base/10 Projects/VerifySlip/Admin Bank
+    Flow Summary and Transfers.md does not yet describe the cached_summary/range_count
+    paths or the slow log). Earth may still want to tell the affected merchant about
+    the 12 verify 504s at 17:56 Bangkok on 2026-10-28 (decision-memo.md section 8).'
