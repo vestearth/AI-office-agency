@@ -25,3 +25,9 @@ Follow-up to SPAR-33 (item D13). Repo: `slip-api` only. Branch from latest `main
 - The duplicate path must not start consuming quota (`persistDuplicateAttempt` uses `Save`, not `SaveWithQuota`).
 - `models.ErrDuplicateSlip` from `Save` is still swallowed (returns nil).
 - Retry/idempotency changes must cover both the slip-api PG replay and the legacy unique index (see `runs/TASK-VS-005/task.md` and `runs/TASK-VS-041`). This task should not touch either.
+
+## 2026-10-31 evidence and decision
+
+- Since slip-api #81 put `request_id` on this line, prod logged it 4 times from 2026-10-21 08:00Z to 2026-10-31 00:00Z, all on branch `816d9bc9`. Each joins by `request_id` to its access-log line: `POST /v1/slips/verify` → 408 `context canceled` after 161–359 ms (ev-001).
+- On slip-api `origin/main` `eededfb` the verify path creates no `WithCancel` context. The repository contexts are `WithTimeout`, which end in `DeadlineExceeded`, not `Canceled`, and their timeouts are far above 359 ms. So the request context was canceled: the client (or the ALB on its behalf) closed the request. This is inferred from logs and code, not instrumented.
+- **Earth chose option B (2026-10-31):** skip the instrumentation step. Write the duplicate-attempt history row even after the client closes the request: `context.WithoutCancel` plus a short timeout, for the duplicate `Save` only. It stays `Save` (no quota), and `ErrDuplicateSlip` from `Save` is still swallowed.
