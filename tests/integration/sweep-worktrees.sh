@@ -76,7 +76,9 @@ echo r >"$WS/$RO/r.txt" && g -C "$WS/$RO" add r.txt && g -C "$WS/$RO" commit -q 
 g -C "$WS/$RO" worktree add -q -b ro-wt "$WS/.worktrees/ro-wt" main
 
 # A worktree with unmerged work under /tmp, which macOS purges after 3 days.
-TMPWT="$(mktemp -d /private/tmp/sweep-test-XXXXXX)"
+# /tmp is a symlink to /private/tmp on macOS and a real directory on Linux CI; git reports the
+# resolved path, so resolve it here too.
+TMPWT="$(cd "$(mktemp -d /tmp/sweep-test-XXXXXX)" && pwd -P)"
 rmdir "$TMPWT"
 g -C "$WS/app" worktree add -q -b tmp-work "$TMPWT" unmerged
 trap 'rm -rf "$TMPWT"; finish' EXIT
@@ -97,7 +99,9 @@ line_for "app-dash" | grep -q "dashboard" || fail "app-dash should be kept: dash
 line_for "app-gone" | grep -q "^prune" || fail "app-gone should be pruned: directory missing"
 grep -q "ro-wt" "$WS/out.txt" && fail "the read-only repo must not be listed"
 grep -F "$TMPWT" "$WS/out.txt" | grep -q "^warn .*under /tmp" || fail "a kept worktree under /tmp should get the purge warning"
-grep "^warn" "$WS/out.txt" | grep -qv "$TMPWT" && fail "only the /tmp worktree should be warned about"
+# On Linux the scratch workspace itself is under /tmp, so other kept worktrees are warned
+# about too; what must never happen is a warning for a path outside /tmp.
+grep "^warn" "$WS/out.txt" | grep -qvE '^warn [^ ]+ /(private/)?tmp/' && fail "a worktree outside /tmp was warned about"
 line_for "merged-loose" | grep -q "^delete branch" || fail "merged-loose should be a deletable branch"
 grep -q "unmerged-loose" "$WS/out.txt" && fail "unmerged-loose must never be offered for deletion"
 grep -q "delete branch app merged$" "$WS/out.txt" && fail "a branch checked out in a worktree must not be deleted"
