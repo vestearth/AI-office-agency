@@ -50,6 +50,16 @@ history:
     origin/main (ev-003, ev-005). PR SparqLab/slip-api#111 into main.'
   at: '2026-10-30T21:40:49Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: dev
+  reason: 'Earth: fix the migrations count in a separate PR. SparqLab/slip-api#112
+    (fix/migrations-count-068 a059e00 from origin/main eededfb) raises TestGooseSQLFiles
+    from 67 to 68 for 068_line_bind_token_target.sql (on prod since 53727ad, which
+    skipped the bump; c8dd94a is the 66->67 precedent). Full go test, readonly build
+    and vet pass on a059e00 (ev-007). #111 + #112 merged locally (ee39c47): full go
+    test and readonly build pass (ev-008).'
+  at: '2026-10-30T21:43:02Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
@@ -67,11 +77,10 @@ completion_gates:
     evidence_refs: []
 next_action:
   agent: reviewer
-  description: 'Review SparqLab/slip-api#111. implementation_verification needs a
-    full go test pass: blocked only by migrations TestGooseSQLFiles (expects 67, main
-    has 068_line_bind_token_target.sql), which fails on origin/main too; once main
-    fixes that count, rerun go test on the PR head and pass the gate. Then knowledge_closeout.
-    Promotion to staging/prod needs Earth.'
+  description: 'Review and merge SparqLab/slip-api#112, then #111. Then pass implementation_verification
+    on #111 with ev-002 (RED before the fix) plus a full go test + readonly build
+    on #111''s head after main has #112 (ev-008 shows the combination passes). Then
+    knowledge_closeout. Promotion to staging/prod needs Earth.'
 handoff:
   from: dev
   to: reviewer
