@@ -1,0 +1,60 @@
+task_id: TASK-EAR-214
+phase: blocked
+state: blocked
+current_agent: devops
+iteration: 1
+assigned_to: devops
+created_at: '2026-08-05'
+updated_at: '2026-08-05'
+ready: true
+blocked_on: []
+waiting_for:
+  - >-
+    Operator (or anyone with AWS console/IaC access to
+    sparqlab-development-ecs-sg) to add the inbound self-ingress rule for
+    TCP 8088. No Claude-lane credential can do this — verified no aws CLI
+    is configured in this workspace.
+assignment:
+  primary: devops
+  parallel: false
+  workstream: infra
+next_action:
+  agent: devops
+  description: >-
+    Add inbound rule to sg-025d7d9f3a3ed2b8a: Custom TCP, port 8088,
+    source = self. Then re-run TASK-EAR-208's staging smoke (or a plain
+    curl) to confirm the 503 (dial tcp ...:8088 i/o timeout) clears.
+history:
+  - phase: blocked -> blocked
+    agent: pm
+    at: '2026-08-06'
+    reason: >-
+      LIKELY UNNECESSARY — do not raise the devops ticket yet. TASK-EAR-215
+      took the other route: Logs now serves gRPC on 50058, inside the
+      50051-50058 self-ingress range the SG already opens, so no new rule
+      should be needed. That fix is merged and deployed green on staging
+      (Logs 0b5a00b, gateway 338dfaa pointing at :50058). Holding this run
+      open rather than closing it because nothing has yet exercised the
+      route end to end — the 503 is presumed cleared, not observed cleared,
+      and no credential is available in this lane to prove it. If the
+      authenticated smoke still times out at :50058, the SG range in
+      ECS-CLOUD-MAP-STAGING-GUIDE.md is stale and this ticket becomes real
+      again. Close it once a real audit row renders. Claude advisory lane.
+  - phase: pending -> blocked
+    agent: pm
+    at: '2026-08-05'
+    reason: >-
+      Opened after TASK-EAR-208's authenticated staging smoke (PR #76)
+      and an independent direct-curl reproduction both hit the identical
+      HTTP 503 / dial tcp 10.80.140.18:8088 i/o timeout on the freshly
+      deployed TASK-EAR-207 route. Diagnosed by reading
+      aws-deploy/ECS/ECS-CLOUD-MAP-STAGING-GUIDE.md §4: the shared
+      staging security group only documents self-ingress for
+      50051-50058, and Logs (port 8088) is the first-ever inbound
+      inter-service call to this repo — no prior reason for that port to
+      be open. i/o timeout (vs. connection refused) is the SG-block
+      signature, and the ECS deploy itself reported service-stability
+      success, ruling out a crashed task. No AWS CLI is available in
+      this session to apply the fix directly, and it is an
+      infrastructure/console change outside Claude-lane code scope
+      regardless. Claude advisory lane.

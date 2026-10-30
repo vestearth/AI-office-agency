@@ -1,0 +1,30 @@
+summary: |
+  Human reopened TASK-022: progression terminology still used “Points” internally instead of EXP.
+  Renamed progression fields and logic in Games-Labs-Missions to EXP while keeping legacy JSON wire keys
+  (e.g. json:"points", json:"points_added") so public API responses stay backward compatible.
+  UserLevel: Exp, TotalExp, NextLevelExp; LevelProgressResult: ExpAdded, CurrentExp, ProgressExpAdded, CurrentProgressExp;
+  LevelConfig: ExpPerLevelStep (JSON still points_per_level_step). LevelService uses calculateNextLevelExp and EXP-named locals/comments.
+  GET /api/v1/levels/{id} now also emits progress_exp, lifetime_progress_exp, next_level_exp alongside existing progress_points aliases.
+  DB column names (points, total_points, next_level_points) unchanged in level_repo SQL.
+artifacts:
+  - path: Games-Labs-Missions/internal/models/models.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/level_service.go
+    action: modified
+  - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/level_repo.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/repositories/level_repo_test.go
+    action: modified
+  - path: Games-Labs-Missions/internal/services/store_service_test.go
+    action: modified
+  - path: ai-dev-office/runs/TASK-022/dev-2-output.yaml
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Addresses human reopen on Points→EXP internal naming; API keys preserved for compatibility—ready for re-review.
+blockers:
+  - Local go test ./... for Games-Labs-Missions could not complete in this agent environment due to module resolution against the workspace go.mod cache (missing indirect deps in isolated run); verify with make test / go test on a full dev machine.

@@ -1,0 +1,64 @@
+task:
+  id: "TASK-036"
+  title: "Fix Postman Collection missing request bodies"
+  short_name: "fix-missions-postman-bodies"
+  type: bugfix
+  priority: medium
+  created_at: "2026-05-06"
+scope:
+  target_services:
+    - service: "docs"
+      reason: "The task is limited to the shared Postman collection used by frontend and mobile testers."
+  affected_files:
+    - path: "docs/Games-Labs-APIs.postman_collection.json"
+      action: modify
+      description: "Add sample JSON request bodies and supporting collection variables for Missions user APIs."
+description: |
+  Update the shared Postman collection so Missions user endpoints no longer send empty JSON bodies where the backend expects request fields. Keep the change scoped to the collection file and align sample payloads with the Missions service handlers and shared-lib grpc-gateway mappings.
+acceptance_criteria:
+  - criterion: "The listed Missions requests contain sample JSON bodies with the fields required by their handlers."
+  - criterion: "Claim daily includes mission_id, user_id, and idempotency_key."
+  - criterion: "Streak check-in, Restore streak, Join tournament, Redeem, Buy pass, and Buy avatar include the required IDs."
+  - criterion: "The collection remains valid JSON after editing."
+plan:
+  approach: |
+    Inspect Missions handlers and shared-lib proto mappings, then update only raw request bodies and missing collection variables in docs/Games-Labs-APIs.postman_collection.json. Verify with jq and a focused collection-body validation script.
+  subtasks:
+    - order: 1
+      description: "Update request body examples and any referenced variables in the Postman collection."
+      agent: dev
+    - order: 2
+      description: "Validate the collection JSON and required payload fields."
+      agent: dev
+  risks:
+    - risk: "A broad text replacement could alter non-Missions request bodies."
+      mitigation: "Verify modified request bodies by endpoint name and ensure non-Missions bodies are not changed."
+  estimated_complexity: low
+assignment:
+  primary: dev
+  parallel: false
+  reason: "This is a focused single-file documentation/collection update."
+summary: |
+  TASK-036 is ready for a Dev agent to update the Missions request payload examples in the shared Postman collection.
+artifacts:
+  - path: "runs/TASK-036/task.md"
+    action: created
+  - path: "runs/TASK-036/status.yaml"
+    action: created
+next_action:
+  agent: dev
+  reason: "Task scope and validation requirements are clear."
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - "Games-Labs-Missions/internal/handlers/mission_handler.go"
+      - "Games-Labs-Missions/internal/handlers/level_handler.go"
+      - "Games-Labs-Missions/internal/handlers/store_handler.go"
+      - "shared-lib/proto/missionspb/missions.proto"
+    notes: "Local repo inspection was sufficient for this single-file collection update."
+blockers: []

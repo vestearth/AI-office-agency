@@ -1,0 +1,47 @@
+summary: |
+  Root cause was a regression during the EXP terminology rename in Missions: previously approved redeem flow behavior was accidentally dropped while renaming progression fields.
+
+  I restored the four error-severity items without touching the EXP rename itself:
+  - Restored MissionResult wallet correlation output by re-adding wallet_reference.
+  - Restored wallet client redeem contract from error-only to (walletReference, error).
+  - Restored insufficient-points sentinel behavior (ErrInsufficientPoints) and HTTP 402 mapping in wallet client.
+  - Restored deterministic idempotency threading for level redeem by generating/using missions:levels_redeem:<user_id>:<hex>, forwarding it through handler -> service -> wallet call, and validating this format in tests.
+
+  I also restored structured logging in the redeem service path with user_id, idempotency_key, reason, and wallet_reference for both success and failure.
+
+  Validation:
+  - cd Games-Labs-Missions && go test ./... passed.
+diagnosis:
+  root_cause: EXP rename changes in Missions unintentionally reverted previously approved redeem integration behavior (idempotency, wallet reference propagation, and insufficient-points sentinel handling).
+  affected_files:
+    - path: Games-Labs-Missions/internal/models/models.go
+      lines: 35-42
+    - path: Games-Labs-Missions/internal/clients/wallet/client.go
+      lines: 33-36,126-181
+    - path: Games-Labs-Missions/internal/services/level_service.go
+      lines: 279-343
+    - path: Games-Labs-Missions/internal/handlers/level_handler.go
+      lines: 121-141
+    - path: Games-Labs-Missions/internal/services/level_service_test.go
+      lines: 15-65
+  confidence: high
+artifacts:
+  - path: Games-Labs-Missions/internal/models/models.go
+    action: modified
+    description: Restored MissionResult.WalletReference json field for wallet correlation propagation.
+  - path: Games-Labs-Missions/internal/clients/wallet/client.go
+    action: modified
+    description: Restored ErrInsufficientPoints sentinel, RedeemPoints return signature (walletReference, error), HTTP 402 parsing, and wallet_reference/ledger_id response parsing.
+  - path: Games-Labs-Missions/internal/services/level_service.go
+    action: modified
+    description: Added redeem idempotency key builder with missions:levels_redeem:<user_id>:<hex> format, restored wallet reference capture in redeem result, and structured slog fields in success/failure logs.
+  - path: Games-Labs-Missions/internal/handlers/level_handler.go
+    action: modified
+    description: Added idempotency_key input threading (body/header precedence) and restored 402 mapping for ErrInsufficientPoints.
+  - path: Games-Labs-Missions/internal/services/level_service_test.go
+    action: modified
+    description: Extended redeem test to assert non-empty idempotency key format and returned wallet_reference.
+next_action:
+  agent: reviewer
+  reason: All four reviewer blockers were restored with targeted fixes, tests were updated, and the Missions test suite passes.
+blockers: []

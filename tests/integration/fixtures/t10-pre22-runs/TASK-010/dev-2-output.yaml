@@ -1,0 +1,69 @@
+summary: |
+  Updated every service that depends on `github.com/SparqLab/shared-lib` to the same latest
+  module version (`v0.0.0-20260402102601-075c96ea7747`) using `go get ...@latest` followed by
+  `go mod tidy`, and verified that no local `replace github.com/SparqLab/shared-lib` directives
+  remain in any `go.mod`.
+
+  Removed all Dockerfile replace-removal workarounds (`go mod edit -dropreplace ...` / `sed`)
+  because the source modules are now clean. GH_PAT-based private module access remains intact.
+
+  Also resolved the previously requested Provider blockers by converting it to a BuildKit
+  secret-based multi-stage build and adding `go mod tidy` before `go build`.
+
+  After a discard/recheck pass, re-applied the Dockerfile cleanup to services that had
+  reverted locally. Final verification confirms there are no remaining `replace` directives
+  in `go.mod`, no Dockerfiles contain `sed` / `dropreplace` cleanup steps, and no Dockerfile
+  still uses `ARG GH_PAT`.
+artifacts:
+  - path: ai-dev-office/agents/dev.md
+    action: modified
+  - path: ai-dev-office/agents/dev-2.md
+    action: modified
+  - path: Games-Labs-Auth/go.mod
+    action: modified
+  - path: Games-Labs-Auth/go.sum
+    action: modified
+  - path: Games-Labs-Auth/Dockerfile
+    action: modified
+  - path: Games-Labs-Game/go.mod
+    action: modified
+  - path: Games-Labs-Game/go.sum
+    action: modified
+  - path: Games-Labs-Game/Dockerfile
+    action: modified
+  - path: Games-Labs-Logs/go.mod
+    action: modified
+  - path: Games-Labs-Logs/go.sum
+    action: modified
+  - path: Games-Labs-Logs/Dockerfile
+    action: modified
+  - path: Games-Labs-Missions/go.mod
+    action: modified
+  - path: Games-Labs-Missions/go.sum
+    action: modified
+  - path: Games-Labs-Order/Dockerfile
+    action: modified
+  - path: Games-Labs-Provider/go.mod
+    action: modified
+  - path: Games-Labs-Provider/go.sum
+    action: modified
+  - path: Games-Labs-Provider/Dockerfile
+    action: modified
+  - path: Games-Labs-User/go.mod
+    action: modified
+  - path: Games-Labs-User/go.sum
+    action: modified
+  - path: Games-Labs-User/Dockerfile
+    action: modified
+  - path: Games-Labs-Wallet/Dockerfile
+    action: modified
+  - path: api-gateway/Dockerfile
+    action: modified
+  - path: api-gateway/go.mod
+    action: modified
+  - path: api-gateway/go.sum
+    action: modified
+next_action:
+  agent: reviewer
+  reason: Shared-lib dependency management is standardized, Dockerfiles have been rechecked after discard, Provider blockers are addressed, and all services pass `go test ./...`.
+blockers: []

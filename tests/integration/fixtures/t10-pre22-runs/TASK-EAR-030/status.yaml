@@ -1,0 +1,68 @@
+---
+task_id: TASK-EAR-030
+phase: done
+state: done
+current_agent: done
+iteration: 2
+assigned_to: done
+created_at: '2026-06-29'
+updated_at: '2026-06-29T05:44:45Z'
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: free-roam
+  parallel: false
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-EAR-030/free-roam-output.yaml
+history:
+  - phase: pending -> in_review
+    agent: free-roam
+    at: '2026-06-29T04:11:36Z'
+    reason: >-
+      Claude advisory lane. Mobile/FE asked which endpoint is source of truth for
+      the Quest page "Current Streak:" after QA saw missions/streak return
+      current_streak=0 / is_broken=true. Root-caused a real divergence:
+      GET /api/v1/missions/streak (MissionService.GetStreak) reads the DB
+      (user_streaks) and recomputes is_broken from LastDate, but
+      GET /api/v1/quest/overview (MissionService.GetProgress) read streak from the
+      per-process in-memory map s.userStreaks only - never the DB even when repo
+      is set - so a cold/different pod or a user who had not checked in this
+      process lifetime showed streak 0 / not_started while the streak endpoint
+      returned the real value. Fix in Games-Labs-Missions internal/services/
+      mission_service.go: extracted streakFromDB(ctx, userID) (lock-free, DB read
+      + UTC is_broken recompute, mirrors GetStreak), refactored GetStreak to use
+      it, and made GetProgress prefer the persisted streak (read outside s.mu to
+      avoid deadlock with GetStreak's lock and to keep the DB call off the mutex).
+      go build ./..., go vet ./internal/services, and go test ./internal/services
+      all pass. repo is a concrete *MissionRepository (not an interface) so no
+      cheap DB-path unit test exists; correctness is by construction (identical
+      DB call + is_broken logic as GetStreak). Real verification = compare
+      overview items[key=streak].progress.current vs missions/streak on a
+      deployed env with a populated user_streaks row. Left UNCOMMITTED for
+      operator review + push.
+  - phase: in_review -> in_review
+    agent: free-roam
+    at: '2026-06-29T05:11:45Z'
+    reason: >-
+      Review verdict needs_evidence: approach correct but wanted a sqlmock
+      regression test proving GetProgress() reads streak from the DB. My earlier
+      "concrete repo, not cheaply unit-testable" claim was wrong - the test
+      package already builds repos via NewMissionService(nil, nil,
+      repositories.NewMissionRepository(db)) over sqlmock. Added
+      internal/services/get_progress_streak_test.go: stubs the user_streaks query
+      to return current_streak=5 (in-memory map is empty for a fresh service, so
+      5 can only come from the DB) and asserts progress.Streak.CurrentStreak==5
+      and is_broken=false. TDD evidence: temporarily disabled the streakFromDB
+      override and watched it fail (got 0), then restored and it passes (got 5).
+      go build + go vet + go test ./... all green. Re-review requested.
+  - phase: in_review -> done
+    agent: reviewer
+    at: '2026-06-29T05:44:45Z'
+    reason: >-
+      Operator approved (iteration 2) - sqlmock regression evidence accepted.
+      Closing. Code intentionally left UNCOMMITTED in Games-Labs-Missions
+      (mission_service.go + get_progress_streak_test.go); operator handles
+      commit/push per the Claude advisory lane.

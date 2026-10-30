@@ -1,0 +1,22 @@
+summary: |
+  Updated docs/Games-Labs-APIs.postman_collection.json so the Missions user-facing POST requests include sample JSON payloads that match the current Missions handlers. Added collection variables for ad_id, pass_id, and avatar_id because the new sample bodies reference them. Also filled adjacent user payload examples for check-in, monthly claim, and buy level to avoid empty-body behavior during mobile/frontend testing.
+artifacts:
+  - path: "docs/Games-Labs-APIs.postman_collection.json"
+    action: modified
+next_action:
+  agent: reviewer
+  reason: "Implementation is complete and the collection JSON plus required request-body checks pass."
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols:
+      - "Games-Labs-Missions/internal/handlers/mission_handler.go"
+      - "Games-Labs-Missions/internal/handlers/level_handler.go"
+      - "Games-Labs-Missions/internal/handlers/store_handler.go"
+      - "shared-lib/proto/missionspb/missions.proto"
+    notes: "Used local handler/proto inspection; no external context provider was needed for this focused collection edit."
+blockers: []
