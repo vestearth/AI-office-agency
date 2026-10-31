@@ -35,6 +35,48 @@ enums only.
 4. Save `runs/<task-id>/<agent>-output.yaml` per the role Output Contract.
 5. Run `ruby ai-dev-office/validate-yaml.rb <task-id>`.
 
+## Closing a task
+
+"Can TASK-X close?" is answered first; the run is written only when the operator
+says to close it. Run these from the ai-dev-office root.
+
+1. Read the run: `./run-agent.sh status <TASK>`, `runs/<TASK>/status.yaml`
+   (`phase`, `completion_gates`, `waits_on`, `branches`), the acceptance criteria
+   in `task.md`, and the tail of `evidence.yaml`.
+2. Check what each pending gate names, fresh. A merge is
+   `git merge-base --is-ancestor <sha> origin/<deploy-branch>`; a runtime gate
+   needs the running task definition and its logs. A merged PR or a green deploy
+   run is not runtime, and a service at desired 0 runs nothing.
+3. Record each check: `scripts/record-evidence.sh <TASK> --type command -- <command...>`
+   runs it and prints `ev-NNN`.
+4. Resolve each gate: `ruby scripts/update-completion-gate.rb <TASK> pass <GATE>
+   --actor <role> --reason "<what was observed>" --evidence ev-NNN`. For a check
+   or merge the operator did themselves, add `--ran-by operator --ran-ref <sha or
+   what they checked>` (and `--ran-url <PR>`), and say "operator-attested" in the
+   reason. `na` means the gate does not apply; it is not a waiver.
+5. Knowledge closeout: `ruby scripts/knowledge-closeout.rb --task <TASK> --scope
+   <key> --durable-delta yes|no --existing-impact yes|no --record --resolve-gate
+   --actor <role>`. A recorded `no` passes the gate. Drop `--resolve-gate` for a
+   task that has no `knowledge_closeout` gate.
+6. Move to `done` through the writer that matches who made the review call:
+   - The operator decided: append `{decision: approve, actor: <operator>,
+     decided_at: <UTC>, against_phase: <phase>, note: recorded from chat by the
+     Claude conductor}` to `runs/<TASK>/decision.yaml` (create it with
+     `task_id` and `decisions` if absent), then
+     `ruby scripts/reconcile-decision.rb <TASK>` prints `applied:approve:done`.
+   - Claude reviewed: save `runs/<TASK>/reviewer-output.yaml` and import it
+     through the manual path in
+     [task-transition-contract.md](task-transition-contract.md#recordimport-a-manually-produced-output).
+
+   `blocked:<decision>:<gates>` (or exit 5) names the unresolved gates; resolve
+   those gates, never `phase` itself.
+7. Other fields have their own writers, each printing usage when run with no
+   arguments: `update-waits-on.rb`, `update-check-after.rb`,
+   `mark-evidence-stale.rb`, `update-task-branch.rb`, `revise-task-plan.rb`.
+   Edit by hand only a field no writer owns, such as `next_action` text; a
+   hand-written `history` row carries a role enum and `operator: claude`.
+8. `ruby validate-yaml.rb <TASK>` passes. Commit only when the operator asks.
+
 ## Escalation
 
 Watch the lightweight-to-formal tripwire in [AGENTS.md](../AGENTS.md): a contract,

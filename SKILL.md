@@ -30,7 +30,7 @@ Must-read runtime anchors:
 | [docs/getting-started.md](docs/getting-started.md) | First task, auto, status, validate |
 | [docs/codex.md](docs/codex.md) | Codex CLI (default runner) |
 | [docs/cursor.md](docs/cursor.md) | Cursor CLI Agent or Cursor IDE |
-| [docs/claude.md](docs/claude.md) | Claude conductor (interactive lane) |
+| [docs/claude.md](docs/claude.md) | Claude conductor (interactive lane); closing a task |
 | [docs/antigravity.md](docs/antigravity.md) | Antigravity CLI research / wide-context subagent |
 | [docs/gemini.md](docs/gemini.md) | Superseded pointer (historical Gemini naming) |
 | [docs/cursor-templates.md](docs/cursor-templates.md) | `.cursor/rules` / `.cursor/agents` |
