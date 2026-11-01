@@ -15,8 +15,8 @@
 #  T8:    PROTECTED_PATHS covers the whole task_input_integrity block
 #         (F-prot-style mechanical check, not an assertion in a comment).
 #  T9:    performance — snapshot+verify overhead on an ordinary run.
-#  T10:   backward compatibility — validate-yaml.rb at 458bc7b (pre-#22) vs
-#         current, across runs frozen at 458bc7b, byte-identical output.
+#  T10:   backward compatibility — validate-yaml.rb at 458bc7b (pre-#22, kept as a
+#         fixture) vs current, across runs frozen at 458bc7b, byte-identical output.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -494,8 +494,18 @@ ok "T9: overhead is a small, bounded number of short-lived ruby processes readin
 
 echo "== T10: backward compatibility — validate-yaml.rb (458bc7b, pre-#22) vs current, byte-identical =="
 PRE22_VALIDATOR="$ROOT/.tmp-validate-yaml-pre22-$$.rb"
+# The pre-#22 validator is a fixture too, so T10 also runs in a shallow clone (CI cannot
+# reach 458bc7b and used to SKIP here). It is copied next to validate-yaml.rb so its
+# require_relative of scripts/ resolves, as the git-show copy did.
+PRE22_FIXTURE="$ROOT/tests/integration/fixtures/t10-pre22-validate-yaml.rb"
+[[ -f "$PRE22_FIXTURE" ]] || fail "T10: missing fixture $PRE22_FIXTURE"
 if git -C "$ROOT" cat-file -e 458bc7b:validate-yaml.rb 2>/dev/null; then
-  git -C "$ROOT" show 458bc7b:validate-yaml.rb > "$PRE22_VALIDATOR"
+  git -C "$ROOT" show 458bc7b:validate-yaml.rb | cmp -s - "$PRE22_FIXTURE" \
+    || fail "T10: fixture differs from 458bc7b:validate-yaml.rb"
+  echo "  fixture matches 458bc7b:validate-yaml.rb"
+fi
+cp "$PRE22_FIXTURE" "$PRE22_VALIDATOR"
+{
   COUNT=0
   MISMATCHES=0
   OLD_ALL="$WORK/old-all.txt"
@@ -529,9 +539,7 @@ if git -C "$ROOT" cat-file -e 458bc7b:validate-yaml.rb 2>/dev/null; then
   [[ "$MISMATCHES" -eq 0 ]] || fail "T10: $MISMATCHES task(s) validate differently after #22 — backward compatibility broken"
   [[ "$OLD_HASH" == "$NEW_HASH" ]] || fail "T10: combined output hash differs even though no per-task mismatch was flagged (should not happen)"
   ok "T10: $COUNT runs frozen at 458bc7b validate byte-identically before and after #22"
-else
-  echo "  SKIP: base commit 458bc7b not reachable in this checkout (shallow clone?) — cannot run the sweep"
-fi
+}
 
 SUITE_DONE=1
 echo "[PASS] task-input-integrity: T1-T4 (four proven escapes caught) + T5 (unaffected ordinary run) + T6-T7 (fail-closed matrix) + T11 (append-only truncation) + T8 (PROTECTED_PATHS) + T9 (performance) + T10 (backward compatibility)"
