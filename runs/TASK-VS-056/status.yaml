@@ -1,0 +1,166 @@
+---
+task_id: TASK-VS-056
+task_label: Admin verification COUNT timeout recurrence after VS-053
+phase: devops_complete
+state: devops_complete
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-10-29'
+updated_at: '2026-11-01'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-10-29T10:17:54Z'
+  operator: cursor
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: Classify failing filter shapes from prod instrumentation; failing-before
+    regression; fix remaining raw COUNT paths; tests build vet; PR to main
+  at: '2026-10-29T10:17:54Z'
+  operator: cursor
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-29T10:17:54Z'
+  operator: cursor
+- phase: pending -> escalated
+  agent: pm
+  reason: Classify 2026-10-29 admin verification count ERROR shapes from prod logs
+    before coding
+  at: '2026-10-29T10:20:12Z'
+  operator: cursor
+- phase: escalated -> escalated
+  agent: free-roam
+  reason: 'Classified prod COUNT failures since VS-053 (ev-001): all 17 post-rollout
+    deadlines are the platform-wide one-day no_closed_days raw COUNT from slip-admin
+    ReportSlipVerified day buckets; the 4 scoped errors predate the VS-053 rollout.
+    Fix proposal (rollup for unscoped bounded counts) in task.md awaits operator approval.
+    Claude lane took over the cursor lane after its runner exited 64 on 2026-10-29.'
+  at: '2026-10-30T22:50:00Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: Classified prod shapes (ev-001); RED platform-wide rollup case failed before
+    the fix (ev-002) and passes after (ev-003); full suite with DB, build -mod=readonly
+    and vet pass on committed e9c7497 (ev-008..ev-010); PR SparqLab/slip-api#113 into
+    main
+  at: '2026-10-30T23:08:24Z'
+  operator: claude
+- phase: escalated -> in_review
+  agent: dev
+  reason: 'Earth approved the platform-wide rollup fix; implemented in SparqLab/slip-api#113
+    (task/TASK-VS-056-platform-count-rollup, e9c7497) into main. Not merged; merge
+    to main deploys nothing, staging/prod promotion needs separate operator approval.
+    Before promotion: check prod covered_from covers report days. knowledge_closeout
+    pending: KB hub note carries uncommitted cursor-lane edits.'
+  at: '2026-10-30T23:08:38Z'
+  operator: claude
+- phase: in_review -> in_review
+  agent: dev
+  reason: 'Independent review approved PR #113 for main. Earth-approved read-only
+    prod check (ev-011): covered_from 2026-09-25 03:00Z; one platform verified day
+    = 25 rollup rows for 387,804 verifications; new SQL 635 buffers / 10.4 ms vs old
+    14,674 buffers / 180 ms; parity 387,804 = 387,804. Ready to merge to main on operator
+    approval; promotion separate.'
+  at: '2026-10-30T23:44:22Z'
+  operator: claude
+- phase: in_review -> devops_needed
+  agent: reviewer
+  reason: 'Earth approved merge: SparqLab/slip-api#113 merged to main as 55260b8 (fix
+    e9c7497) at 2026-10-30T23:45:24Z. Not on origin/staging or origin/prod; no deploy
+    workflow ran (deploys trigger on staging/prod pushes only). Promotion main->staging->prod
+    needs Earth''s explicit approval; knowledge_closeout still pending.'
+  at: '2026-10-30T23:46:12Z'
+  operator: claude
+- phase: 'waits_on: +operator_approval'
+  agent: devops
+  reason: Promote slip-api 55260b8 main->staging->prod only on Earth's explicit approval
+  at: '2026-10-30T23:46:12Z'
+  operator: claude
+- phase: devops_needed -> devops_needed
+  agent: devops
+  reason: 'Earth approved staging: main 55260b8 merged into staging as 2aa8738 (pushed
+    directly, not via the main->staging PR the AGENTS.md branch flow requires; content
+    identical). Deploy STAGING 41146844477 success; slip-api-staging:169 staging-sha-2aa8738
+    1/1 COMPLETED, clean boot logs; staging DB parity 7/7 days (ev-013). Prod promotion
+    (staging->prod PR) needs Earth''s explicit approval; knowledge_closeout pending.'
+  at: '2026-10-31T13:18:35Z'
+  operator: claude
+- phase: devops_needed -> devops_needed
+  agent: devops
+  reason: 'Earth approved opening the prod PR: SparqLab/slip-api#114 (release/TASK-VS-056-production
+    638bc4e -> prod), tree equals dry-run T2 def7fc9f; prod..staging = e9c7497 only;
+    no migrations; prod runs slip-api-production:126 (rollback revision). Merge (=
+    prod deploy) awaits Earth''s explicit approval.'
+  at: '2026-10-31T13:30:23Z'
+  operator: claude
+- phase: 'check_after: 2026-11-04T12:00:00Z'
+  agent: pm
+  reason: promoted to prod 2026-10-31T13:34:44Z (slip-api-production:127)
+  at: '2026-10-31T20:50:22Z'
+  operator: claude
+- phase: 'waits_on: -operator_approval'
+  agent: devops
+  reason: Earth approved prod merge; slip-api-production:127 live
+  at: '2026-10-31T20:50:22Z'
+  operator: claude
+- phase: devops_needed -> devops_complete
+  agent: devops
+  reason: 'Earth approved staging and prod. Promoted slip-api main 55260b8: staging
+    1d6bb68..2aa8738 (Deploy STAGING 41146844477 success, slip-api-staging:169, clean
+    boot, DB parity ev-013; pushed directly, not via PR), then prod 08c9a02..7b24f3b
+    via PR #114 (Deploy PRODUCTION 41206028363 success, slip-api-production:127, image
+    production-sha-7b24f3b, 5/5 then 3/3 by Auto Scaling). Env and secrets unchanged
+    from :126. 2026-10-31T13:34:44Z +12 min: 5,702 requests, 74 5xx (all baseline
+    502 bank verifier unavailable on /v1/slips/verify, rate 1.30% vs 3.29% before),
+    0 admin 5xx, no new ERROR kinds (ev-018). Rollback: service back to slip-api-production:126.
+    check_after 2026-11-04T12:00Z; knowledge_closeout pending.'
+  at: '2026-10-31T21:05:50Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: Classified prod shapes (ev-001); RED platform-wide rollup case failed
+      before the fix (ev-002) and passes after (ev-003); full suite with DB, build
+      -mod=readonly and vet pass on committed e9c7497 (ev-008..ev-010); PR SparqLab/slip-api#113
+      into main
+    updated_at: '2026-10-30T23:08:24Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
+    - ev-008
+    - ev-009
+    - ev-010
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-29T10:17:54Z'
+    evidence_refs: []
+handoff:
+  from: devops
+  to: pm
+  artifact: forced-route
+last_synced_output:
+  file: pm-output.yaml
+  digest: 4fc87c7b7451f5ed0859f932c2501f8d229c0930c1e236ec1bae2f7afd9f0c79
+  next: free-roam
+check_after:
+  at: '2026-11-04T12:00:00Z'
+  what: 'Measure VS-056 on prod after two business days: run runs/TASK-VS-056/classify-prod-count-logs.sh
+    2026-10-31T13:35:00Z. Expect 0 ''admin verification count'' ERROR deadline lines
+    and few or no slow WARN lines for the platform-wide no_closed_days [status,from,to]
+    shape (pre-fix 2026-10-28..30: 17 ERROR + 106 WARN). Prove traffic with ''http
+    request completed'' lines on /v1/admin/verifications in the same window, so a
+    zero is not silence.'

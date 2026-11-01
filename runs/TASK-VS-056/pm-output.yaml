@@ -1,0 +1,146 @@
+task:
+  id: TASK-VS-056
+  title: Admin verification COUNT timeout recurrence after VS-053
+  short_name: admin-count-recurrence
+  epic: VerifySlip admin verification COUNT reliability
+  type: bugfix
+  workstream: backend
+  priority: high
+  created_at: "2026-10-29"
+
+scope:
+  target_services:
+    - service: slip-api
+      reason: Owns GET /v1/admin/verifications CountAll / adminVerificationCountSQL and the 10s adminCountBudget
+    - service: slip-admin
+      reason: Read-only — identify which Report UI filters produce the failing COUNT shapes
+    - service: knowledge-base
+      reason: Operator asked to record lineage, current state, and planned adjustment (hub note + Review Queue + Project Map)
+  affected_files:
+    - path: slip-api/internal/repositories/verification_admin_counts.go
+      action: modify
+      description: Remaining raw COUNT shapes after VS-053 rollup gate
+    - path: slip-api/internal/repositories/verification.go
+      action: modify
+      description: CountAll / CountAllByStatus callers and SQL helpers if needed
+    - path: slip-api/internal/core/service/reports_summary.go
+      action: modify
+      description: adminVerificationCount fallbacks / cache_reason paths if classification requires it
+    - path: slip-api/internal/repositories/verification_summary_test.go
+      action: modify
+      description: Failing-before / parity regressions for the remaining shape
+    - path: knowledge-base/Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+      action: modify
+      description: Lineage hub — current + planned (already seeded 2026-10-29); update after classify/fix
+    - path: knowledge-base/Knowledge Base/Review Queue.md
+      action: modify
+      description: Recurrence queue item (already seeded); close or refine after acceptance
+
+description: |
+  After multiple prior fixes (indexes, status-counts, channel index, instrumentation,
+  VS-053 scoped hourly rollup on prod 2026-10-28), Datadog still shows admin
+  verification COUNT deadlines on 2026-10-29. Code still falls back to raw COUNT
+  when the filter is unscoped or missing From/To. Classify the live failing shapes,
+  fix without raising the timeout as the primary mitigation, verify with
+  failing-before tests, PR to main, keep the knowledge hub current.
+
+acceptance_criteria:
+  - criterion: Prod or retained logs classify the 2026-10-29 recurrence into concrete filter shapes / cache_reason values recorded in evidence and the knowledge hub
+  - criterion: At least one failing-before regression covers the remaining expensive path and passes after the fix
+  - criterion: Exact count parity preserved for any path that switches source under VS-053 snapshot rules
+  - criterion: slip-api go test ./..., GOWORK=off go build -mod=readonly ./..., and go vet ./... pass
+  - criterion: Implementation PR opened into main only; knowledge hub and Review Queue match what was fixed vs deferred
+
+plan:
+  approach: |
+    Classify first using VS-045 instrumentation fields, then apply the smallest
+    reuse of existing rollup/day aggregates that removes that shape from the 10s
+    class. Do not raise adminCountBudget as the primary fix. Knowledge already
+    seeded; refresh after classify and after fix.
+  subtasks:
+    - order: 1
+      id: classify-prod-shapes
+      description: Tabulate recent admin verification count ERROR lines (filter_keys, cache_reason, count_path, date_span_days, error_kind) and map to adminVerificationCountSQL branches; refresh knowledge hub Current state with the classification
+      agent: free-roam
+      owned_files:
+        - ai-dev-office/runs/TASK-VS-056/evidence.yaml
+        - knowledge-base/Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+      parallel_safe: false
+    - order: 2
+      id: fix-remaining-raw-count
+      description: Implement smallest fix for the classified raw COUNT shape(s); failing-before + parity tests; build/vet; PR to main
+      agent: dev
+      owned_files:
+        - slip-api/internal/repositories/verification_admin_counts.go
+        - slip-api/internal/repositories/verification.go
+        - slip-api/internal/core/service/reports_summary.go
+        - slip-api/internal/repositories/verification_summary_test.go
+      parallel_safe: false
+    - order: 3
+      id: knowledge-closeout-update
+      description: Update hub note + Review Queue with what was fixed vs still deferred; run knowledge closeout
+      agent: dev
+      owned_files:
+        - knowledge-base/Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+        - knowledge-base/Knowledge Base/Review Queue.md
+      parallel_safe: false
+  risks:
+    - risk: Recurrence is an unscoped/open-ended UI shape that needs product/UI contract change, not only SQL
+      mitigation: Classification subtask decides; if UI must change, bound slip-admin read-only findings and ask operator before expanding scope
+    - risk: Raising timeout masks load without fixing scans
+      mitigation: Explicitly out of scope as primary fix
+    - risk: Rollup/day aggregate mismatch vs raw exact counts
+      mitigation: Same-snapshot parity tests as VS-053
+  estimated_complexity: medium
+
+assignment:
+  primary: dev
+  parallel: false
+  reason: Single-service slip-api fix after a short classify-from-logs step; keep sequential
+
+completion_gates:
+  - name: implementation_verification
+    reason: Classify failing shapes; failing-before regression; fix; tests build vet; PR to main
+  - name: knowledge_closeout
+    reason: Closeout recorded after hub/Review Queue update
+
+summary: |
+  Opened TASK-VS-056 for post-VS-053 admin COUNT recurrence. Knowledge hub,
+  Project Map, Merchant Usage open note, and Review Queue already seeded with
+  lineage and planned classify→fix→verify loop. Next: debugger classifies
+  prod filter shapes, then dev implements.
+
+artifacts:
+  - path: runs/TASK-VS-056/task.md
+    action: modified
+  - path: runs/TASK-VS-056/status.yaml
+    action: modified
+  - path: runs/TASK-VS-056/pm-output.yaml
+    action: created
+  - path: knowledge-base/Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+    action: modified
+  - path: knowledge-base/Knowledge Base/10 Projects/VerifySlip/Project Map.md
+    action: modified
+  - path: knowledge-base/Knowledge Base/10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26.md
+    action: modified
+  - path: knowledge-base/Knowledge Base/Review Queue.md
+    action: modified
+
+next_action:
+  agent: free-roam
+  reason: Classify 2026-10-29 admin verification count ERROR shapes from prod logs before coding
+
+context_sources:
+  github:
+    branch: ""
+    pr: ""
+  socraticode:
+    status: unavailable
+    queries: []
+    relevant_symbols:
+      - slip-api/internal/repositories/verification_admin_counts.go
+      - slip-api/internal/core/service/reports_summary.go
+      - ai-dev-office/runs/TASK-VS-053/task.md
+    notes: Qdrant unavailable both projectPaths; used ripgrep + file reads. VS-053 knowledge-capture recommended hub update but note still lacked the release follow-up until this session.
+
+blockers: []
