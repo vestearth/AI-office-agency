@@ -1,0 +1,251 @@
+---
+task_id: TASK-VS-056
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+summary: "TASK-VS-056 knowledge is already in the vault, applied directly in knowledge-base
+  commit df03458 (local main, not pushed). The count-timeout hub, Review Queue, Project Map
+  and Merchant Usage note carry the recurrence classification, the cause, the platform-wide
+  rollup fix, the prod plan, the staging and prod promotion, and the open items. Still
+  to do: small hub edits (a rule pointer for the staging deviation, generic-plan and
+  rollup-density numbers, the VS-045 date), plus one Inbox item for stalled CloudWatch,
+  ECS Exec and git calls. No 40 Lessons note: the PR-per-hop rule is already written in
+  AGENTS.md and in the verifyslip-promote skill."
+sources:
+- ai-dev-office/runs/TASK-VS-056/task.md
+- ai-dev-office/runs/TASK-VS-056/status.yaml
+- ai-dev-office/runs/TASK-VS-056/pm-output.yaml
+- ai-dev-office/runs/TASK-VS-056/evidence.yaml
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-001.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-002.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-003.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-008.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-011.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-012.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-013.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-014.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-015.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-017.log
+- ai-dev-office/runs/TASK-VS-056/evidence/ev-018.log
+- ai-dev-office/runs/TASK-VS-056/classify-prod-count-logs.sh
+- ai-dev-office/runs/TASK-VS-056/prod-platform-day-plan.sql
+- ai-dev-office/runs/TASK-VS-056/prod-readonly-psql.py
+- ai-dev-office/runs/TASK-VS-056/cwf-retry.sh
+- ai-dev-office/runs/TASK-VS-056/prod-promotion-check.sh
+- ai-dev-office/runs/TASK-VS-045/status.yaml
+- knowledge-base/Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+- knowledge-base/Knowledge Base/Review Queue.md
+- knowledge-base/Knowledge Base/10 Projects/VerifySlip/Project Map.md
+- knowledge-base/Knowledge Base/10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26.md
+- knowledge-base/Knowledge Base/10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24.md
+- 'AGENTS.md (workspace root, unversioned), section "VerifySlip slip-* branch flow"'
+- ai-skills/skills/verifyslip-promote/SKILL.md
+- ai-skills/skills/cloudwatch-log-evidence/SKILL.md
+- ai-skills/skills/cloudwatch-log-evidence/references/cwf.sh
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-10-31'
+  task_id: TASK-VS-056
+  evidence_refs:
+  - ev-001
+  - ev-002
+  - ev-003
+  - ev-008
+  - ev-009
+  - ev-010
+  - ev-011
+  - ev-013
+  - ev-018
+  repo_origin: SparqLab/slip-api
+  repo_sha: 7b24f3bbbf19fb386ebc8c032c360952ec937dd9
+note_patch: |
+  STATUS. The durable knowledge from TASK-VS-056 is already in the vault. It was
+  applied directly in knowledge-base commit df03458 ("docs(verifyslip):
+  TASK-VS-056 classification and platform-wide rollup fix"). Local main is at that
+  commit and is one ahead of the local origin/main ref e01c08f, so it is not pushed.
+  Nothing in section A needs to be applied again. This review was made against the
+  notes as they are on disk. `git show` could not be run from this lane, and
+  uncommitted edits in the vault working tree cannot be ruled out from here.
+
+  Provenance. verified_at 2026-10-31 is the UTC date of ev-018
+  (2026-10-31T17:54:32Z). The hub's `verified_at: 2026-11-01` is the same check
+  in Bangkok time (00:54 ICT), so it can stay. `confidence` is left off on purpose.
+  Commit e01c08f removed it from the hub as unearned, and the fix's effect under
+  load is still unmeasured (check_after 2026-11-04).
+
+  A. Durable knowledge, and where df03458 already put it
+  1. Recurrence classification. Prod logs 2026-10-28 04:00Z to 10-30 22:46Z, every
+     page read. All 17 post-rollout deadlines are the platform-wide one-day bucket
+     `no_closed_days`, `filter_keys=[status,from,to]`, from slip-admin
+     ReportSlipVerified. The 4 scoped errors came before VS-053; their task streams
+     stopped at 04:23Z during the PR106 rollout. Lives in: hub "Classification"
+     table; Review Queue status bullet; Project Map bullet. (ev-001)
+  2. Cause. `adminVerificationCount` floors `to` to its Bangkok day, so a one-day
+     filter has end == from and falls back to `no_closed_days`. The rollup gate in
+     `adminVerificationCountSQL` required a scoped filter. That gate was a VS-053
+     scope choice, not a correctness limit: migration 065's trigger keeps every hour
+     exact from `covered_from` onward, and the table has an (hour) index. Lives in:
+     hub "Cause". (task.md "Classification")
+  3. Fix and tests. slip-api PR #113 drops the scope condition (fix e9c7497, main
+     55260b8). The regression failed before the fix (`CountAll = 1; want 6 from
+     rollup`) and passes after it. Platform parity holds across coverage
+     none/full/partial/after. The full suite with a real Postgres,
+     build -mod=readonly and vet pass on e9c7497. Lives in: hub "Fix and
+     verification". (ev-002, ev-003, ev-008, ev-009, ev-010)
+  4. Read-only prod plan for one platform-wide verified day. covered_from was
+     2026-09-25 03:00Z. 25 rollup rows stand for 387,804 verifications. New SQL:
+     635 buffers / 10.4 ms. Old SQL: 14,674 buffers / 180 ms at a quiet hour, with
+     13,935 heap fetches. Both returned 387,804 in one statement. Lives in: hub.
+     (ev-011)
+  5. Staging. 2aa8738 runs as slip-api-staging:169 with a clean boot. DB parity held
+     on 7 of 7 days. The main -> staging step was pushed directly, not through a PR.
+     Lives in: hub "Staging". (ev-013)
+  6. Prod. PR #114 deployed 7b24f3b as slip-api-production:127. Env and secrets are
+     unchanged from :126, the rollback revision. In 12-min windows, 5xx went from
+     3.29% to 1.30%, all baseline 502 bank-verifier errors. 0 admin 5xx, no new
+     ERROR kinds. Lives in: hub "Prod" and "Current state"; Review Queue; Project
+     Map. (ev-018)
+  7. Still open. Open-ended counts are still raw. Days before covered_from are raw.
+     After VS-056 `count_path` still says `full_range_fallback`. The effect check is
+     on 2026-11-04 and needs traffic shown on /v1/admin/verifications. Lives in: hub
+     "Current state" and "Still open / deferred"; the Review Queue closure condition;
+     status.yaml check_after.
+  8. Cross-links. The Merchant Usage "Open / not covered" bullet now names
+     TASK-VS-056 and links the hub.
+
+  B. Remaining hub and note edits (small; each is optional, a human decides)
+  B1. Hub, "Fix and verification" > "Staging". Replace
+        "The `main` → `staging` step was pushed directly, not through the required PR."
+      with
+        "The `main` → `staging` step was pushed directly, not through the PR that the
+        root `AGENTS.md` rule "VerifySlip `slip-*` branch flow" and
+        `ai-skills/skills/verifyslip-promote/SKILL.md` (step 5) require. The content
+        matched what a PR merge gives, but there is no PR record. The prod step went
+        through PR #114."
+      Then add `ai-skills/skills/verifyslip-promote/SKILL.md` to the hub's Sources.
+      Source: task.md "Staging promotion" and "Prod promotion PR".
+  B2. Hub, "Read-only prod plan". Replace the synthetic-set bullet with
+        "On a synthetic set with about 4.4 raw rows per rollup row, the rollup read
+        about 1.75× more pages. On prod each verified rollup row stood for about
+        15.5k raw rows that day, so the concern did not hold."
+      and add
+        "With a generic plan (`force_generic_plan`, as pgx's statement cache may run
+        it), the new SQL still used `verification_usage_hourly_hour_idx`: 630
+        buffers / 4.5 ms."
+      Source: ev-011 (verified_rows_per_rollup_row 15512.16; generic-plan EXPLAIN);
+      task.md (the reviewer's 4.4 assumption); runs/TASK-VS-056/prod-platform-day-plan.sql.
+  B3. Hub lineage table. The VS-045 row's date reads "2026-10-". Make it
+      "2026-10-22", the day TASK-VS-045 opened (`created_at` in
+      ai-dev-office/runs/TASK-VS-045/status.yaml). Its deploy date is not recorded
+      there. This defect was already in the note and was not caused by VS-056.
+  B4. Merchant Usage note, Related list. The hub link is annotated "(index approach;
+      the admin count path is still open)". Suggest "(lineage hub; since
+      VS-053/VS-056, bounded admin counts read this rollup, and open-ended ones are
+      still raw)". Low priority. The old wording is only partly stale, since the
+      effect check is still pending.
+  B5. Hub frontmatter, optional. Add `evidence_refs: [ev-001, ev-002, ev-003, ev-008,
+      ev-009, ev-010, ev-011, ev-013, ev-018]` under the existing task_id TASK-VS-056,
+      so the hub's `freshness: current` traces to real records. Keep `confidence` off.
+
+  C. Procedural lesson "promote through a PR even though git history shows direct
+     pushes": recommend NO 40 Lessons note.
+  - It is already written in three places that rank above the vault:
+    - root `AGENTS.md` "VerifySlip slip-* branch flow": promote main -> staging and
+      staging -> prod each through a PR;
+    - `ai-skills/skills/verifyslip-promote/SKILL.md`, Required Inputs: "a direct
+      push to `staging` or `prod` is never the lane, even though `git log` shows
+      some". Its Anti-patterns name the 2026-10-30/31 promotions that pushed
+      straight to staging/prod. Step 1 warns that a teammate sometimes merges
+      main -> staging -> prod without a PR;
+    - the Verify Capacity note: "one PR per hop".
+  - The hub already records the VS-056 deviation as fact (A5).
+  - A 40 Lessons note would be a fourth copy of a rule, in the weakest layer. That
+    fails the Capture Gate: the docs already answer it. B1 is enough. It points the
+    hub's deviation bullet at the rule.
+
+  D. Stall handling for CloudWatch, ECS Exec and git fetch. No vault note covers it,
+     and neither does the canonical skill script. Recommend an Inbox entry now, not a
+     40 Lessons note yet.
+  Why Inbox and not 40 Lessons:
+  - The cause of the stalls is unknown.
+  - The remedy was never exercised. ev-018 passed, but it has no "cwf: retry page"
+    lines.
+  - The reusable home for the fix is the existing skill script, under the "Lesson ->
+    Reusable Skill" path.
+  - Promote to 40 Lessons only if a stall happens again once the timeout and retry
+    are in the canonical script. Otherwise close the item when that port lands.
+
+  Draft for `Knowledge Base/Inbox.md` > Capture Queue:
+
+    ### 2026-10-31 — Remote calls in evidence scripts stalled (CloudWatch, ECS Exec, git)
+
+    - TASK-VS-056's post-deploy check failed twice on CloudWatch `filter-log-events`
+      with `InvalidSignatureException: Signature expired`. In the first failure the
+      request was signed at 14:22:30Z and AWS evaluated it at 14:37:32Z. In the
+      second it was signed at 14:53:26Z and evaluated at 15:08:28Z. Each time that
+      was about 15 min after signing, 10 min past the 5-min window. The local clock
+      was correct (sntp offset 0.05 s). Read this error as a stalled call, not as
+      clock skew or missing credentials.
+    - One staging read-only psql session over ECS Exec hung about 11 h, was killed,
+      and left no record. Another (ev-012) ended after its first result with
+      "Cannot perform start session: EOF". `git fetch` timed out after 836 s (ev-017).
+    - What the task scripts do now:
+      - `cwf-retry.sh` passes `--cli-connect-timeout 10 --cli-read-timeout 90` on each
+        call and makes up to 4 attempts per page, with paging unchanged.
+      - `prod-readonly-psql.py` caps the ECS Exec subprocess at 240 s and prints
+        `psql_exit=<rc>` before it exits. ev-013 has that line; ev-011 and ev-012 do
+        not. Whether it was added because of the cut-off output is not recorded.
+      - `prod-promotion-check.sh` no longer runs `git fetch`; it says to fetch before
+        the run.
+    - Not proven: the retry path never ran in the passing check (ev-018), and why the
+      calls stalled is unknown.
+    - Next: port the per-call timeout and bounded retry into the canonical
+      `ai-skills/skills/cloudwatch-log-evidence/references/cwf.sh`, which has
+      neither today. Also add one line on this error to that skill's SKILL.md. Then
+      close this item, or promote it if a stall happens again with the fix in place.
+    - Sources:
+      - ai-dev-office/runs/TASK-VS-056/task.md
+      - ai-dev-office/runs/TASK-VS-056/evidence/ev-014.log
+      - ai-dev-office/runs/TASK-VS-056/evidence/ev-015.log
+      - ai-dev-office/runs/TASK-VS-056/evidence/ev-012.log
+      - ai-dev-office/runs/TASK-VS-056/evidence/ev-017.log
+      - ai-dev-office/runs/TASK-VS-056/evidence/ev-018.log
+      - ai-dev-office/runs/TASK-VS-056/cwf-retry.sh
+      - ai-dev-office/runs/TASK-VS-056/prod-readonly-psql.py
+      - ai-dev-office/runs/TASK-VS-056/prod-promotion-check.sh
+      - ai-skills/skills/cloudwatch-log-evidence/references/cwf.sh
+    - Related: [[10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15|Admin Verification COUNT Timeouts hub]];
+      [[40 Lessons/A Bare NoCredentials Is Not Proof Of No AWS Access — Check Named Profiles First|A Bare NoCredentials Is Not Proof Of No AWS Access]]
+      (another AWS error that is easy to misread).
+
+  Not part of this capture: the cwf.sh port and the SKILL.md line are edits to
+  ai-skills, a meta repo. They are outside this suggest-only output and are left for
+  the operator.
+
+  E. Optional, lowest priority: a technique for cloudwatch-log-evidence, not a vault
+     note. To tell whether an error just after a deploy is a recurrence, check the
+     lifetime of its log stream. In ev-001, the 4 scoped errors came from two task
+     streams whose last events were at 04:23:08Z and 04:23:28Z, during the PR106
+     rollout, so they were not a recurrence. If kept, it belongs as one line in
+     `ai-skills/skills/cloudwatch-log-evidence/SKILL.md`. Source: ev-001 (final
+     section); classify-prod-count-logs.sh.
+
+  F. Considered and skipped (Capture Gate)
+  - ev-016's `read` bug in the gate script. One-off script bug; the data matched
+    ev-018.
+  - The reviewer's suggestions (platform parity for reversed, empty and one-hour
+    shapes; a rollup-columns comment on `adminVerificationWhere`). These belong in
+    the slip-api backlog or PR, not in the vault.
+  - Staging covered_from (2026-09-21 08:00Z) and subtest counts. Implementation
+    detail; the hub's prod covered_from is the useful one.
+
+  G. Closeout
+  - status.yaml `completion_gates.knowledge_closeout` is still `pending`. This
+    proposal does not resolve it, because the capture lane does not change run
+    state. The operator records it with `ruby scripts/knowledge-closeout.rb --task
+    TASK-VS-056 ... --record --resolve-gate`.
+  - After the 2026-11-04 check_after, the hub "Current state" and the Review Queue
+    item need one more edit: close the item, or record the recurrence. That is a
+    future capture, not part of this one.

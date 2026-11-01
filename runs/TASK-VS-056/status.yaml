@@ -125,6 +125,12 @@ history:
     check_after 2026-11-04T12:00Z; knowledge_closeout pending.'
   at: '2026-10-31T21:05:50Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261101T061838Z-verifyslip-admin-count-timeouts.yaml'
+  at: '2026-11-01T06:18:39Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -142,11 +148,11 @@ completion_gates:
     - ev-009
     - ev-010
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-10-29T10:17:54Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261101T061838Z-verifyslip-admin-count-timeouts.yaml'
+    updated_at: '2026-11-01T06:18:39Z'
     evidence_refs: []
 handoff:
   from: devops

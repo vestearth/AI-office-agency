@@ -245,6 +245,33 @@ snapshot, as in VS-053. No timeout, schema or service change.
 - `check_after` 2026-11-04T12:00:00Z: measure the fix's effect over business
   days with `classify-prod-count-logs.sh`, plus the traffic proof.
 
+## Knowledge closeout (2026-11-01)
+
+- The cursor lane's seeded KB edits were committed by another session
+  (`0ede40e`, `e01c08f`, 2026-10-31 05:38–05:46 ICT) before this lane updated
+  the hub. The "uncommitted cursor edits" blocker reported earlier in this run
+  was already stale.
+- Capture: `knowledge-capture-output.yaml`, applied in knowledge-base
+  `df03458`. That commit updates the hub, Review Queue, Project Map and the
+  Merchant Usage note with the classification, fix, prod plan, release and
+  deferred items. The capture also proposed a 40 Lessons note for the
+  promotion rule, which was not written because the rule already lives in
+  AGENTS.md and `verifyslip-promote`. Its Inbox entry about tool stalls was
+  not applied either.
+- Closeout record `knowledge-reviews/closeouts/20261101T061838Z-verifyslip-admin-count-timeouts.yaml`
+  has action [capture, librarian_reconcile]. The `knowledge_closeout` gate
+  now passes.
+- Librarian reconcile audit
+  `knowledge-reviews/20261101T062128Z-verifyslip-admin-count-timeouts.yaml`
+  had 1 medium and 3 low findings. All are applied in knowledge-base
+  `97a4ead`:
+  - the Review Queue code fact is marked as the pre-VS-056 state;
+  - the hub gains `evidence_refs` and the `verifyslip-promote` source;
+  - the Merchant Usage open items are spelled out;
+  - two link descriptions are widened.
+- The Review Queue item stays open until the 2026-11-04 `check_after`
+  window.
+
 ## Plan
 
 1. Debugger/dev: pull recent `admin verification count` ERROR lines; tabulate filter shapes.
