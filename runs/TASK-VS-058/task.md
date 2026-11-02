@@ -82,12 +82,16 @@ including a per-article cover upload with the existing SVG preset as fallback.
      ```
    - Suggested names: `slip-api-staging-task-role`, `slip-api-production-task-role`.
 
-   Wiring needs no workflow change. Register one new revision of each `slip-api-<env>`
-   family with the role ARN and `S3_REGION` / `S3_BUCKET` / `S3_PUBLIC_BASE_URL`.
-   The deploy workflows start from the family's latest revision, which keeps
-   `taskRoleArn`, and they keep every env entry they do not inject. slip-api main
-   today has no AWS SDK, so the old code runs unchanged on the new role. Record who
-   applied it and the role ARNs in this run.
+   PR #115 (merged) already updated the deploy workflows. The IAM admin must
+   register a new revision of each `slip-api-<env>` family with the dedicated
+   `taskRoleArn` before this run deploys. Both workflows start from the family's
+   latest revision and preserve that role. Staging `deploy.yml` injects/replaces
+   `S3_REGION`, `S3_BUCKET` and `S3_PUBLIC_BASE_URL` from the GitHub **staging**
+   environment secrets; setting them only in its task definition will not survive
+   the deploy. Production `deploy-production.yml` does not inject those keys, so
+   its new task definition revision must include all three environment variables.
+   Production GitHub secrets for those keys are not part of this workflow. Record
+   who applied the roles and their ARNs in this run.
 9. **Minor review findings (2026-11-02):** fix two in this run, before staging,
    because they set how fast decision 4's 503 appears:
    - F3 (landing): with the API hung, the detail page shows 503 only after about
@@ -95,6 +99,18 @@ including a per-article cover upload with the existing SVG preset as fallback.
    - Backend MINOR 1: the blog repository has no 3 s `queryTimeout` like the other
      repositories (`cmd/main.go:85`), so a hung DB answers 503 only at the 20 s
      WriteTimeout.
+
+   Before staging, set the three GitHub **staging** S3 environment secrets above
+   to the operator-provided values below. `S3_PUBLIC_BASE_URL` must be a bare host;
+   the slip-api startup guard rejects a malformed base URL or an incomplete
+   bucket/region/base-URL set. Verify the secret update metadata before deploy.
+   During staging acceptance, compare the deployed task definition's three S3
+   values against the locally recorded SHA-256 hashes without printing values,
+   confirm ECS tasks stay healthy, and inspect startup logs for fatal `blog CDN
+   URL`, `S3_BUCKET and S3_PUBLIC_BASE_URL must be set together`, `S3_REGION is
+   required when S3_BUCKET is set`, or `blog storage` messages.
+   This P2 pass does not register a task definition or deploy; the IAM admin must
+   register the dedicated-role revisions from decision 8 before staging deploy.
 
    Follow-ups, not in this run: F4 (no warning that draft takes the article offline),
    400 instead of 413 over 5 MiB, validation errors that do not name the field and
