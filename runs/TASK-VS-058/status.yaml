@@ -103,24 +103,61 @@ history:
     uploader and both deploy workflows to the keys, then re-review before staging'
   at: '2026-11-02T08:21:47Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'operator-attested: PR #116 reviewed at 23c9cd5 and merged as 6cc03d1; merge
+    tree equals tested head; clean-tree build, test, vet and workflow checks passed'
+  at: '2026-11-02T08:42:50Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev
+  reason: 'authz-001: PR #117 merged as bab5594 (tree 5499de6); Deploy STAGING run
+    41416708516 success, ECS slip-api-staging:170 COMPLETED 1/1; S3/CORS hashes, blog
+    API, migration/startup logs and staging S3/CDN smoke passed'
+  at: '2026-11-02T09:12:38Z'
+  operator: codex
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-02T03:34:56Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'operator-attested: PR #116 reviewed at 23c9cd5 and merged as 6cc03d1;
+      merge tree equals tested head; clean-tree build, test, vet and workflow checks
+      passed'
+    updated_at: '2026-11-02T08:42:50Z'
+    evidence_refs:
+    - ev-034
+    - ev-035
+    - ev-036
+    - ev-038
     requires_record: true
+    ran:
+      by: operator
+      ref: 6cc03d1c6c9d0c55b637a5a49def3ced4eaa419e
+      url: https://github.com/SparqLab/slip-api/pull/116
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-02T03:34:56Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'authz-001: PR #117 merged as bab5594 (tree 5499de6); Deploy STAGING run
+      41416708516 success, ECS slip-api-staging:170 COMPLETED 1/1; S3/CORS hashes,
+      blog API, migration/startup logs and staging S3/CDN smoke passed'
+    updated_at: '2026-11-02T09:12:38Z'
+    evidence_refs:
+    - ev-039
+    - ev-040
+    - ev-042
+    - ev-043
+    - ev-044
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: operator
+      ref: bab55940e79bc0938a0108eba8f5d3433bb3a343
+      url: https://github.com/SparqLab/slip-api/actions/runs/41416708516
   staging_acceptance:
     status: pending
     actor: pm
