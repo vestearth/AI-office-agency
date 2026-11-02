@@ -2,16 +2,13 @@
 task_id: TASK-VS-058
 task_label: 'UpSlip blog: articles served by slip-api, edited in slip-admin, with
   cover upload'
-phase: blocked
-state: blocked
+phase: assigned
+state: assigned
 iteration: 0
-current_agent: pm
-ready: false
+current_agent: dev
+ready: true
 blocked_on: []
-waiting_for:
-- 'operator (IAM admin): create the dedicated slip-api ECS task roles (staging and
-  production; s3:PutObject on public/blog/* + ECS Exec ssmmessages, policy in task.md
-  decision 8) and hand back the role ARNs (storage_role gate)'
+waiting_for: []
 assignment:
   primary: dev
   parallel: false
@@ -82,10 +79,29 @@ history:
     S3_REGION/S3_BUCKET/S3_PUBLIC_BASE_URL; access keys removed in 7d21801 at operator
     request). Rebased task/TASK-VS-058-blog-api 65065a1 -> 8ecc866 (force-with-lease):
     config.go conflict resolved to main''s s3Config (same S3Region/S3Bucket/S3PublicBaseURL
-    names, blog storageConfig dropped), plus docs commit aligning .env.example and the
-    README storage handoff. ev-019..ev-022 at 8ecc866 (build, vet, full test with blog
-    DSN, integration test ran). The earlier backend review approval predates the rebase.'
+    names, blog storageConfig dropped), plus docs commit aligning .env.example and
+    the README storage handoff. ev-019..ev-022 at 8ecc866 (build, vet, full test with
+    blog DSN, integration test ran). The earlier backend review approval predates
+    the rebase.'
   at: '2026-11-02T08:04:38Z'
+  operator: claude
+- phase: 'gate storage_role: pending -> na'
+  agent: pm
+  reason: 'Earth decision 10 (2026-11-02): slip-api uploads with the existing S3 key
+    pair from the GitHub environment secrets, as Games-Labs-Order does; no dedicated
+    task role is created'
+  at: '2026-11-02T08:21:42Z'
+  operator: claude
+- phase: 'waits_on: -aws_permission'
+  agent: pm
+  reason: decision 10 drops the dedicated task role, so nothing waits on an IAM admin
+  at: '2026-11-02T08:21:42Z'
+  operator: claude
+- phase: blocked -> assigned
+  agent: pm
+  reason: 'Earth decision 10: upload with the S3 key pair; dev switches slip-api #116
+    uploader and both deploy workflows to the keys, then re-review before staging'
+  at: '2026-11-02T08:21:47Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -134,12 +150,12 @@ completion_gates:
     - deploy_production
     requires_record: true
   storage_role:
-    status: pending
+    status: na
     actor: pm
-    reason: slip-api runs with its own ECS task role (staging and production) allowed
-      only s3:PutObject on public/blog/* of its environment bucket; the shared ecsTaskRole
-      is unchanged
-    updated_at: '2026-11-02T03:34:56Z'
+    reason: 'Earth decision 10 (2026-11-02): slip-api uploads with the existing S3
+      key pair from the GitHub environment secrets, as Games-Labs-Order does; no dedicated
+      task role is created'
+    updated_at: '2026-11-02T08:21:42Z'
     evidence_refs: []
   knowledge_closeout:
     status: pending
@@ -150,7 +166,5 @@ completion_gates:
     evidence_refs: []
 handoff:
   from: pm
-  to: pm
+  to: dev
   artifact: forced-route
-waits_on:
-- kind: aws_permission

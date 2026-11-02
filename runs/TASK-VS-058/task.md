@@ -4,7 +4,8 @@ Move up-slip.com/blog articles out of `slip-landing/app/data/articles.ts` into s
 slip-landing reads published articles over the API at SSR; slip-admin edits them,
 including a per-article cover upload with the existing SVG preset as fallback.
 
-- Type: feature across `slip-api`, `slip-admin`, `slip-landing` + one IAM role.
+- Type: feature across `slip-api`, `slip-admin`, `slip-landing`; no IAM change
+  (decision 10).
   Schema change: new table(s) with migration `069_*` (latest on slip-api origin/main
   55260b8 is `068_line_bind_token_target.sql`).
 - Created: 2026-11-02 by the Claude conductor lane at operator request. Claude opens
@@ -14,7 +15,7 @@ including a per-article cover upload with the existing SVG preset as fallback.
   so the decisions are copied below; this file wins where they differ.
 - Gates: `production` preset (implementation_verification → deploy_staging →
   staging_acceptance → deploy_production → production_acceptance) + `storage_role`
-  + `knowledge_closeout`. UpSlip prod is live, not cost-gated. Promote main → staging
+  (`na` since decision 10) + `knowledge_closeout`. UpSlip prod is live, not cost-gated. Promote main → staging
   → prod through PRs (`verifyslip-promote` skill).
 
 ## Operator decisions (Earth, 2026-11-02)
@@ -32,7 +33,8 @@ including a per-article cover upload with the existing SVG preset as fallback.
 5. **Seed:** `fake-slip-signs` is published and featured. The other **6 sample
    articles are seeded as draft**, so their URLs answer 404 until someone fills in
    sections and publishes them.
-6. **Upload permission:** a **new ECS task role for slip-api only** (staging and
+6. **Superseded 2026-11-02 by decision 10.**
+   **Upload permission:** a **new ECS task role for slip-api only** (staging and
    production), allowed only `s3:PutObject` on
    `arn:aws:s3:::<environment bucket>/public/blog/*`. Do not add it to the shared
    `ecsTaskRole`, and do not reuse the `upslip-assets` IAM user keys.
@@ -56,12 +58,13 @@ including a per-article cover upload with the existing SVG preset as fallback.
    on every run, so editing only a task definition is undone by the next deploy. Do
    not rely on the fallbacks: `deploy.yml` (staging) has none, and
    `deploy-production.yml` falls back to the two landing origins only, which would
-   drop app and admin. Ship it with the slip-api deploy of this run (after
-   `storage_role`), staging first; never as a separate CORS-only deploy.
+   drop app and admin. Ship it with the slip-api deploy of this run, staging first;
+   never as a separate CORS-only deploy.
    Done 2026-11-02 05:40Z: Tommy set both environment secrets. Since then, any
    slip-api deploy from any branch push carries the new origins, so a teammate's
    promote can ship CORS before this run's deploy. That is accepted.
-8. **Who creates the role (2026-11-02): an IAM admin, by hand (CLI or console).**
+8. **Superseded 2026-11-02 by decision 10: no role is created.**
+   **Who creates the role (2026-11-02): an IAM admin, by hand (CLI or console).**
    `upslip-infra` is not the deployed source for ECS IAM. Its `lib/ecs-stack.ts`
    would create one role per service, but every live service runs on the hand-made
    `ecsTaskRole`. Its README says not to `cdk deploy` until reviewed. The
@@ -109,14 +112,40 @@ including a per-article cover upload with the existing SVG preset as fallback.
    confirm ECS tasks stay healthy, and inspect startup logs for fatal `blog CDN
    URL`, `S3_BUCKET and S3_PUBLIC_BASE_URL must be set together`, `S3_REGION is
    required when S3_BUCKET is set`, or `blog storage` messages.
-   This P2 pass does not register a task definition or deploy; the IAM admin must
-   register the dedicated-role revisions from decision 8 before staging deploy.
+   This P2 pass does not register a task definition or deploy. (The dedicated-role
+   revisions from decision 8 are dropped by decision 10.)
 
    Follow-ups, not in this run: F4 (no warning that draft takes the article offline),
    400 instead of 413 over 5 MiB, validation errors that do not name the field and
    byte-based limits missing from the README, `typescript`/`vue-tsc` missing from
    slip-landing devDependencies (CI cannot typecheck), and a new section reusing a
    deleted section's id (old deep links move).
+10. **Upload credentials (2026-11-02): the S3 key pair, as Games-Labs-Order does.
+    Replaces decisions 6 and 8.** No IAM role is created and nothing waits on an IAM
+    admin. Earth chose this after the trade-offs below were laid out. (Order uses
+    keys because it runs on k3s outside AWS; slip-api could use a task role.)
+    - Credentials: the `S3_ACCESS_KEY` / `S3_SECRET_KEY` already set in the slip-api
+      `staging` and `production` GitHub environments (since 2026-09-21).
+    - slip-api (#116): when both keys are set, the uploader uses them as static
+      credentials (pattern: `Games-Labs-Order/infrastructures/storage.go`). Exactly
+      one set fails startup; neither set keeps the default credential chain. Keep
+      the default AWS endpoint; `S3_ENDPOINT` / `S3_FORCE_PATH_STYLE` stay unread.
+    - `deploy.yml` (staging): inject `S3_ACCESS_KEY` / `S3_SECRET_KEY` again (undo
+      the injection part of slip-api `7d21801`).
+    - `deploy-production.yml`: inject `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE_URL`
+      and the two keys from the `production` environment secrets, as staging does,
+      so production does not depend on hand-set task-definition env.
+    - slip-api stays on `ecsTaskRole`, so ECS Exec keeps working unchanged.
+    - `storage_role` is `na`. Upload acceptance becomes: an accepted cover lands
+      under `public/blog/` of that environment's own bucket and is served from its CDN.
+    - Accepted risks: one key pair serves both environments, so staging slip-api can
+      write the production bucket; the key's IAM scope is unreadable for vestearth and
+      may reach beyond `public/blog/*` (for example `slips/`); the keys sit as plain
+      env in the task definition, readable with `ecs:DescribeTaskDefinition`, like
+      `JWT_SECRET`.
+    - Follow-ups, not in this run: rotate the key and split it per environment,
+      scoped to `s3:PutObject` on `public/blog/*` (needs an IAM admin); move the keys
+      to ECS `secrets`.
 
 Defaults from the proposal, not contested: Thai only; the existing admin accounts
 write and publish; publishing is immediate (no schedule); slug is editable while
@@ -163,8 +192,8 @@ Operator-provided S3 env set (2026-11-02; values are held outside git, names onl
   scheme; pick one and test it.
 - The existing set also has `S3_ACCESS_KEY` / `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE=true`
   and an empty `S3_ENDPOINT`. **The same access key pair is used for staging and
-  production**, so that IAM user can write both buckets. slip-api takes none of these
-  three: it uses the task role (decision 6) and the default AWS endpoint.
+  production**, so that IAM user can write both buckets. Since decision 10 slip-api
+  takes the key pair; it still ignores the other two and uses the default AWS endpoint.
 
 ## Field model (from fake-slip-signs)
 
@@ -195,12 +224,8 @@ the placeholder `[ชื่อผู้เขียน] · ทีม Up-Slip`, w
 
 ## Work per repo, in deploy order
 
-1. **IAM (storage_role gate).** Create the slip-api task role for staging and
-   production with `s3:PutObject` on `public/blog/*` of that environment's bucket
-   only (no List/Get/Delete, nothing on `slips/*`), plus the ECS Exec
-   `ssmmessages` actions (decisions 6 and 8). Point the slip-api task
-   definitions at it. The other UpSlip services keep `ecsTaskRole`. Needs an admin
-   account; record who applied it.
+1. **IAM: none (decision 10).** slip-api keeps `ecsTaskRole` and uploads with the
+   S3 key pair from the GitHub environment secrets; both deploy workflows inject it.
 2. **slip-api.**
    - Migration `069_*` for the article table(s); new empty tables, so the goose
      boot window is not a concern. Seed the 7 articles (decision 5).
@@ -214,7 +239,7 @@ the placeholder `[ชื่อผู้เขียน] · ทีม Up-Slip`, w
      key `public/blog/{uuid}.{ext}` on the server from the detected type, and build
      the URL from server config. Never accept a URL or key from the client.
    - Config: AWS SDK v2 with `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE_URL`;
-     credentials come from the task role (no access keys).
+     credentials from `S3_ACCESS_KEY` / `S3_SECRET_KEY` (decision 10).
    - Old S3 objects are kept on replace or remove (bucket versioning is on).
 3. **slip-admin.** A blog view in the admin shell: list; form with title lines,
    category (4 values), reorderable sections with heading, body and checklist lines,
@@ -240,12 +265,9 @@ Rollback: revert landing first. Reverting it brings back `articles.ts`, which sh
   page: not an empty page, not `articles.ts` content.
 - Admin blog routes reject a non-admin (401/403).
 - Upload: a file over 5 MiB, a disallowed type and a renamed non-image are rejected.
-  An accepted file lands under `public/blog/` and is served from the CDN. The slip-api
-  role cannot write outside `public/blog/*`.
-- On the new role, `aws ecs execute-command` into a slip-api task still opens a
-  shell. If the session fails on logging (cluster logging is DEFAULT, which uses the
-  task's awslogs group), add `logs:` write on `/ecs/slip-api-<env>` only, and record
-  it here.
+  An accepted file lands under `public/blog/` of that environment's own bucket and is
+  served from its CDN (decision 10). The task definition carries both S3 keys and
+  slip-api starts without a storage fatal in its logs.
 - With the API hung, `/blog/[slug]` and `/blog` answer 503 within the bound set
   for F3 (decision 9).
 - Removing the image returns the cards to the preset and the detail banner to the
