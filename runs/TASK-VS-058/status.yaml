@@ -123,6 +123,22 @@ history:
     move to viewsupat'
   at: '2026-11-02T09:36:03Z'
   operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: pm
+  reason: 'slip-api only (decision 11), on slip-api-staging:170 (staging-sha-bab5594):
+    blog API published-only/404/no-store, admin 401 unauthenticated, landing CORS,
+    startup without storage fatal (ev-042, ev-043); task key pair writes public/blog/
+    and CDN serves it (ev-044); operator-attested cover upload by Earth in admin-staging,
+    POST .../close-chat-orders-faster/cover 200 in 566 ms, 0 ERROR and 0 blog 5xx
+    09:08:17Z..09:39:31Z (ev-045); that cover served by the staging CDN, 200 image/png
+    1848230 bytes (ev-046)'
+  at: '2026-11-02T09:46:16Z'
+  operator: claude
+- phase: 'waits_on: -qa'
+  agent: pm
+  reason: Earth's admin-staging cover upload done and checked (ev-045, ev-046)
+  at: '2026-11-02T09:46:16Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -166,14 +182,28 @@ completion_gates:
       ref: bab55940e79bc0938a0108eba8f5d3433bb3a343
       url: https://github.com/SparqLab/slip-api/actions/runs/41416708516
   staging_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-02T03:34:56Z'
-    evidence_refs: []
+    reason: 'slip-api only (decision 11), on slip-api-staging:170 (staging-sha-bab5594):
+      blog API published-only/404/no-store, admin 401 unauthenticated, landing CORS,
+      startup without storage fatal (ev-042, ev-043); task key pair writes public/blog/
+      and CDN serves it (ev-044); operator-attested cover upload by Earth in admin-staging,
+      POST .../close-chat-orders-faster/cover 200 in 566 ms, 0 ERROR and 0 blog 5xx
+      09:08:17Z..09:39:31Z (ev-045); that cover served by the staging CDN, 200 image/png
+      1848230 bytes (ev-046)'
+    updated_at: '2026-11-02T09:46:16Z'
+    evidence_refs:
+    - ev-042
+    - ev-043
+    - ev-044
+    - ev-045
+    - ev-046
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: operator
+      ref: admin-staging cover upload request_id b26823ba38fb493ce859b96cff36f7ce
   deploy_production:
     status: pending
     actor: pm
@@ -212,5 +242,3 @@ handoff:
   from: pm
   to: dev
   artifact: forced-route
-waits_on:
-- kind: qa
