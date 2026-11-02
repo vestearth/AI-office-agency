@@ -36,6 +36,24 @@ including a per-article cover upload with the existing SVG preset as fallback.
    production), allowed only `s3:PutObject` on
    `arn:aws:s3:::<environment bucket>/public/blog/*`. Do not add it to the shared
    `ecsTaskRole`, and do not reuse the `upslip-assets` IAM user keys.
+7. **F2 CORS (frontend review, decided 2026-11-02): option A.** Append the landing
+   origins to slip-api `CORS_ALLOWED_ORIGINS`; no landing proxy. Earth accepts that
+   the allowlist is global (landing scripts may read any slip-api route's response).
+   Admin, API key and user auth read only the `Authorization` header, and slip-api
+   sets or reads no cookie. Full values, keeping every current entry (checked against
+   the live task definitions):
+   - staging (`slip-api-staging:169` + 1 origin):
+     `http://localhost:3000,http://localhost:5173,http://localhost:3010,https://app-staging.up-slip.com,https://admin-staging.up-slip.com,https://staging.up-slip.com`
+   - production (`slip-api-production:127` + 2 origins):
+     `http://localhost:3000,http://localhost:5173,http://localhost:3010,https://app.up-slip.com,https://admin.up-slip.com,https://up-slip.com,https://www.up-slip.com`
+
+   Set it in the GitHub environment secret `CORS_ALLOWED_ORIGINS` of each slip-api
+   environment. The deploy workflows rebuild the task definition env from that secret
+   on every run, so editing only a task definition is undone by the next deploy. Do
+   not rely on the fallbacks: `deploy.yml` (staging) has none, and
+   `deploy-production.yml` falls back to the two landing origins only, which would
+   drop app and admin. Ship it with the slip-api deploy of this run (after
+   `storage_role`), staging first; never as a separate CORS-only deploy.
 
 Defaults from the proposal, not contested: Thai only; the existing admin accounts
 write and publish; publishing is immediate (no schedule); slug is editable while
@@ -163,6 +181,11 @@ Rollback: revert landing first. Reverting it brings back `articles.ts`, which sh
 - Saving a draft, changing status or changing the image does not move the shown
   «อัปเดตล่าสุด».
 - `/v1/web/packages` and the slip verify paths are unchanged.
+- CORS (decision 7): GET and OPTIONS on `/v1/web/blog/posts` with each landing
+  origin return that exact `Access-Control-Allow-Origin` and `Vary: Origin`; the
+  existing app and admin origins still get it; a random origin gets none. In a real
+  browser, client navigation (`router.push`/`NuxtLink`) from `/blog` to an article
+  renders without a CORS error.
 
 ## Traps
 

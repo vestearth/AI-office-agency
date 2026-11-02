@@ -2,13 +2,15 @@
 task_id: TASK-VS-058
 task_label: 'UpSlip blog: articles served by slip-api, edited in slip-admin, with
   cover upload'
-phase: assigned
-state: assigned
+phase: blocked
+state: blocked
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: pm
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+- 'operator: create the dedicated slip-api ECS task roles (staging and production,
+  s3:PutObject on public/blog/* only) and hand back the role ARNs (storage_role gate)'
 assignment:
   primary: dev
   parallel: false
@@ -58,6 +60,20 @@ history:
   reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-02T03:34:56Z'
+  operator: claude
+- phase: assigned -> blocked
+  agent: pm
+  reason: Backend and frontend re-review approved at fd374de/aa36127/d142aba. Await
+    Earth F2 A/B decision and operator-provided dedicated storage roles before deployment
+    gates; no merge or deploy. Resumed coordinator after provider quota interruption;
+    review artifacts preserved.
+  at: '2026-11-02T04:54:57Z'
+  operator: codex
+- phase: 'waits_on: +aws_permission'
+  agent: pm
+  reason: 'storage_role: dedicated slip-api task roles likely need an IAM admin account
+    (vestearth lacks iam:ListRolePolicies; CreateRole not tried)'
+  at: '2026-11-02T05:35:57Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -120,3 +136,9 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-11-02T03:34:56Z'
     evidence_refs: []
+handoff:
+  from: pm
+  to: pm
+  artifact: forced-route
+waits_on:
+- kind: aws_permission
