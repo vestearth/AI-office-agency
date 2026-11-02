@@ -24,3 +24,15 @@ authorizations:
   scope: 'slip-admin PR #44 (main 2374b2b -> staging, merge tree 5f47fb0) and slip-landing
     PR #14 (main 8000296 -> staging, merge tree e4043cc); blog work only; staging
     only, production not included'
+- id: authz-003
+  type: grant
+  actor: earth
+  via: 'chat with the Claude conductor, 2026-11-02 17:08 ICT (''อนุมัติขึ้น prod''
+    after Claude''s review of #118)'
+  reason: 'Earth approved the production deploy of slip-api #118 after Claude''s review
+    at cc5dd29 (PR comment 6574444050) and Michael''s review; rollback target slip-api-production:127'
+  at: '2026-11-02T10:08:56Z'
+  action: deploy_production
+  scope: 'slip-api PR #118 only: release/TASK-VS-058-production cc5dd29 -> prod (base
+    7b24f3b, tree 41f50b9), the 6 TASK-VS-058 commits from staging bab5594 incl. migration
+    069_blog_posts; slip-landing/slip-admin not included'

@@ -139,6 +139,15 @@ history:
   reason: Earth's admin-staging cover upload done and checked (ev-045, ev-046)
   at: '2026-11-02T09:46:16Z'
   operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: dev
+  reason: 'authz-003 PR #118 pinned cc5dd29 merged as e0ddd56; production workflow
+    success, ECS slip-api-production:128 PRIMARY COMPLETED HEALTHY 3/3, env hashes
+    and API/CORS pass. Equal 5-minute windows: blog 0->0 5xx; verify 0/1964->1/1755
+    502 bank unavailable (not confirmed KBank 8500). Authenticated prod cover upload
+    remains for Earth under production_acceptance.'
+  at: '2026-11-02T10:31:06Z'
+  operator: codex
 completion_gates:
   implementation_verification:
     status: pass
@@ -205,15 +214,37 @@ completion_gates:
       by: operator
       ref: admin-staging cover upload request_id b26823ba38fb493ce859b96cff36f7ce
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-02T03:34:56Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'authz-003 PR #118 pinned cc5dd29 merged as e0ddd56; production workflow
+      success, ECS slip-api-production:128 PRIMARY COMPLETED HEALTHY 3/3, env hashes
+      and API/CORS pass. Equal 5-minute windows: blog 0->0 5xx; verify 0/1964->1/1755
+      502 bank unavailable (not confirmed KBank 8500). Authenticated prod cover upload
+      remains for Earth under production_acceptance.'
+    updated_at: '2026-11-02T10:31:06Z'
+    evidence_refs:
+    - ev-050
+    - ev-051
+    - ev-052
+    - ev-053
+    - ev-054
+    - ev-055
+    - ev-056
+    - ev-057
+    - ev-060
+    - ev-062
+    - ev-064
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-003
+    authorization_through: authz-003
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: operator
+      ref: e0ddd56dbf5a4b33720738d27cff2083b152b923
+      url: https://github.com/SparqLab/slip-api/actions/runs/41426709199
   production_acceptance:
     status: pending
     actor: pm
