@@ -12,3 +12,15 @@ authorizations:
   action: deploy_staging
   scope: 'slip-api PR #117: main 6cc03d1 -> staging (merge tree 5499de6, only #115/#116),
     including migration 069_blog_posts; staging only, production not included'
+- id: authz-002
+  type: grant
+  actor: earth
+  via: 'chat with the Claude conductor, 2026-11-02 (agreed plan: review #13/#43 after
+    slip-api staging passed, then approve merge and promote to staging)'
+  reason: 'slip-api staging passed (slip-api-staging:170); Claude review approved
+    #14 at 8000296 and #44 at 2374b2b (PR comments 6573656674, 6573657267)'
+  at: '2026-11-02T09:28:40Z'
+  action: deploy_staging
+  scope: 'slip-admin PR #44 (main 2374b2b -> staging, merge tree 5f47fb0) and slip-landing
+    PR #14 (main 8000296 -> staging, merge tree e4043cc); blog work only; staging
+    only, production not included'
