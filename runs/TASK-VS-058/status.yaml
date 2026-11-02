@@ -9,8 +9,9 @@ current_agent: pm
 ready: false
 blocked_on: []
 waiting_for:
-- 'operator: create the dedicated slip-api ECS task roles (staging and production,
-  s3:PutObject on public/blog/* only) and hand back the role ARNs (storage_role gate)'
+- 'operator (IAM admin): create the dedicated slip-api ECS task roles (staging and
+  production; s3:PutObject on public/blog/* + ECS Exec ssmmessages, policy in task.md
+  decision 8) and hand back the role ARNs (storage_role gate)'
 assignment:
   primary: dev
   parallel: false

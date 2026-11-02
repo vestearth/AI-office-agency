@@ -36,6 +36,10 @@ including a per-article cover upload with the existing SVG preset as fallback.
    production), allowed only `s3:PutObject` on
    `arn:aws:s3:::<environment bucket>/public/blog/*`. Do not add it to the shared
    `ecsTaskRole`, and do not reuse the `upslip-assets` IAM user keys.
+   **Amended 2026-11-02:** the role also carries the four `ssmmessages` actions
+   ECS Exec needs. ECS Exec is enabled on `slip-api-staging` and
+   `slip-api-production`, and today it works through `AmazonSSMManagedInstanceCore`
+   on `ecsTaskRole`. Do not attach that whole managed policy.
 7. **F2 CORS (frontend review, decided 2026-11-02): option A.** Append the landing
    origins to slip-api `CORS_ALLOWED_ORIGINS`; no landing proxy. Earth accepts that
    the allowlist is global (landing scripts may read any slip-api route's response).
@@ -54,6 +58,49 @@ including a per-article cover upload with the existing SVG preset as fallback.
    `deploy-production.yml` falls back to the two landing origins only, which would
    drop app and admin. Ship it with the slip-api deploy of this run (after
    `storage_role`), staging first; never as a separate CORS-only deploy.
+   Done 2026-11-02 05:40Z: Tommy set both environment secrets. Since then, any
+   slip-api deploy from any branch push carries the new origins, so a teammate's
+   promote can ship CORS before this run's deploy. That is accepted.
+8. **Who creates the role (2026-11-02): an IAM admin, by hand (CLI or console).**
+   `upslip-infra` is not the deployed source for ECS IAM. Its `lib/ecs-stack.ts`
+   would create one role per service, but every live service runs on the hand-made
+   `ecsTaskRole`. Its README says not to `cdk deploy` until reviewed. The
+   `upslip-assets` user was made once by hand. CloudFormation is unreadable for
+   vestearth. Policies to apply, with `<env-bucket>` = `upslip-assets-staging` or
+   `upslip-assets-prod`. The buckets use SSE-S3 (`setup-s3-cloudfront.sh`), so no
+   KMS grant is needed.
+   - Trust: `ecs-tasks.amazonaws.com`, condition `aws:SourceAccount` = `122991883560`.
+   - Permissions (inline, one per role):
+     ```json
+     {"Version": "2012-10-17", "Statement": [
+       {"Sid": "BlogCoverUpload", "Effect": "Allow", "Action": "s3:PutObject",
+        "Resource": "arn:aws:s3:::<env-bucket>/public/blog/*"},
+       {"Sid": "EcsExec", "Effect": "Allow",
+        "Action": ["ssmmessages:CreateControlChannel", "ssmmessages:CreateDataChannel",
+                   "ssmmessages:OpenControlChannel", "ssmmessages:OpenDataChannel"],
+        "Resource": "*"}]}
+     ```
+   - Suggested names: `slip-api-staging-task-role`, `slip-api-production-task-role`.
+
+   Wiring needs no workflow change. Register one new revision of each `slip-api-<env>`
+   family with the role ARN and `S3_REGION` / `S3_BUCKET` / `S3_PUBLIC_BASE_URL`.
+   The deploy workflows start from the family's latest revision, which keeps
+   `taskRoleArn`, and they keep every env entry they do not inject. slip-api main
+   today has no AWS SDK, so the old code runs unchanged on the new role. Record who
+   applied it and the role ARNs in this run.
+9. **Minor review findings (2026-11-02):** fix two in this run, before staging,
+   because they set how fast decision 4's 503 appears:
+   - F3 (landing): with the API hung, the detail page shows 503 only after about
+     16.5 s (2 calls × 8 s). Bound the total wait.
+   - Backend MINOR 1: the blog repository has no 3 s `queryTimeout` like the other
+     repositories (`cmd/main.go:85`), so a hung DB answers 503 only at the 20 s
+     WriteTimeout.
+
+   Follow-ups, not in this run: F4 (no warning that draft takes the article offline),
+   400 instead of 413 over 5 MiB, validation errors that do not name the field and
+   byte-based limits missing from the README, `typescript`/`vue-tsc` missing from
+   slip-landing devDependencies (CI cannot typecheck), and a new section reusing a
+   deleted section's id (old deep links move).
 
 Defaults from the proposal, not contested: Thai only; the existing admin accounts
 write and publish; publishing is immediate (no schedule); slug is editable while
@@ -77,7 +124,9 @@ slip-api next to packages.
   `ecsTaskRole`. Its only attached managed policy is AmazonSSMManagedInstanceCore;
   inline policies are unreadable (vestearth lacks `iam:ListRolePolicies`), so
   creating the role probably needs an admin account, as in TASK-VS-057.
-- Not checked: the staging runtime and task role. Check before wiring staging.
+- Staging (checked 2026-11-02): `slip-api-staging` runs td :169 on the same
+  `ecsTaskRole`. ECS Exec is enabled on both slip-api services, and neither cluster
+  sets an `executeCommandConfiguration` (logging DEFAULT).
 
 From Tommy's review, not re-verified here (`upslip-infra` and `casperacc-api` are not
 cloned on the conductor machine):
@@ -132,7 +181,8 @@ the placeholder `[ชื่อผู้เขียน] · ทีม Up-Slip`, w
 
 1. **IAM (storage_role gate).** Create the slip-api task role for staging and
    production with `s3:PutObject` on `public/blog/*` of that environment's bucket
-   only (no List/Get/Delete, nothing on `slips/*`). Point the slip-api task
+   only (no List/Get/Delete, nothing on `slips/*`), plus the ECS Exec
+   `ssmmessages` actions (decisions 6 and 8). Point the slip-api task
    definitions at it. The other UpSlip services keep `ecsTaskRole`. Needs an admin
    account; record who applied it.
 2. **slip-api.**
@@ -176,6 +226,12 @@ Rollback: revert landing first. Reverting it brings back `articles.ts`, which sh
 - Upload: a file over 5 MiB, a disallowed type and a renamed non-image are rejected.
   An accepted file lands under `public/blog/` and is served from the CDN. The slip-api
   role cannot write outside `public/blog/*`.
+- On the new role, `aws ecs execute-command` into a slip-api task still opens a
+  shell. If the session fails on logging (cluster logging is DEFAULT, which uses the
+  task's awslogs group), add `logs:` write on `/ecs/slip-api-<env>` only, and record
+  it here.
+- With the API hung, `/blog/[slug]` and `/blog` answer 503 within the bound set
+  for F3 (decision 9).
 - Removing the image returns the cards to the preset and the detail banner to the
   placeholder.
 - Saving a draft, changing status or changing the image does not move the shown
