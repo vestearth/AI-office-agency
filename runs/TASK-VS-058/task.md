@@ -146,6 +146,30 @@ including a per-article cover upload with the existing SVG preset as fallback.
     - Follow-ups, not in this run: rotate the key and split it per environment,
       scoped to `s3:PutObject` on `public/blog/*` (needs an IAM admin); move the keys
       to ECS `secrets`.
+11. **Ownership after staging (2026-11-02, viewsupat via Earth): this run is slip-api
+    only.** The squad finishes the staging rollout of slip-admin #44 and slip-landing
+    #14 (`authz-002`). After that, viewsupat owns slip-landing and slip-admin: their
+    browser checks on staging, their production promotes and their follow-ups (F4,
+    `typescript`/`vue-tsc` devDependencies, section id reuse). The remaining gates
+    (`staging_acceptance`, `deploy_production`, `production_acceptance`) cover slip-api
+    only.
+    - Last backend staging check: a cover upload through the admin route with a real
+      admin login. Earth does it in admin-staging; the conductor then checks the
+      returned `cover_url`, the object under `public/blog/` of `upslip-assets-staging`,
+      the CDN copy and the slip-api logs.
+    - Hand-off conditions for viewsupat:
+      - Promote slip-landing or slip-admin to prod only after slip-api prod serves
+        `/v1/web/blog/posts`. Before that, prod `/blog` answers 503 and the admin blog
+        view fails to load.
+      - Both `main` branches already carry the blog work (#13 `8000296`, #43
+        `2374b2b`), so any landing or admin promote to prod ships it.
+      - Admin prod still runs the localStorage mock (`e1e7980`); posts typed there are
+        not migrated.
+      - Rolling landing back to a pre-#13 build shows the 6 draft articles again from
+        `articles.ts`; fix forward instead.
+    - Backend follow-ups stay with the squad: 413 over 5 MiB, field names in
+      validation errors, byte limits in the README, and the key follow-ups of
+      decision 10.
 
 Defaults from the proposal, not contested: Thai only; the existing admin accounts
 write and publish; publishing is immediate (no schedule); slug is editable while
@@ -241,11 +265,11 @@ the placeholder `[ชื่อผู้เขียน] · ทีม Up-Slip`, w
    - Config: AWS SDK v2 with `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE_URL`;
      credentials from `S3_ACCESS_KEY` / `S3_SECRET_KEY` (decision 10).
    - Old S3 objects are kept on replace or remove (bucket versioning is on).
-3. **slip-admin.** A blog view in the admin shell: list; form with title lines,
+3. **slip-admin** (viewsupat after staging, decision 11). A blog view in the admin shell: list; form with title lines,
    category (4 values), reorderable sections with heading, body and checklist lines,
    related picker, preset picker, cover upload and remove, draft/published, featured
    switch. Check the same file rules before upload.
-4. **slip-landing.** Fetch from `apiBase` at SSR. API 404 → 404; API unreachable →
+4. **slip-landing** (viewsupat after staging, decision 11). Fetch from `apiBase` at SSR. API 404 → 404; API unreachable →
    503 notice page (decision 4). Stop reading article data from `articles.ts`; keep
    the SVG presets in `public/landing/blog`. `cover_url` uses `object-cover` in the
    existing frames (list 220px, featured 620×400, detail 220px / 380px).
@@ -256,6 +280,12 @@ Rollback: revert landing first. Reverting it brings back `articles.ts`, which sh
 069 tables only after landing no longer calls the API.
 
 ## Acceptance (staging, then production)
+
+Since decision 11 the run's acceptance gates take only the slip-api items: the API
+answers (published only, 404 for drafts and unknown slugs, `no-store`), admin auth,
+the cover upload and its CDN copy, CORS headers, startup without a storage fatal, and
+unchanged `/v1/web/packages` and verify paths. The page and admin-UI items below are
+viewsupat's checks, kept here for reference.
 
 - `fake-slip-signs` renders as before (visual compare against the current page), now
   from the API, with the author shown from `author`.

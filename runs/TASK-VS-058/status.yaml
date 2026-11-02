@@ -116,6 +116,13 @@ history:
     API, migration/startup logs and staging S3/CDN smoke passed'
   at: '2026-11-02T09:12:38Z'
   operator: codex
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: 'decision 11: slip-api staging_acceptance waits on Earth''s cover upload
+    through admin-staging with a real admin login; landing/admin checks and prod promotes
+    move to viewsupat'
+  at: '2026-11-02T09:36:03Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -205,3 +212,5 @@ handoff:
   from: pm
   to: dev
   artifact: forced-route
+waits_on:
+- kind: qa
