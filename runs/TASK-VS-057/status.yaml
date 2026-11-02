@@ -1,0 +1,76 @@
+---
+task_id: TASK-VS-057
+task_label: Split KBank 8500 out of upslip-prod-api-target-5xx (our-5xx metric math
+  + per-bank 8500 alarms)
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: devops
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+created_at: '2026-10-31'
+updated_at: '2026-10-31'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, production_apply,
+    production_acceptance, knowledge_closeout'
+  at: '2026-10-31T12:58:15Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: setup-prod-alarms.sh change reviewed; both metric filter patterns dry-run
+    with filter-log-events match the 2026-10-31 hourly 8500 counts
+  at: '2026-10-31T12:58:15Z'
+  operator: claude
+- phase: 'gate production_apply: absent -> pending'
+  agent: pm
+  reason: operator approved the ~US$4/month cost and ran the script with an admin
+    account (vestearth cannot PutMetricFilter); filters and alarms exist
+  at: '2026-10-31T12:58:15Z'
+  operator: claude
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: staged ALARM on one per-bank alarm reaches Lark naming the bank; the our-5xx
+    alarm stays OK through a real 8500 burst
+  at: '2026-10-31T12:58:15Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-31T12:58:15Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: setup-prod-alarms.sh change reviewed; both metric filter patterns dry-run
+      with filter-log-events match the 2026-10-31 hourly 8500 counts
+    updated_at: '2026-10-31T12:58:15Z'
+    evidence_refs: []
+  production_apply:
+    status: pending
+    actor: pm
+    reason: operator approved the ~US$4/month cost and ran the script with an admin
+      account (vestearth cannot PutMetricFilter); filters and alarms exist
+    updated_at: '2026-10-31T12:58:15Z'
+    evidence_refs: []
+  production_acceptance:
+    status: pending
+    actor: pm
+    reason: staged ALARM on one per-bank alarm reaches Lark naming the bank; the our-5xx
+      alarm stays OK through a real 8500 burst
+    updated_at: '2026-10-31T12:58:15Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-10-31T12:58:15Z'
+    evidence_refs: []
