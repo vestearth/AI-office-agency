@@ -76,6 +76,17 @@ history:
     (vestearth lacks iam:ListRolePolicies; CreateRole not tried)'
   at: '2026-11-02T05:35:57Z'
   operator: claude
+- phase: 'branch: rebased onto main after slip-api#115'
+  agent: pm
+  reason: 'Operator merged slip-api#115 (8259f35: S3 config + staging deploy injects
+    S3_REGION/S3_BUCKET/S3_PUBLIC_BASE_URL; access keys removed in 7d21801 at operator
+    request). Rebased task/TASK-VS-058-blog-api 65065a1 -> 8ecc866 (force-with-lease):
+    config.go conflict resolved to main''s s3Config (same S3Region/S3Bucket/S3PublicBaseURL
+    names, blog storageConfig dropped), plus docs commit aligning .env.example and the
+    README storage handoff. ev-019..ev-022 at 8ecc866 (build, vet, full test with blog
+    DSN, integration test ran). The earlier backend review approval predates the rebase.'
+  at: '2026-11-02T08:04:38Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
