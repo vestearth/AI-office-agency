@@ -71,6 +71,18 @@ cloned on the conductor machine):
   trusts the extension and the multipart `Content-Type`, and
   `ParseMultipartForm(5 MiB)` is not a request cap. Reuse the idea, not the code.
 
+Operator-provided S3 env set (2026-11-02; values are held outside git, names only here):
+- Buckets confirmed: `upslip-assets-staging` and `upslip-assets-prod`, region
+  `ap-southeast-1`. CDN hosts: staging `d8nuh3zcuo9fd.cloudfront.net`, production
+  `d1emyocrm9dw73.cloudfront.net` (matches Tommy).
+- `S3_PUBLIC_BASE_URL` is a bare host with no scheme. slip-api must build
+  `https://<host>/blog/{uuid}.{ext}` itself, or the slip-api config must carry the
+  scheme; pick one and test it.
+- The existing set also has `S3_ACCESS_KEY` / `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE=true`
+  and an empty `S3_ENDPOINT`. **The same access key pair is used for staging and
+  production**, so that IAM user can write both buckets. slip-api takes none of these
+  three: it uses the task role (decision 6) and the default AWS endpoint.
+
 ## Field model (from fake-slip-signs)
 
 | Page shows | Field |
