@@ -1,0 +1,45 @@
+---
+task_id: TASK-EAR-420
+capture_type: lesson
+target_repo: knowledge-base
+target_note: "Knowledge Base/Inbox.md"
+summary: >-
+  Profile Point > Earned cannot use GET /api/v1/wallet/point-history: on
+  shared-lib pin 5498b9aae154 that path is captured by GET /api/v1/wallet/{user_id},
+  and ListPointHistory is bound to /wallets/point-history outside the /api/v1
+  gateway mount. New public contract is GET /api/v1/wallet/points/history,
+  caller identity only, earned-reason allowlist. POST /wallets/credit stores
+  reference_id as the POINT ledger reason and drops metadata, so the EAR-159
+  reason allowlist does not describe existing mission POINT rows. Do not
+  backfill titles from idempotency keys. Proposal only; nothing is written
+  to knowledge-base.
+sources:
+  - ai-dev-office/runs/TASK-EAR-420/contract-review.md
+  - ai-dev-office/runs/TASK-EAR-420/task.md
+  - shared-lib/proto/walletpb/wallet.proto
+  - api-gateway/gateway/http.go
+  - Games-Labs-Wallet/internal/core/handlers/wallethdl/wallet_handler.go
+  - Games-Labs-Wallet/internal/core/services/walletsvc/service.go
+  - Games-Labs-Wallet/internal/repositories/wallet_history_reasons.go
+  - ai-dev-office/runs/TASK-EAR-159/category-mapping-proposal.md
+recommended_action: add_to_inbox
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: "2026-11-02"
+  task_id: TASK-EAR-420
+  repo_origin: SparqLab/shared-lib
+  repo_sha: unknown
+note_patch: |
+  ## Inbox capture — TASK-EAR-420 Point Earned history contract (2026-11-02)
+
+  Suggest-only. Do not treat this as a published lesson until a human promotes it.
+
+  - `GET /api/v1/wallet/{user_id}` and `GET /wallets/point-history` are the wallet proto bindings on api-gateway's shared-lib pin `5498b9aae154`. The gateway mounts grpc-gateway only at `/api/v1/*`, so `/api/v1/wallet/point-history` is a wallet lookup for user id `point-history`.
+  - The approved public earned-history route is `GET /api/v1/wallet/points/history`, bound to the authenticated caller, with an earned-reason allowlist. Decisions: `ai-dev-office/runs/TASK-EAR-420/contract-review.md`.
+  - `POST /wallets/credit` for POINT writes `reference_id` into `wallet_points_ledger.reason` and discards the metadata that holds the semantic reason (`check_in_day`, `daily_mission`, and the rest). The TASK-EAR-159 EarnedReasons list is the intended vocabulary, not the rows that path writes today.
+  - Missing historical titles stay empty. Do not reconstruct Daily Login day or VIP level from idempotency keys.
+  - Point spends stay on `GET /api/v1/my-redemption-items`. Empty redemption `price_currency` means POINT.
+
+  Source: shared-lib pin `5498b9aae154` wallet.proto; Games-Labs-Wallet `wallet_handler.go` `ledgerSource`; `walletsvc/service.go` POINT branch of `Credit`.
+  Related: [[Wallet Currency Contract And Error Masking — Debit Is Coin-Diamond Only, Points Spend Via Redeem, Surface The Real Error]]

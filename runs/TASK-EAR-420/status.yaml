@@ -1,0 +1,128 @@
+---
+task_id: TASK-EAR-420
+task_label: 'Profile Settings History: Point Earned routing and reward display contract'
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-02'
+updated_at: '2026-11-02'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, contract_review, independent_review, knowledge_closeout'
+  at: '2026-11-02T10:30:52Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-02T10:30:52Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-02T10:30:52Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-02T10:30:52Z'
+  operator: codex
+- phase: 'gate contract_review: absent -> pending'
+  agent: pm
+  reason: Cursor/Claude or operator-approved review resolves public routing, authenticated
+    scope, reward metadata/category semantics, and legacy behavior before implementation
+  at: '2026-11-02T10:30:52Z'
+  operator: codex
+- phase: 'gate independent_review: absent -> pending'
+  agent: pm
+  reason: Independent review accepts the exact implementation revisions before deployment
+    and Mobile acceptance
+  at: '2026-11-02T10:30:52Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-02T10:30:52Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261102T103123Z-codex-01a19bc9-profile-settings-history.yaml'
+  at: '2026-11-02T10:31:23Z'
+  operator: codex
+- phase: 'gate contract_review: pending -> pass'
+  agent: reviewer
+  reason: 'Cursor contract review recorded in runs/TASK-EAR-420/contract-review.md:
+    public GET /api/v1/wallet/points/history on a new earned-only RPC, caller identity
+    only, category allowlist, no historical title backfill, store history must ignore
+    userId, Used needs currency=POINT. Not an implementation approval.'
+  at: '2026-11-02T13:16:04Z'
+  operator: cursor
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: reviewer
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261102T131651Z-codex-01a19bc9-profile-settings-history.yaml'
+  at: '2026-11-02T13:16:51Z'
+  operator: cursor
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261102T150742Z-codex-01a19bc9-profile-settings-history.yaml'
+  at: '2026-11-02T15:07:42Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-11-02T10:30:52Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-11-02T10:30:52Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-11-02T10:30:52Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+  contract_review:
+    status: pass
+    actor: reviewer
+    reason: 'Cursor contract review recorded in runs/TASK-EAR-420/contract-review.md:
+      public GET /api/v1/wallet/points/history on a new earned-only RPC, caller identity
+      only, category allowlist, no historical title backfill, store history must ignore
+      userId, Used needs currency=POINT. Not an implementation approval.'
+    updated_at: '2026-11-02T13:16:04Z'
+    evidence_refs: []
+  independent_review:
+    status: pending
+    actor: pm
+    reason: Independent review accepts the exact implementation revisions before deployment
+      and Mobile acceptance
+    updated_at: '2026-11-02T10:30:52Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261102T150742Z-codex-01a19bc9-profile-settings-history.yaml'
+    updated_at: '2026-11-02T15:07:42Z'
+    evidence_refs: []
