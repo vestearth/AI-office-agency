@@ -1,0 +1,137 @@
+---
+task_id: TASK-EAR-423
+task_label: 'Missions AddTurnover: refuse public gateway turnover/EXP forging'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-03'
+updated_at: '2026-11-03'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-11-03T09:11:02Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-03T09:11:02Z'
+  operator: claude
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-03T09:11:02Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-03T09:11:02Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-03T09:11:02Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'Missions #148 (public AddTurnover refused with PermissionDenied; unused
+    HTTP route/handler removed) merged as 4139416; ev-001: go vet + go test ./...
+    on that head PASS incl. TestAddTurnover_PublicBridgeRefuses. Conductor checked
+    no service or Backoffice calls AddTurnover (Game uses ApplyGameplayTurnover; MQ
+    path is internal). No separate reviewer-lane pass.'
+  at: '2026-11-03T10:36:13Z'
+  operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Deploy STAGING run 41617388756 build-push=success, deploy-ecs=success; DEV
+    ECS games-labs-missions-staging td161 staging-sha-4139416 1/1 COMPLETED, HEALTHY,
+    no panic/fatal at boot.
+  at: '2026-11-03T10:36:13Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261103T103613Z-missions-addturnover.yaml'
+  at: '2026-11-03T10:36:13Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: pm
+  reason: 'Operator-attested DEV capture via Postman (2026-11-03), own player token:
+    POST https://api-test-gateway.gameslabs.app/api/v1/levels/turnover body {user_id:
+    00000000-...-0001, amount: 1} -> {code: 7, message: ''turnover is applied from
+    settled gameplay only''} (PermissionDenied/403). No EXP written.'
+  at: '2026-11-03T10:47:37Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-03T10:47:38Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: 'Missions #148 (public AddTurnover refused with PermissionDenied; unused
+      HTTP route/handler removed) merged as 4139416; ev-001: go vet + go test ./...
+      on that head PASS incl. TestAddTurnover_PublicBridgeRefuses. Conductor checked
+      no service or Backoffice calls AddTurnover (Game uses ApplyGameplayTurnover;
+      MQ path is internal). No separate reviewer-lane pass.'
+    updated_at: '2026-11-03T10:36:13Z'
+    evidence_refs:
+    - ev-001
+    requires_record: true
+    ran:
+      by: claude
+      ref: '4139416'
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: Deploy STAGING run 41617388756 build-push=success, deploy-ecs=success;
+      DEV ECS games-labs-missions-staging td161 staging-sha-4139416 1/1 COMPLETED,
+      HEALTHY, no panic/fatal at boot.
+    updated_at: '2026-11-03T10:36:13Z'
+    evidence_refs:
+    - ev-001
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: claude
+      ref: deploy run 41617388756
+  staging_acceptance:
+    status: pass
+    actor: pm
+    reason: 'Operator-attested DEV capture via Postman (2026-11-03), own player token:
+      POST https://api-test-gateway.gameslabs.app/api/v1/levels/turnover body {user_id:
+      00000000-...-0001, amount: 1} -> {code: 7, message: ''turnover is applied from
+      settled gameplay only''} (PermissionDenied/403). No EXP written.'
+    updated_at: '2026-11-03T10:47:37Z'
+    evidence_refs:
+    - ev-001
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: operator
+      ref: Postman DEV capture levels/turnover 2026-11-03
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261103T103613Z-missions-addturnover.yaml'
+    updated_at: '2026-11-03T10:36:13Z'
+    evidence_refs: []
+decision_applied_at: '2026-11-03T10:47:37Z'

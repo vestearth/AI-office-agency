@@ -1,0 +1,73 @@
+---
+task_id: TASK-EAR-421
+task_label: 'Auth/Logs/Provider Dockerfile: GH_PAT via short-lived .netrc (git 2.54
+  insteadOf break)'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-03'
+updated_at: '2026-11-03'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, knowledge_closeout'
+  at: '2026-11-03T08:30:19Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: RED old Dockerfile + GREEN full image from clean git archive per repo, recorded
+    in each PR
+  at: '2026-11-03T08:30:19Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-03T08:30:19Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: RED old Dockerfile fails with could not read Username and GREEN full image
+    from clean git archive builds, per repo (Auth 12b49e7->df02f26, Logs 7314ad2->6f11b9d,
+    Provider 4b7dc54->5b65bed)
+  at: '2026-11-03T08:49:10Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261103T084910Z-netrc-gh-pat-auth-logs-provider.yaml'
+  at: '2026-11-03T08:49:10Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-03T10:36:23Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: RED old Dockerfile fails with could not read Username and GREEN full image
+      from clean git archive builds, per repo (Auth 12b49e7->df02f26, Logs 7314ad2->6f11b9d,
+      Provider 4b7dc54->5b65bed)
+    updated_at: '2026-11-03T08:49:10Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
+    - ev-004
+    - ev-005
+    - ev-006
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261103T084910Z-netrc-gh-pat-auth-logs-provider.yaml'
+    updated_at: '2026-11-03T08:49:10Z'
+    evidence_refs: []
+decision_applied_at: '2026-11-03T10:36:23Z'

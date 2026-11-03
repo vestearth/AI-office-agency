@@ -1,0 +1,8 @@
+---
+task_id: TASK-EAR-421
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-03T10:36:23Z'
+  against_phase: assigned
+  note: "recorded from chat by the Claude conductor: operator said 'ปิดให้ด้วย' (2026-11-03) after the three PRs merged and deployed (ev-007)"

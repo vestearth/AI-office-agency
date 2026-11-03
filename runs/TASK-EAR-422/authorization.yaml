@@ -1,0 +1,13 @@
+---
+task_id: TASK-EAR-422
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: chat
+  reason: 'Operator said ''PR จาก session อื่น merge ได้เลยครับ'' on 2026-11-03; merged
+    by the Claude conductor after a combined #147+#148 vet/test on staging. Recorded
+    right after the merge.'
+  at: '2026-11-03T10:35:57Z'
+  action: deploy_staging
+  scope: 'Games-Labs-Missions #147 6c7669e merge to staging (= DEV deploy)'
