@@ -495,3 +495,106 @@ GREEN (`evidence/missions-green-20261103.log`):
   - gRPC code 7 is PermissionDenied, which grpc-gateway maps to HTTP 403 by default. The HTTP status line itself was not reported.
   - No history rows came back.
   - This confirms the StoreHistory cross-user read is closed on DEV, matching the operator's "403 per repo" decision.
+
+## Mobile handoff (final API + mapping, 2026-11-03)
+
+Delivered to the operator for the Mobile team. All three endpoints are live on DEV (`https://api-test-gateway.gameslabs.app`) and verified with an authenticated player token. Every call uses the logged-in session (`Authorization: Bearer <token>`).
+
+**Do not send `userId`.** If it is sent, it must be the logged-in user's own id. Any other id returns 403 on Purchase and is ignored on Used and Earned.
+
+### Purchase — `GET /api/v1/store/history`
+- Response: `{ "history": [ ... ] }`, newest first. The whole list comes back in one response; there is no pagination.
+- Keys are snake_case. Numbers are plain JSON numbers.
+- Fields Mobile should use:
+
+  | Field | Meaning |
+  | --- | --- |
+  | `item_type` | type of purchase |
+  | `item_name` | item name |
+  | `created_at` | RFC3339 UTC |
+  | `pay_method` | e.g. `stripe`, `diamond` |
+  | `price_thb` | price in THB |
+  | `price_diamonds` | price in diamonds |
+  | `got_diamonds`, `got_coin` | what the purchase granted |
+  | `status` | purchase status |
+
+- **Filter to `item_type` ∈ {`package`, `pass`}.** `exchange` and `avatar` rows also appear.
+- Do not use `id` as the list key: stripe package rows have `id: ""`. Use `item_id` + `created_at`.
+- Ignore `metadata`; it holds internal keys.
+- Example row (DEV):
+
+  ```json
+  {"item_type":"package","item_name":"First Timer","created_at":"2026-08-24T09:35:56Z","pay_method":"stripe","price_thb":29,"price_diamonds":0,"got_diamonds":20,"got_coin":2400,"status":"success"}
+  ```
+
+- Another user's `userId` returns `{code: 7, message: "user_id does not match authenticated user"}` (HTTP 403).
+
+### Point > Used — `GET /api/v1/my-redemption-items?currency=POINT&limit=20&offset=0`
+- Response: `{ status, items: [...], page }`.
+- `page` = `{size, total, totalPage, limit, offset}`. These are int64 values, sent as JSON strings.
+- Default limit 20, max 100. Newest first.
+- `currency=POINT` keeps only positive POINT spends. DIAMOND rows and free grants are excluded server-side, so do not filter in the app.
+- Matching is case-insensitive. Any other currency returns `status.code` 1002 "currency must be POINT".
+- Display:
+
+  | Shown as | Field / rule |
+  | --- | --- |
+  | Points used | `priceAmount` if > 0, otherwise `pointSpent` (both are strings) |
+  | Time | `redeemedAt` |
+  | Name | `itemName` |
+
+- Response items also include `contactEmail`, `shippingAddress` and `code`. Do not show those on this tab.
+- DEV proof: the same account returns total 52 unfiltered and 50 with `currency=POINT`. The 2 rows removed are exactly the DIAMOND rows.
+
+### Point > Earned — `GET /api/v1/wallet/points/history?limit=20&offset=0`
+- Response: `{ status, data: [...], page }`. `data` is an array, `[]` when empty.
+- `page` = `{size, total, totalPage, limit, offset}`, as strings.
+- Default limit 20, max 100. Newest first.
+- Item fields:
+
+  | Field | Meaning |
+  | --- | --- |
+  | `id` | row id |
+  | `pointsEarned` | positive; string int64 |
+  | `earnedAt` | RFC3339 UTC |
+  | `reason` | machine reason |
+  | `category` | `quest`, `play_game`, `level_up` or `topup` |
+  | `title` | display title; may be `""` |
+
+- Localize the category labels:
+
+  | `category` | Label |
+  | --- | --- |
+  | `quest` | Quest |
+  | `play_game` | Play Game |
+  | `level_up` | Level up |
+  | `topup` | Top up |
+
+- **When `title` is `""`, show the category label only.**
+- Titles produced for new rows:
+
+  | Source | Title |
+  | --- | --- |
+  | Check-in day | "Daily Login (D{calendar day})" |
+  | Check-in milestone | "Check-in Milestone (D{milestone day})" |
+  | Weekly, event, admin group | the activity name |
+  | VIP | "Up To (VIP {level})" |
+  | Turnover | always "Turnover Reward" |
+  | Fixed | "Daily Streak", "Top Up Bonus" |
+
+- `daily_mission` and schedule-generated groups have no title yet.
+- Example (DEV):
+
+  ```json
+  {"id":"7735fd5a-…","pointsEarned":"20","earnedAt":"2026-10-15T06:44:46Z","reason":"point_turnover","category":"play_game","title":"Turnover Reward"}
+  ```
+
+- **Coverage limit:** rows written before 2026-11-03 keep `title: ""`.
+- Legacy mission POINT rows were stored under a date or id instead of a reason. They are not in this list, and there is no backfill.
+- Earned is therefore not a complete ledger, and Mobile must not sum it as a balance.
+
+### Status of this handoff
+- **Deployed and runtime-verified on DEV:** all three endpoints; caller scoping; the `currency` filter; pagination; JSON types.
+- **Deployed, not yet runtime-observed:** titles on newly written VIP, check-in, weekly, event and group POINT rows. These need real claims of POINT-priced rewards.
+- **Not deployed:** production. Production is cost-gated, and a separate promotion is needed.
+- **Open product choice, stated explicitly:** whether incomplete legacy Earned coverage is acceptable to show. The Mobile follow-up message waits for product's answer on this. No backend change is pending on it.

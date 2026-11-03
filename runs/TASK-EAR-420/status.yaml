@@ -1,18 +1,18 @@
 ---
 task_id: TASK-EAR-420
 task_label: 'Profile Settings History: Point Earned routing and reward display contract'
-phase: pending
-state: pending
+phase: done
+state: done
 iteration: 0
-current_agent: pm
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-02'
-updated_at: '2026-11-02'
+updated_at: '2026-11-03'
 history:
 - phase: created -> pending
   agent: pm
@@ -77,33 +77,115 @@ history:
   reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261102T150742Z-codex-01a19bc9-profile-settings-history.yaml'
   at: '2026-11-02T15:07:42Z'
   operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'All implementation PRs merged (ev-008: shared-lib #98 d816962 on main;
+    Wallet #61 b6eb662, api-gateway #98 8706b68 + #99 f0f5baa, Order #88 c244578,
+    User #45 7f29fab, Missions #146 17ddcce on staging). ev-011: go vet + go test
+    ./... re-run from clean git archives of the merged heads, all 6 repos PASS incl.
+    Wallet/Order Postgres tests and Wallet fresh-schema drift test (ev-010 was a script
+    bug that re-ran tests on a non-empty drift DB; superseded). Each PR also had RED-before/GREEN-after
+    tests (task.md, evidence/*-red/green-20261103.log).'
+  at: '2026-11-03T09:39:24Z'
+  operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'DEV ECS (sparqlab-development-ecs) runs the merged images, 1/1 COMPLETED
+    (ev-009): wallet td83 staging-sha-b6eb662, api-gateway td139 staging-sha-f0f5baa,
+    order td108 staging-sha-c244578, user td72 staging-sha-7f29fab, missions td160
+    staging-sha-17ddcce. Deploy STAGING runs succeeded at job level; boot logs clean
+    (task.md). Operator-approved per merge (authz-001).'
+  at: '2026-11-03T09:39:24Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: pm
+  reason: 'Operator-attested: authenticated DEV captures via Postman against https://api-test-gateway.gameslabs.app
+    on 2026-11-03, summarized in task.md (no PII stored). Earned: 200, data[] newest-first,
+    page total 215/totalPage 11, int64 strings, turnover ''Turnover Reward'', legacy
+    VIP title ''''. Used: currency=POINT total 50 vs unfiltered 52 (2 = exactly the
+    DIAMOND rows), currency=DIAMOND -> status 1002. Purchase: 34 own rows (package/pass/exchange/avatar),
+    other user''s userId -> code 7 PermissionDenied. Titles on newly written POINT
+    rows not yet observed (need real claims) - stated as deployed-not-runtime-observed
+    in the Mobile handoff.'
+  at: '2026-11-03T09:39:34Z'
+  operator: claude
+- phase: 'gate independent_review: pending -> pass'
+  agent: reviewer
+  reason: 'Independent Claude reviewer-lane review (fresh context, given code + contract,
+    not conclusions) of every implementation PR before merge: shared-lib #98, Wallet
+    #61, api-gateway #98, Order #88, User #45, Missions #146 - all ''approve with
+    nits'', no blocking findings; each ran its own vet/tests and mutation tests; every
+    nit was fixed or recorded (task.md). ev-012 confirms each PR merged with its verdict
+    comment. Disclosed exception: api-gateway #99 (Dockerfile .netrc build fix) merged
+    without a separate reviewer pass; it was reproduced RED/GREEN locally with a real
+    token and is the same change independently reviewed in User #45.'
+  at: '2026-11-03T09:39:34Z'
+  operator: claude
+- phase: pending -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-03T09:39:42Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-02T10:30:52Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'All implementation PRs merged (ev-008: shared-lib #98 d816962 on main;
+      Wallet #61 b6eb662, api-gateway #98 8706b68 + #99 f0f5baa, Order #88 c244578,
+      User #45 7f29fab, Missions #146 17ddcce on staging). ev-011: go vet + go test
+      ./... re-run from clean git archives of the merged heads, all 6 repos PASS incl.
+      Wallet/Order Postgres tests and Wallet fresh-schema drift test (ev-010 was a
+      script bug that re-ran tests on a non-empty drift DB; superseded). Each PR also
+      had RED-before/GREEN-after tests (task.md, evidence/*-red/green-20261103.log).'
+    updated_at: '2026-11-03T09:39:24Z'
+    evidence_refs:
+    - ev-008
+    - ev-011
     requires_record: true
+    ran:
+      by: claude
+      ref: d816962,b6eb662,8706b68,f0f5baa,c244578,7f29fab,17ddcce
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-02T10:30:52Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'DEV ECS (sparqlab-development-ecs) runs the merged images, 1/1 COMPLETED
+      (ev-009): wallet td83 staging-sha-b6eb662, api-gateway td139 staging-sha-f0f5baa,
+      order td108 staging-sha-c244578, user td72 staging-sha-7f29fab, missions td160
+      staging-sha-17ddcce. Deploy STAGING runs succeeded at job level; boot logs clean
+      (task.md). Operator-approved per merge (authz-001).'
+    updated_at: '2026-11-03T09:39:24Z'
+    evidence_refs:
+    - ev-009
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: claude
+      ref: deploy runs 41584929547,41590204707,41597705953,41605833151,41609170116
   staging_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-02T10:30:52Z'
-    evidence_refs: []
+    reason: 'Operator-attested: authenticated DEV captures via Postman against https://api-test-gateway.gameslabs.app
+      on 2026-11-03, summarized in task.md (no PII stored). Earned: 200, data[] newest-first,
+      page total 215/totalPage 11, int64 strings, turnover ''Turnover Reward'', legacy
+      VIP title ''''. Used: currency=POINT total 50 vs unfiltered 52 (2 = exactly
+      the DIAMOND rows), currency=DIAMOND -> status 1002. Purchase: 34 own rows (package/pass/exchange/avatar),
+      other user''s userId -> code 7 PermissionDenied. Titles on newly written POINT
+      rows not yet observed (need real claims) - stated as deployed-not-runtime-observed
+      in the Mobile handoff.'
+    updated_at: '2026-11-03T09:39:34Z'
+    evidence_refs:
+    - ev-009
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: operator
+      ref: Postman DEV captures 2026-11-03 (Earned, Used x3, Purchase x2)
   contract_review:
     status: pass
     actor: reviewer
@@ -114,15 +196,27 @@ completion_gates:
     updated_at: '2026-11-02T13:16:04Z'
     evidence_refs: []
   independent_review:
-    status: pending
-    actor: pm
-    reason: Independent review accepts the exact implementation revisions before deployment
-      and Mobile acceptance
-    updated_at: '2026-11-02T10:30:52Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Independent Claude reviewer-lane review (fresh context, given code +
+      contract, not conclusions) of every implementation PR before merge: shared-lib
+      #98, Wallet #61, api-gateway #98, Order #88, User #45, Missions #146 - all ''approve
+      with nits'', no blocking findings; each ran its own vet/tests and mutation tests;
+      every nit was fixed or recorded (task.md). ev-012 confirms each PR merged with
+      its verdict comment. Disclosed exception: api-gateway #99 (Dockerfile .netrc
+      build fix) merged without a separate reviewer pass; it was reproduced RED/GREEN
+      locally with a real token and is the same change independently reviewed in User
+      #45.'
+    updated_at: '2026-11-03T09:39:34Z'
+    evidence_refs:
+    - ev-012
+    ran:
+      by: claude
+      ref: PR comments 6595561870,6595925694,6596713269,6597980018,6599020414,6599640024
   knowledge_closeout:
     status: pass
     actor: pm
     reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261102T150742Z-codex-01a19bc9-profile-settings-history.yaml'
     updated_at: '2026-11-02T15:07:42Z'
     evidence_refs: []
+decision_applied_at: '2026-11-03T09:39:42Z'

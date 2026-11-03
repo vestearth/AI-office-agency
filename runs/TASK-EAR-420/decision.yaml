@@ -1,0 +1,8 @@
+---
+task_id: TASK-EAR-420
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-03T09:39:42Z'
+  against_phase: pending
+  note: "recorded from chat by the Claude conductor: operator said 'ดำเนินการต่อ จน TASK นี้เป็น done ได้เลยครับ' (2026-11-03) after all six gates resolved with evidence ev-008..ev-012 and authz-001"

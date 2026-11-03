@@ -1,0 +1,15 @@
+---
+task_id: TASK-EAR-420
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: chat
+  reason: Operator approved each staging merge/deploy in chat on 2026-11-03 ('Merge
+    เลย' per PR, and 'หมุนแล้ว rerun ได้' for the gateway re-run). Recorded after
+    the fact by the Claude conductor; the grant records approval, it did not precede
+    the actions in the ledger.
+  at: '2026-11-03T09:39:09Z'
+  action: deploy_staging
+  scope: 'DEV/staging deploys of TASK-EAR-420: Wallet #61, api-gateway #98/#99, Order
+    #88, User #45, Missions #146 (merge to staging = deploy)'
