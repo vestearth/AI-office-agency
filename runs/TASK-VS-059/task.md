@@ -263,6 +263,32 @@ that, the 1,200/min `BANK_ATTEMPT_LIMIT_PER_MINUTE` budget sheds load as 429.
 - **Billing check (not a gate):** compare the next KBank invoice count with our stored bank results
   (`verifications` + `payment_transactions`). This needs finance and a read-only prod DB count.
 
+## Phase 2 decision input (not a gate)
+
+Phase 2 (65 s through an async/pending verify) has no run yet, on purpose. Whether it is worth
+building depends on this task's data. Opened 2026-11-04 by operator decision.
+
+1. **Measure 2–4 weeks after `deploy_production`.** Count per day, using counts only and
+   all-pages `filter-log-events` on `/ecs/slip-system-production`:
+   - `cause=bank_timeout` lines: calls still cut at 12 s. Each may be billed with its result
+     discarded.
+   - `kbank verify slow` lines: late successes that phase 1 now keeps.
+   - Optional: where the slow calls land in `bank_call_duration_seconds`, read through ECS Exec on
+     all tasks.
+2. **Residual cost per month** ≈ `bank_timeout` per day × 30 × the KBank price per `0000` answer.
+   The price comes from the contract or from finance. Cross-check against the KBank invoice when it
+   arrives.
+3. **Compare with phase 2's cost:**
+   - a pending status and a migration;
+   - replay instead of 409 for a slip still in flight;
+   - an async result (poll or webhook);
+   - a merchant API contract change.
+4. **Record the numbers and the operator's decision here.** If this task closes before the 2–4
+   weeks are up, the knowledge closeout carries this as an open follow-up with the date to
+   measure.
+   - If phase 2 goes ahead, open it as a design/decision run first, not an implementation run.
+   - If it does not, record "phase 1 is sufficient" with the numbers.
+
 ## Rollback
 
 - slip-system: revert the PR and redeploy, which brings back 3.05 s and `Unavailable`. No data or
