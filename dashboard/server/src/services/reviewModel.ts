@@ -562,8 +562,18 @@ async function readYamlObject(filePath: string): Promise<Record<string, any> | n
 }
 
 export class ReviewModelService {
+  /**
+   * Same short window RunScanner uses to collapse a burst of readers onto one
+   * snapshot. invalidate() drops it, so a decision, grant, or watcher update
+   * is visible on the next request.
+   */
+  private static readonly RESULT_CACHE_MS = 1000;
   private readonly decisionStore: DecisionStore;
   private pendingRequest: Promise<ReviewSummary[]> | null = null;
+  private cache: ReviewSummary[] | null = null;
+  private cachedAt = 0;
+  /** Bumped by invalidate() so a scan that started earlier cannot refill the cache. */
+  private scanGeneration = 0;
 
   constructor(
     private readonly runsDir: string = config.runsDir,
@@ -575,12 +585,26 @@ export class ReviewModelService {
   }
 
   invalidate(): void {
+    this.cache = null;
+    this.cachedAt = 0;
     this.pendingRequest = null;
+    this.scanGeneration += 1;
   }
 
   getReviewSummaries(): Promise<ReviewSummary[]> {
+    const now = this.clock().getTime();
+    if (this.cache && now - this.cachedAt < ReviewModelService.RESULT_CACHE_MS) {
+      return Promise.resolve(this.cache);
+    }
     if (this.pendingRequest) return this.pendingRequest;
-    const request = this.scanReviewSummaries().finally(() => {
+    const generation = this.scanGeneration;
+    const request = this.scanReviewSummaries().then((summaries) => {
+      if (this.scanGeneration === generation) {
+        this.cache = summaries;
+        this.cachedAt = this.clock().getTime();
+      }
+      return summaries;
+    }).finally(() => {
       if (this.pendingRequest === request) this.pendingRequest = null;
     });
     this.pendingRequest = request;
