@@ -169,10 +169,12 @@ saved by the old image (its fixed map rejects the name) until it is moved back. 
   run migration 070 unchanged at boot. No migration pool/timeout work is required before
   this rollout. Earth accepts the remaining lock/startup risk; published count does not prove
   total rows and DB catalog/locks/size remain unobserved. See `production-migration-plan.md`.
-- After Earth completes staging acceptance through the viewsupat admin UI, schedule a
-  low-traffic window, announce the date and time in the issue before ready/merge, revalidate
-  the release and rollback target, and immediately inspect migration/listener boot logs.
-  Do not rename or delete categories in production until production admin reads the API.
+- In later comment `01a1a714-68e8-72d2-8db0-6f423af93fde`, Earth directed production
+  promotion now and expects frontend checks tomorrow. `staging_acceptance` remains pending
+  until authenticated CRUD/draft checks are observed; do not claim it passed. Announce the
+  planned time in the issue before ready/merge, revalidate release and rollback target, and
+  immediately inspect migration/listener boot logs. Do not rename/delete categories in
+  production until production admin reads the API.
 - Production `slip-api-production:133`, image `production-sha-ccf727d`, was PRIMARY COMPLETED
   3/3 during preflight and is the rollback target. Keep migration 070's schema on image rollback;
   an old binary rejects renamed or new category names. Production has no automatic deployment
