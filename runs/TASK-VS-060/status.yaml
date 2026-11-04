@@ -57,6 +57,13 @@ history:
     tree; clean-head PostgreSQL tests, vet and build passed'
   at: '2026-11-04T08:57:18Z'
   operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev
+  reason: 'authz-001: PR #120 merged as 7598907 with approved tree f18b52ae; Deploy
+    STAGING run 41806442510 succeeded; ECS slip-api-staging:176 image staging-sha-7598907
+    PRIMARY COMPLETED 1/1 HEALTHY; migration 070 and public smoke passed'
+  at: '2026-11-04T09:35:45Z'
+  operator: codex
 completion_gates:
   implementation_verification:
     status: pass
@@ -76,15 +83,29 @@ completion_gates:
       ref: 1ac8e88010632121a08c7319b90a30aa0fdd7360
       url: https://github.com/SparqLab/slip-api/pull/119
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-04T08:23:17Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'authz-001: PR #120 merged as 7598907 with approved tree f18b52ae; Deploy
+      STAGING run 41806442510 succeeded; ECS slip-api-staging:176 image staging-sha-7598907
+      PRIMARY COMPLETED 1/1 HEALTHY; migration 070 and public smoke passed'
+    updated_at: '2026-11-04T09:35:45Z'
+    evidence_refs:
+    - ev-007
+    - ev-008
+    - ev-009
+    - ev-010
+    - ev-011
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: dev
+      ref: 759890768624da5dd2f7ca36271a796c907167fb
+      url: https://github.com/SparqLab/slip-api/actions/runs/41806442510
   staging_acceptance:
     status: pending
     actor: pm
