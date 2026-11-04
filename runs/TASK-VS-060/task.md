@@ -165,8 +165,11 @@ saved by the old image (its fixed map rejects the name) until it is moved back. 
 - Staging deploy passed; authenticated category CRUD and a live hidden-draft check remain
   outstanding for `staging_acceptance`. Do not mark the gate passed without evidence.
 - Migration 070 creates `blog_posts_category_idx` on a live table. The `verifyslip-promote`
-  playbook requires prebuilding indexes concurrently in a 01:00–05:00 Bangkok window and
-  verifying the index before rollout. Plan and schedule this before merging the production PR.
+  playbook requires prebuilding that index concurrently in a 01:00–05:00 Bangkok window if
+  an exact valid index is not already present. New category-table indexes need no prebuild.
+  Prebuilding does not remove the remaining `ACCESS EXCLUSIVE` lock and FK validation.
+  See `production-migration-plan.md` and `production-preflight.sql`: DB catalog/locks/size
+  are not yet observed, and a bounded boot migration session still needs a reviewed plan.
 - Production `slip-api-production:133`, image `production-sha-ccf727d`, was PRIMARY COMPLETED
   3/3 during preflight and is the rollback target. Keep migration 070's schema on image rollback;
   an old binary rejects renamed or new category names. Production has no automatic deployment
