@@ -363,7 +363,7 @@ test('getReviewSummaries loads a gate view only for tasks with completion_gates'
   assert.equal(byId['TASK-002'].actionKind, 'authorization_required');
 });
 
-test('concurrent review requests share one scan, then a later request scans again', async () => {
+test('concurrent review requests share one scan, a follow-up inside 1s reuses it, and a later one scans again', async () => {
   const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-coalesce-'));
   const taskDir = path.join(runsDir, 'TASK-001');
   await fs.mkdir(taskDir);
@@ -371,8 +371,9 @@ test('concurrent review requests share one scan, then a later request scans agai
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
   let scans = 0;
+  let now = 1_700_000_000_000;
   const gateViews = { load: async () => { scans += 1; await held; return gateView([]); } };
-  const service = new ReviewModelService(runsDir, gateViews as unknown as GateViewService);
+  const service = new ReviewModelService(runsDir, gateViews as unknown as GateViewService, () => new Date(now));
 
   const first = service.getReviewSummaries();
   const second = service.getReviewSummaries();
@@ -381,8 +382,13 @@ test('concurrent review requests share one scan, then a later request scans agai
   assert.deepEqual(a, b);
   assert.equal(scans, 1);
 
+  const reused = await service.getReviewSummaries();
+  assert.equal(reused[0].taskId, a[0].taskId);
+  assert.equal(scans, 1, 'a request inside the 1s window reuses the scan');
+
+  now += 1000;
   await service.getReviewSummaries();
-  assert.equal(scans, 2);
+  assert.equal(scans, 2, 'once the window has passed, the next request scans again');
 });
 
 test('review request after recording a decision sees the new decision', async () => {
@@ -396,8 +402,59 @@ test('review request after recording a decision sees the new decision', async ()
   await new DecisionStore(runsDir).append('TASK-001', {
     decision: 'approve', actor: 'operator', decidedAt: '2026-10-23T00:00:00Z',
   });
+  // routes/decisions.ts invalidates after a successful append. The service does not watch the file.
+  service.invalidate();
   const after = (await service.getReviewSummaries())[0];
   assert.equal(after.actionKind, 'decision_pending');
+});
+
+test('a scan that started before invalidate does not refill the cache over newer data', async () => {
+  const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-cache-stale-'));
+  const taskDir = path.join(runsDir, 'TASK-001');
+  await fs.mkdir(taskDir);
+  await fs.writeFile(path.join(taskDir, 'status.yaml'), yaml.dump({ phase: 'in_review', completion_gates: {} }));
+
+  let now = 1_700_000_000_000;
+  let firstEntered!: () => void;
+  let secondEntered!: () => void;
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  const firstSeen = new Promise<void>((resolve) => { firstEntered = resolve; });
+  const secondSeen = new Promise<void>((resolve) => { secondEntered = resolve; });
+  const firstHeld = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  const secondHeld = new Promise<void>((resolve) => { releaseSecond = resolve; });
+  let scans = 0;
+  const gateViews = { load: async () => {
+    const scan = ++scans;
+    if (scan === 1) { firstEntered(); await firstHeld; }
+    if (scan === 2) { secondEntered(); await secondHeld; }
+    return gateView([]);
+  } };
+  const service = new ReviewModelService(runsDir, gateViews as unknown as GateViewService, () => new Date(now));
+
+  const first = service.getReviewSummaries();
+  await firstSeen;
+  try {
+    await new DecisionStore(runsDir).append('TASK-001', {
+      decision: 'approve', actor: 'operator', decidedAt: '2026-10-23T00:00:00Z',
+    });
+    service.invalidate();
+    const second = service.getReviewSummaries();
+    await secondSeen;
+    releaseSecond();
+    assert.equal((await second)[0].actionKind, 'decision_pending');
+
+    releaseFirst();
+    await first;
+
+    const scansAfterFresh = scans;
+    const cached = await service.getReviewSummaries();
+    assert.equal(cached[0].actionKind, 'decision_pending', 'the stale scan must not replace the fresh cache');
+    assert.equal(scans, scansAfterFresh, 'the request inside the window is served from the post-invalidate cache');
+  } finally {
+    releaseFirst();
+    releaseSecond();
+  }
 });
 
 test('invalidating an in-flight review scan starts a fresh scan and keeps it pending', async () => {
@@ -470,7 +527,7 @@ function office(runsDir: string, script: string, ...args: string[]): void {
   execFileSync('ruby', [path.join(OFFICE_ROOT, 'scripts', script), ...args], { env, stdio: 'pipe' });
 }
 
-test('a grant recorded between two reads changes the kind: nothing is cached', async () => {
+test('a grant recorded between two reads changes the kind once the watcher invalidates', async () => {
   const runsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'review-grant-'));
   await fs.mkdir(path.join(runsDir, 'TASK-001'));
   await fs.writeFile(path.join(runsDir, 'TASK-001', 'status.yaml'), yaml.dump(governedStatus('TASK-001')));
@@ -479,6 +536,9 @@ test('a grant recorded between two reads changes the kind: nothing is cached', a
   const before = (await service.getReviewSummaries())[0];
   assert.equal(before.actionKind, 'authorization_required', before.actionReason ?? '');
   office(runsDir, 'record-authorization.rb', 'TASK-001', 'grant', '--action', 'deploy_staging', '--scope', 'staging', '--actor', 'operator', '--via', 'chat', '--reason', 'ok');
+  // The grant writes authorization.yaml. index.ts clears this cache from the watcher 'update'
+  // event, and a grant expiring reaches that same event via GateViewService.onGrantExpiry.
+  service.invalidate();
   const after = (await service.getReviewSummaries())[0];
   assert.equal(after.actionKind, null);
   assert.deepEqual(after.gates, { readable: true, total: 1, resolved: 0, passable: 1, items: [{ name: 'deploy', status: 'pending', resolved: false }] });
