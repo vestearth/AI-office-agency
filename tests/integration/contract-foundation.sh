@@ -221,6 +221,8 @@ RUBY
 
 echo "== Scenario 10: runs/ team-sync allowlist is enforced =="
 ruby - "$ROOT_DIR" <<'RUBY'
+require "open3"
+
 root = ARGV[0]
 tracked = Dir.chdir(root) { `git ls-files runs`.lines.map(&:strip).reject(&:empty?) }
 
@@ -237,17 +239,44 @@ allowed_patterns = [
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/evidence-freshness\.yaml\z},
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/preflight\.yaml\z},
   %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/authorization\.yaml\z},
-  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/win-definition-spec\.md\z}
+  %r{\Aruns/TASK(?:-[A-Z][A-Z0-9]*)?-\d+/win-definition-spec\.md\z},
+  # Task-specific rollout evidence; mirrored in .gitignore.
+  %r{\Aruns/TASK-VS-060/production-migration-plan\.md\z},
+  %r{\Aruns/TASK-VS-060/production-preflight\.sql\z},
+  %r{\Aruns/TASK-VS-060/production-service-windows\.py\z}
 ]
+
+production_evidence = %w[
+  production-migration-plan.md
+  production-preflight.sql
+  production-service-windows.py
+]
+boundary_cases = production_evidence.flat_map do |name|
+  [
+    ["runs/TASK-VS-060/#{name}", true],
+    ["runs/TASK-VS-061/#{name}", false],
+    ["runs/TASK-VS-060/#{name}.bak", false]
+  ]
+end
+boundary_cases << ["runs/TASK-VS-060/unrelated.sql", false]
+boundary_cases << ["runs/TASK-VS-060/unrelated.py", false]
+boundary_cases.each do |path, expected_allowed|
+  allowed = allowed_patterns.any? { |pattern| path.match?(pattern) }
+  abort "[FAIL] runs allowlist boundary: #{path} allowed=#{allowed}, expected #{expected_allowed}" unless allowed == expected_allowed
+
+  _, stderr, status = Open3.capture3("git", "-C", root, "check-ignore", "--no-index", path)
+  abort "[FAIL] git check-ignore: #{stderr}" unless [0, 1].include?(status.exitstatus)
+  abort "[FAIL] .gitignore boundary: #{path}" unless (status.exitstatus == 1) == expected_allowed
+end
 
 # The .gitignore allowlist and this one must move together: a file re-included
 # there but missing here fails only once someone commits it, long after the
 # decision that allowed it.
 gitignored = File.read(File.join(root, ".gitignore"), encoding: "UTF-8").lines.map(&:strip)
-  .grep(%r{\A!runs/\*/}).map { |line| line.delete_prefix("!runs/*/") }
-  .reject(&:empty?)
-unmirrored = gitignored.reject do |name|
-  sample = "runs/TASK-X-1/#{name.sub('*', 'reviewer')}"
+  .grep(%r{\A!runs/}).reject { |line| line.end_with?("/") }
+  .map { |line| line.delete_prefix("!") }
+unmirrored = gitignored.reject do |path|
+  sample = path.sub("runs/*/", "runs/TASK-X-1/").sub('*', 'reviewer')
   allowed_patterns.any? { |pattern| sample.match?(pattern) }
 end
 abort "[FAIL] .gitignore re-includes runs files this allowlist does not: #{unmirrored.join(', ')}" unless unmirrored.empty?
