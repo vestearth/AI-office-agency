@@ -74,6 +74,18 @@ Measured without bank data. Raw dumps (counters only, no personal data) are in
 4. **Server/client ratio:** over the 7 days to 2026-11-03, slip-system `AWS/ECS GrpcRequestCount`
    (DiscoveryName=slip-system) exceeded slip-api `RequestCountPerTarget`
    (ServiceName=slip-api-production) by −144 to +2,049 calls per day. That gap is the proxy retries.
+5. **slip-api `slip_verify` log, 2026-11-03 07:42Z → 2026-11-04 07:42Z** (counts and `duration_ms`
+   only):
+   - 1,416 verifies returned 200 after more than 3 s: p50 3.29 s, max 14.3 s; 148 above 3.5 s,
+     40 above 5 s.
+   - That is almost exactly the 1,401 `bank_network` lines, while only 6 verifies returned 502. So
+     nearly every timeout was retried by the proxy and succeeded on the second call, which means
+     about 1,400 slips per day cost two KBank calls.
+   - The same hour sample shows 21,794 of 21,807 verifies sent no `Idempotency-Key` (warning
+     `verify without Idempotency-Key`). A merchant resend therefore always reaches the bank again.
+     A resend of a slip that did verify gets 409 with the original slip data
+     (`duplicateResponse` → `withVerifiedSlip`).
+   - 408 (client gave up): 27 in 24 h, 24 of them under 1 s, one at 5–10 s, one at 11.1 s.
 
 ## Why both changes, and why together
 
@@ -185,13 +197,20 @@ the same 502 "bank verifier unavailable" + `Retry-After: 30` as an 8500, with no
   task definition. If it is lower than 15 s, 12 s no longer fits. The task definition holds plaintext
   secrets, so filter for that variable name only and never print the whole env.
 
-- **Merchant client timeout:** a merchant whose own HTTP timeout is below about 12 s now gives up
-  before we do. If it then resends, that is another billed call.
+- **Merchant client timeout (not a blocker):** a merchant whose own HTTP timeout is below about 12 s
+  would give up before we do. If it then resends, that is another billed call.
   - Today one merchant (`84006774…`) sends all API verifies (TASK-VS-057).
-  - Before `deploy_production`, the operator asks that merchant for its client timeout. It should
-    be at least 15 s.
-  - Baseline for client give-ups: slip-system `bank_calls_total{status="canceled"}` was 153 in 4.28
-    days, and gRPC `Canceled` was 154. slip-api logs these as 408.
+  - The logs already show it waits longer than 12 s. Baseline item 5 has 40 successful verifies
+    above 5 s and one at 14.3 s that completed as 200. Client disconnects do reach slip-api (the 408s
+    at 5–10 s and 11.1 s), so a client that had left would show as 408. The 408s do not cluster at
+    any value below 12 s.
+  - Asking the merchant for its timeout is a confirmation, not a prerequisite for
+    `deploy_production`. Production acceptance item 4 (408 / `canceled` must not rise) catches a
+    shorter timeout; if 408s rise, roll back.
+  - Baseline for client give-ups: 27 slip-api 408s per day; slip-system
+    `bank_calls_total{status="canceled"}` was 153 in 4.28 days, and gRPC `Canceled` was 154.
+  - Separate follow-up, not this task: ask the merchant to send `Idempotency-Key` and keep it across
+    resends. Without it, every resend calls KBank again.
 
 ## Load-test impact (jaview `60 Loadtest`, 2026-09-24 — TASK-VS-003)
 
