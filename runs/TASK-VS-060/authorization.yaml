@@ -13,3 +13,13 @@ authorizations:
   scope: 'slip-api draft PR #120 only: main 1ac8e880 -> staging ccf727d, dry-run tree
     f18b52ae, TASK-VS-060 blog categories including migration 070; staging only, not
     production/admin/landing'
+- id: authz-002
+  type: grant
+  actor: earth
+  via: Multica issue comment 01a1a640-a7a9-7622-9923-3e953cfaf7b4
+  reason: Earth requested promotion of VS-060 to production; staging acceptance and
+    migration preflight remain outstanding
+  at: '2026-11-04T11:11:46Z'
+  action: deploy_production
+  scope: slip-api TASK-VS-060 promotion staging to production including migration
+    070; admin and landing excluded

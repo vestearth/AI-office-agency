@@ -154,3 +154,20 @@ saved by the old image (its fixed map rejects the name) until it is moved back. 
   "on prod", check `origin/prod` ancestry and the running ECS image.
 - Multica agents run in place in `/Users/earth/Documents/GitHub`. Touch only slip-api in this
   run; `Games-Lab-Android/` is read-only.
+
+## Production preflight (2026-11-04)
+
+- Earth requested production promotion in Multica comment `01a1a640-a7a9-7622-9923-3e953cfaf7b4`;
+  recorded as `authz-002`. This does not claim that staging acceptance has passed.
+- Draft PR https://github.com/SparqLab/slip-api/pull/121 targets `prod` `ccf727d` from
+  `release/TASK-VS-060-production` `ea9893ad`; its tree `f18b52ae20e6b29a8bd9f8936dc90afb09c12be1`
+  equals staging `7598907`. The only non-merge commit in scope is `e90641b8` (VS-060).
+- Staging deploy passed; authenticated category CRUD and a live hidden-draft check remain
+  outstanding for `staging_acceptance`. Do not mark the gate passed without evidence.
+- Migration 070 creates `blog_posts_category_idx` on a live table. The `verifyslip-promote`
+  playbook requires prebuilding indexes concurrently in a 01:00–05:00 Bangkok window and
+  verifying the index before rollout. Plan and schedule this before merging the production PR.
+- Production `slip-api-production:133`, image `production-sha-ccf727d`, was PRIMARY COMPLETED
+  3/3 during preflight and is the rollback target. Keep migration 070's schema on image rollback;
+  an old binary rejects renamed or new category names. Production has no automatic deployment
+  circuit-breaker rollback. No production deploy or schema operation was performed in preflight.
