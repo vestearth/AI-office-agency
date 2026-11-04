@@ -51,14 +51,30 @@ history:
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-04T08:23:17Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'Michael approved PR #119 at e90641b8; merged as 1ac8e880 with identical
+    tree; clean-head PostgreSQL tests, vet and build passed'
+  at: '2026-11-04T08:57:18Z'
+  operator: codex
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-04T08:23:17Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'Michael approved PR #119 at e90641b8; merged as 1ac8e880 with identical
+      tree; clean-head PostgreSQL tests, vet and build passed'
+    updated_at: '2026-11-04T08:57:18Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
+    - ev-004
+    - ev-005
     requires_record: true
+    ran:
+      by: dev
+      ref: 1ac8e88010632121a08c7319b90a30aa0fdd7360
+      url: https://github.com/SparqLab/slip-api/pull/119
   deploy_staging:
     status: pending
     actor: pm
