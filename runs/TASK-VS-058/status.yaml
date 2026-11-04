@@ -13,7 +13,7 @@ assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-02'
-updated_at: '2026-11-02'
+updated_at: '2026-11-04'
 history:
 - phase: created -> assigned
   agent: pm
@@ -148,6 +148,16 @@ history:
     remains for Earth under production_acceptance.'
   at: '2026-11-02T10:31:06Z'
   operator: codex
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: pm
+  reason: 'slip-api only (decision 11). Prod :128 (production-sha-e0ddd56): task env
+    as expected (ev-058), API/CORS/admin 401/verify 401 (ev-059), 0 blog 5xx and no
+    ERROR or fatal around the rollout, migration 069 once (ev-065, ev-066). Cover
+    upload not exercised on prod (ev-067, ev-068); operator-attested: Earth accepted
+    the staging upload and CDN copy (ev-045, ev-046) instead (decision 12). Unverified:
+    the key pair''s PutObject on upslip-assets-prod'
+  at: '2026-11-04T08:34:21Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -246,14 +256,30 @@ completion_gates:
       ref: e0ddd56dbf5a4b33720738d27cff2083b152b923
       url: https://github.com/SparqLab/slip-api/actions/runs/41426709199
   production_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-02T03:34:56Z'
-    evidence_refs: []
+    reason: 'slip-api only (decision 11). Prod :128 (production-sha-e0ddd56): task
+      env as expected (ev-058), API/CORS/admin 401/verify 401 (ev-059), 0 blog 5xx
+      and no ERROR or fatal around the rollout, migration 069 once (ev-065, ev-066).
+      Cover upload not exercised on prod (ev-067, ev-068); operator-attested: Earth
+      accepted the staging upload and CDN copy (ev-045, ev-046) instead (decision
+      12). Unverified: the key pair''s PutObject on upslip-assets-prod'
+    updated_at: '2026-11-04T08:34:21Z'
+    evidence_refs:
+    - ev-045
+    - ev-046
+    - ev-058
+    - ev-059
+    - ev-065
+    - ev-066
+    - ev-067
+    - ev-068
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: operator
+      ref: 'Earth decision 12, 2026-11-04: staging upload evidence accepted for production'
   storage_role:
     status: na
     actor: pm

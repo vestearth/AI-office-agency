@@ -170,6 +170,20 @@ including a per-article cover upload with the existing SVG preset as fallback.
     - Backend follow-ups stay with the squad: 413 over 5 MiB, field names in
       validation errors, byte limits in the README, and the key follow-ups of
       decision 10.
+12. **Production acceptance uses the staging upload (2026-11-04, Earth).** No cover has
+    been uploaded on prod: the slip-api prod logs from `:128` COMPLETED (2026-11-02
+    10:23:17Z) to 2026-11-04 08:30Z hold no 2xx `POST .../cover` (`ev-067`, `ev-068`).
+    Earth accepts the staging upload (`ev-045`, `ev-046`) together with the prod checks
+    (`ev-058` task env, `ev-059` API/CORS, `ev-065`/`ev-066` logs and startup) instead of
+    a prod upload.
+    - Not verified on prod: that the shared key pair can `PutObject` into
+      `upslip-assets-prod`, and that the prod CDN serves `/blog/`. vestearth cannot read
+      the key's IAM policy. If the first real prod upload fails with 503 or a storage
+      error, check that key's permission on the prod bucket first.
+    - Admin prod (`slip-admin-production:79`, `NUXT_PUBLIC_API_BASE=https://api.up-slip.com`)
+      and landing prod went live on 2026-11-04 (viewsupat). The prod CORS preflight for
+      `POST .../cover` from `https://admin.up-slip.com` answers 204 with POST and
+      `Authorization` allowed.
 
 Defaults from the proposal, not contested: Thai only; the existing admin accounts
 write and publish; publishing is immediate (no schedule); slug is editable while
