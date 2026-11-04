@@ -1,0 +1,122 @@
+summary: |
+  CURRENT Nov3: Wallet PR60 and Order PR87 merged into staging and automatic deploys completed in Wallet-first order (Wallet82/688fd85, Order107/a5367df). Config hashes, expected digests, health and bounded read-only committed outcomes/events verified; scoped App acceptance passes with operator DIAMOND N/A. Historical recovery remains pending. Earlier narrative below is historical, not current draft/acceptance state.
+  Operator-approved B1/R1(new records)/M1/M2 remediation implemented, tested on clean commits, pushed and independently approved by Multica. Full real PostgreSQL/RabbitMQ/fresh-schema suites passed with zero skips (Wallet268, Order312), plus targeted race/build/vet. Authorized Wallet-first DEV rollout completed: Wallet81/ec69292 then Order106/5d6d897, healthy/steady, expected digests, HTTP200, unchanged secret names and only approved Wallet APP_ENV config addition. Read-only App/original payment checks retain paid/fulfilled and exact original operations/two ledger credits; existing App order/redemption events remain published and new-task backlog pending0/dead0. Historical inspector guard/data unchanged; no new financial QA or apply. Both PRs remain draft/unmerged. Fresh full App acceptance and selected historical-redemption/raw evidence remain open.
+artifacts:
+  - path: Games-Labs-Order/migrations/048_create_order_activity_outbox.sql
+    action: created
+  - path: Games-Labs-Order/infrastructures/rabbitmq.go
+    action: modified
+  - path: Games-Labs-Order/infrastructures/activity_outbox.go
+    action: created
+  - path: Games-Labs-Order/internal/core/repositories/activity_outbox.go
+    action: created
+  - path: Games-Labs-Order/internal/core/services/ordersvc/service.go
+    action: modified
+  - path: Games-Labs-Order/cmd/activity_recovery.go
+    action: created
+  - path: Games-Labs-Order/docs/order-activity-outbox.md
+    action: created
+  - path: Games-Labs-Wallet/cmd/reconcile.go
+    action: created
+  - path: Games-Labs-Wallet/internal/core/services/paymentsvc/reconciliation.go
+    action: created
+  - path: Games-Labs-Wallet/docs/payment-reconciliation.md
+    action: created
+  - path: Games-Labs-Wallet/Dockerfile
+    action: modified
+  - path: Games-Labs-Wallet/.dockerignore
+    action: created
+  - path: ai-dev-office/runs/TASK-EAR-419/multica-handoff.md
+    action: created
+next_action:
+  agent: reviewer
+  reason: Independent candidate review and Wallet-first DEV rollout pass. Await App fresh Card/PromptPay/POINT/DIAMOND IDs and exact original-redemption selection/raw evidence; preserve strict historical rejection and do not redeploy/reapply without a new reason. Codex updates existing SPAR-54 per operator authorization.
+context_sources:
+  github:
+    branch: task/TASK-EAR-419
+    pr: https://github.com/SparqLab/Games-Labs-Order/pull/87
+  socraticode:
+    status: fallback
+    queries:
+      - codebase_status remote d:\llm and local workspace, then CLI fallback
+    relevant_symbols:
+      - ConfirmPayment and redeemItemTx
+      - completeStripeCheckoutSuccess and RewardPackage
+    notes: MCP and CLI providers were unavailable; current source, pinned SDK, regression tests and real local integrations were used.
+evidence_refs:
+  - ev-008
+  - ev-022
+  - ev-023
+  - ev-026
+  - ev-032
+  - ev-034
+  - ev-039
+  - ev-040
+  - ev-041
+  - ev-042
+  - ev-043
+  - ev-044
+  - ev-045
+  - ev-046
+  - ev-047
+  - ev-048
+  - ev-049
+  - ev-050
+  - ev-058
+  - ev-059
+  - ev-062
+  - ev-064
+  - ev-065
+  - ev-067
+  - ev-068
+  - ev-069
+  - ev-074
+  - ev-075
+  - ev-076
+  - ev-077
+  - ev-078
+  - ev-080
+  - ev-081
+  - ev-084
+  - ev-086
+  - ev-087
+  - ev-088
+  - ev-089
+  - ev-090
+  - ev-091
+  - ev-093
+  - ev-094
+  - ev-095
+  - ev-096
+  - ev-097
+  - ev-098
+  - ev-099
+  - ev-100
+  - ev-101
+  - ev-102
+  - ev-103
+  - ev-105
+  - ev-106
+  - ev-108
+  - ev-109
+  - ev-110
+  - ev-111
+  - ev-113
+  - ev-114
+  - ev-115
+  - ev-116
+  - ev-117
+  - ev-118
+  - ev-119
+  - ev-120
+  - ev-121
+  - ev-122
+  - ev-123
+  - ev-124
+  - ev-125
+  - ev-126
+  - ev-127
+blockers:
+  - Operator chose to wait for App to identify the one original redemption among three succeeded candidates; no redemption apply performed.
+  - Previously inspected Oct30 POINT rows still have matches=false; correcting new request mapping does not repair historical reasons/sources. Historical support is deferred pending exact selection/raw owned evidence, without relaxing the guard or rewriting ledgers.
+  - Initial AMQP disconnect trigger remains unconfirmed. The scoped original recovery and fresh App cases do not establish outcomes for all accounts or methods/currencies.

@@ -1,0 +1,351 @@
+---
+task_id: TASK-EAR-419
+task_label: Games Labs payment and redemption durable event delivery and DEV recovery
+phase: in_review
+state: in_review
+iteration: 5
+current_agent: reviewer
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev-2
+  parallel: false
+created_at: '2026-10-29'
+updated_at: '2026-11-03'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, migration_replay, payment_redeem_recovery, knowledge_closeout'
+  at: '2026-10-29T08:36:50Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-10-29T08:36:50Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-10-29T08:36:50Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-10-29T08:36:50Z'
+  operator: codex
+- phase: 'gate migration_replay: absent -> pending'
+  agent: pm
+  reason: Order outbox migration must pass empty database and repeated boot tests
+  at: '2026-10-29T08:36:50Z'
+  operator: codex
+- phase: 'gate payment_redeem_recovery: absent -> pending'
+  agent: pm
+  reason: Verify and recover the allowlisted DEV payment and affected user's redemption
+    attempts using original idempotency
+  at: '2026-10-29T08:36:50Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-10-29T08:36:50Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261029T104135Z-01a1866b-games-labs-payment-redeem.yaml'
+  at: '2026-10-29T10:41:35Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev-2
+  reason: Local source review and unit/integration/race/build/vet checks passed; independent
+    review and DEV gates remain pending.
+  at: '2026-10-29T10:43:05Z'
+  operator: codex
+- phase: 'gate migration_replay: pending -> pass'
+  agent: dev-2
+  reason: Fresh Order schema SQL resolution and populated outbox migration replay
+    preserve rows and immutable payloads.
+  at: '2026-10-29T10:43:05Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Operator will send the concrete draft PRs and handoff to Multica for independent
+    review before staged DEV rollout and recovery.
+  at: '2026-10-29T10:43:05Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: dev-2
+  reason: 'Authorized staged DEV rollouts succeeded: Order foundation104 then atomic105,
+    Wallet80 after minimal Docker auth repair; expected image digests, steady healthy1/1,
+    HTTP200 and unchanged config hashes verified.'
+  at: '2026-10-29T11:37:11Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261029T115525Z-01a1866b-games-labs-payment-redeem.yaml'
+  at: '2026-10-29T11:55:25Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev-2
+  reason: Operator sends updated draft PRs and DEV evidence to Multica; App owns remaining
+    acceptance and matching original redemption IDs. Keep runtime gates pending until
+    those are verified.
+  at: '2026-10-29T11:59:07Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261029T120421Z-01a1866b-games-labs-payment-redeem.yaml'
+  at: '2026-10-29T12:04:21Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev-2
+  reason: Operator sends updated draft PRs and DEV evidence to Multica; App owns remaining
+    acceptance and matching original redemption IDs. Keep runtime gates pending until
+    those are verified.
+  at: '2026-10-29T12:07:38Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261030T051056Z-01a1866b-games-labs-payment-redeem.yaml'
+  at: '2026-10-30T05:10:56Z'
+  operator: codex
+- phase: in_review -> assigned
+  agent: dev-2
+  reason: Operator accepted Wallet-owned serialization and fixing new redemption fields;
+    historical recovery remains gated. Implement B1/R1 and M1/M2 with regression evidence,
+    then return to independent Multica review.
+  at: '2026-10-30T07:17:04Z'
+  operator: codex
+- phase: 'gate review_remediation: absent -> pending'
+  agent: pm
+  reason: Independent Multica re-review of Order5d6d897/Wallet ec69292 and subsequent
+    Wallet-first DEV deployment verification remain required; the earlier deploy_staging
+    pass records older candidates only.
+  at: '2026-10-30T07:39:45Z'
+  operator: codex
+- phase: 'gate implementation_verification: pass -> pass'
+  agent: dev-2
+  reason: 'Review remediation verified on clean final Order5d6d897/Wallet ec69292:
+    full PostgreSQL/RabbitMQ suites and fresh schemas, no skips, concurrent reward
+    replay, HTTP redemption compatibility/strict legacy rejection, DEV/allowlist guards,
+    race, readonly build/vet.'
+  at: '2026-10-30T07:41:16Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261030T074533Z-01a1866b-games-labs-payment-redeem.yaml'
+  at: '2026-10-30T07:45:33Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev-2
+  reason: Multica independently re-reviews Order5d6d897/Wallet ec69292 against B1/R1/M1/M2
+    and documented minor dispositions. New Wallet-first DEV rollout still required;
+    preserve App-owned acceptance and original-record selection, and strict historical
+    rejection. Codex may update existing SPAR-54 per operator authorization.
+  at: '2026-10-30T07:46:40Z'
+  operator: codex
+- phase: 'gate deploy_staging: pass -> pass'
+  agent: dev-2
+  reason: Reviewed Wallet ec69292 deployed FIRST as81 and verified healthy/steady/digest/config/HTTP
+    before Order5d6d897 deployed as106; both Actions runs successful. Only approved
+    Wallet APP_ENV addition; other configuration hashes and secret names unchanged.
+    No merge/prod/recovery apply.
+  at: '2026-10-30T09:06:49Z'
+  operator: codex
+- phase: 'gate review_remediation: pending -> pass'
+  agent: reviewer
+  reason: Multica SPAR-54 independently approved exact candidate code SHAs and closed
+    blocking B1/R1(new records)/M1/M2; authorized Wallet-first DEV rollout then passed
+    expected digest/health/config and read-only original-ledger/event smoke. Fresh
+    full App acceptance and original historical recovery remain separately pending.
+  at: '2026-10-30T09:06:50Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev-2
+  reason: Independent candidate review and Wallet-first DEV rollout pass. Await App
+    fresh Card/PromptPay/POINT/DIAMOND IDs and exact original-redemption selection/raw
+    evidence; preserve strict historical rejection and do not redeploy/reapply without
+    a new reason. Codex updates existing SPAR-54 per operator authorization.
+  at: '2026-10-30T09:09:26Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261030T090959Z-01a1866b-games-labs-payment-redeem.yaml'
+  at: '2026-10-30T09:09:59Z'
+  operator: codex
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: Operator explicitly excludes DIAMOND redemption as N/A for App acceptance
+    (believed unavailable Admin configuration). Fresh November3 PromptPay/Card/POINT
+    reports match backend original quoted credits, one strict POINT debit and published
+    events on corrected running candidates. No DIAMOND test pass or complete historical
+    recovery is claimed.
+  at: '2026-11-03T03:41:44Z'
+  operator: codex
+- phase: 'gate deploy_staging: pass -> pass'
+  agent: dev-2
+  reason: Operator-authorized staging merge/redeploy completed Wallet first then Order.
+    Both merge application trees equal exact reviewed candidates (ev-149). Wallet82/688fd85
+    run41574253057 and Order107/a5367df run41574734980 succeeded; healthy steady1/1,
+    expected digests, HTTP200 and unchanged immediate pre-merge env/secret-reference
+    hashes. Read-only Order outcomes/events retained; no replay or production action.
+  at: '2026-11-03T03:58:08Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261103T035829Z-codex-01a19bc9-profile-settings-history.yaml'
+  at: '2026-11-03T03:58:29Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev-2
+    reason: 'Review remediation verified on clean final Order5d6d897/Wallet ec69292:
+      full PostgreSQL/RabbitMQ suites and fresh schemas, no skips, concurrent reward
+      replay, HTTP redemption compatibility/strict legacy rejection, DEV/allowlist
+      guards, race, readonly build/vet.'
+    updated_at: '2026-10-30T07:41:16Z'
+    evidence_refs:
+    - ev-096
+    - ev-097
+    - ev-098
+    - ev-100
+    - ev-102
+    - ev-105
+    - ev-106
+    - ev-108
+    - ev-109
+    - ev-110
+    - ev-111
+    - ev-113
+    - ev-114
+    - ev-115
+    requires_record: true
+    ran:
+      by: Codex
+      ref: Order@5d6d897d7756ceacf21419b78bdb7075231bf25f;Wallet@ec69292c8732d8fd85d5bc181c2b8e9bdb8660c7
+      url: https://github.com/SparqLab/Games-Labs-Wallet/pull/60
+  deploy_staging:
+    status: pass
+    actor: dev-2
+    reason: Operator-authorized staging merge/redeploy completed Wallet first then
+      Order. Both merge application trees equal exact reviewed candidates (ev-149).
+      Wallet82/688fd85 run41574253057 and Order107/a5367df run41574734980 succeeded;
+      healthy steady1/1, expected digests, HTTP200 and unchanged immediate pre-merge
+      env/secret-reference hashes. Read-only Order outcomes/events retained; no replay
+      or production action.
+    updated_at: '2026-11-03T03:58:08Z'
+    evidence_refs:
+    - ev-141
+    - ev-143
+    - ev-144
+    - ev-145
+    - ev-146
+    - ev-148
+    - ev-149
+    - ev-150
+    - ev-151
+    - ev-152
+    - ev-153
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-004
+    authorization_through: authz-004
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: GitHub-Actions-and-Codex
+      ref: Wallet688fd855fbfd26a548c90a12a71daf529f231d5a:41574253057; Ordera5367df010dc31ef1db33bee6f0ca8f876bd6cb7:41574734980
+      url: https://github.com/SparqLab/Games-Labs-Order/actions/runs/41574734980
+  staging_acceptance:
+    status: pass
+    actor: reviewer
+    reason: Operator explicitly excludes DIAMOND redemption as N/A for App acceptance
+      (believed unavailable Admin configuration). Fresh November3 PromptPay/Card/POINT
+      reports match backend original quoted credits, one strict POINT debit and published
+      events on corrected running candidates. No DIAMOND test pass or complete historical
+      recovery is claimed.
+    updated_at: '2026-11-03T03:41:44Z'
+    evidence_refs:
+    - ev-134
+    - ev-135
+    - ev-136
+    - ev-137
+    - ev-138
+    - ev-139
+    - ev-140
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: App-and-Codex
+      ref: Nov3-App-report; Wallet81/ec69292; Order106/5d6d897; app-acceptance-20261103.md;
+        operator DIAMOND N/A
+  migration_replay:
+    status: pass
+    actor: dev-2
+    reason: Fresh Order schema SQL resolution and populated outbox migration replay
+      preserve rows and immutable payloads.
+    updated_at: '2026-10-29T10:43:05Z'
+    evidence_refs:
+    - ev-034
+    - ev-041
+  payment_redeem_recovery:
+    status: pending
+    actor: pm
+    reason: Verify and recover the allowlisted DEV payment and affected user's redemption
+      attempts using original idempotency
+    updated_at: '2026-10-29T08:36:50Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261103T035829Z-codex-01a19bc9-profile-settings-history.yaml'
+    updated_at: '2026-11-03T03:58:29Z'
+    evidence_refs: []
+  review_remediation:
+    status: pass
+    actor: reviewer
+    reason: Multica SPAR-54 independently approved exact candidate code SHAs and closed
+      blocking B1/R1(new records)/M1/M2; authorized Wallet-first DEV rollout then
+      passed expected digest/health/config and read-only original-ledger/event smoke.
+      Fresh full App acceptance and original historical recovery remain separately
+      pending.
+    updated_at: '2026-10-30T09:06:50Z'
+    evidence_refs:
+    - ev-105
+    - ev-113
+    - ev-114
+    - ev-117
+    - ev-118
+    - ev-119
+    - ev-120
+    - ev-122
+    - ev-123
+    - ev-124
+    - ev-125
+    - ev-126
+    - ev-127
+    after:
+    - implementation_verification
+    ran:
+      by: Multica-and-Codex
+      ref: SPAR-54 approve Wallet ec69292/Order5d6d897; DEV Wallet81 then Order106
+      url: https://multica.ai/sparqlab-dev/issues/01a18ae4-90dd-7dad-9a20-850add488b4a
+handoff:
+  from: dev-2
+  to: reviewer
+  artifact: runs/TASK-EAR-419/dev-2-output.yaml
+last_synced_output:
+  file: dev-2-output.yaml
+  digest: eeebcf16e60ba4375c35c52ba3ea07976a1993112d0a0263192bc9d6579aa5e2
+  next: reviewer

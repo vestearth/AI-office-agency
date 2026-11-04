@@ -1,0 +1,55 @@
+---
+task_id: TASK-EAR-419
+authorizations:
+- id: authz-001
+  type: grant
+  actor: operator
+  via: 'chat: approved implementation plan and continue after handoff'
+  reason: Operator authorized implementation of the scoped plan including staged DEV
+    validation/allowlisted recovery and explicitly requested continuation after the
+    implementation handoff; this records that DEV authorization, not production or
+    blanket merge approval.
+  at: '2026-10-29T11:03:19Z'
+  action: deploy_staging
+  scope: TASK-EAR-419 Order foundation9d4cdb8 then atomic a67e0b0 and Walletc53823a;
+    existing DEV services only; no merge/prod; preserve config and rollback
+- id: authz-002
+  type: grant
+  actor: operator
+  via: 'chat: approved implementation plan and explicit continue; necessary build
+    repair within that work'
+  reason: The approved Wallet candidate failed the real existing staging Docker build
+    when fetching private shared-lib. Continue the authorized DEV deployment with
+    only the necessary Docker authentication repair; preserve all Go/dependency/API/event
+    versions and runtime config.
+  at: '2026-10-29T11:29:59Z'
+  action: deploy_staging
+  scope: Wallet task/TASK-EAR-419 at560aeaa; c53823a application code plus minimal
+    Docker private-module auth/build-context repair; existing DEV Wallet only, no
+    merge/prod/runtime config change
+- id: authz-003
+  type: grant
+  actor: operator
+  via: 'chat: accepted remediation recommendations and explicit continue after implementation/re-review
+    handoff'
+  reason: Continue the approved DEV plan after independent Multica approval at exact
+    candidate SHAs. Wallet-first rollout closes the already-running DEV duplicate-credit
+    risk; preserve original config except the reviewed non-secret environment marker
+    and retain corrected Wallet on Order rollback.
+  at: '2026-10-30T08:46:09Z'
+  action: deploy_staging
+  scope: Reviewed Wallet ec69292c8732d8fd85d5bc181c2b8e9bdb8660c7 first, then Order5d6d897d7756ceacf21419b78bdb7075231bf25f
+    on existing DEV services only; permit only Wallet APP_ENV=development config addition;
+    no merge, production, financial QA or historical apply
+- id: authz-004
+  type: grant
+  actor: operator
+  via: 'chat: merge pr ที่เกี่ยวข้องได้เลยครับ'
+  reason: Operator explicitly authorized merging related reviewed PRs after scoped
+    App acceptance passed and DIAMOND was excluded as N/A; staging merge automatically
+    deploys under verified workflows.
+  at: '2026-11-03T03:46:53Z'
+  action: deploy_staging
+  scope: Merge reviewed Wallet PR60/ec69292 then Order PR87/5d6d897 into staging;
+    existing automatic staging workflows only, Wallet-first verification, no production
+    or financial replay

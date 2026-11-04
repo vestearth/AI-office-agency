@@ -1,0 +1,106 @@
+task_id: TASK-EAR-419
+capture_type: flow
+target_repo: knowledge-base
+target_note: Knowledge Base/Inbox.md
+summary: Wallet reward serialization, compatible new redemption fields and DEV/owner-bound reconciliation guards passed clean-HEAD real integration tests, independent review and authorized Wallet-first DEV rollout (Wallet81 then Order106). Original ledgers/events remain consistent under read-only smoke. Fresh full App acceptance and selected historical-redemption evidence remain open.
+sources:
+  - Games-Labs-Order@a67e0b0:docs/order-activity-outbox.md
+  - Games-Labs-Order@9d4cdb8:migrations/048_create_order_activity_outbox.sql
+  - Games-Labs-Wallet@560aeaa:docs/payment-reconciliation.md
+  - Games-Labs-Wallet@560aeaa:Dockerfile
+  - Games-Labs-Order@a67e0b0:internal/adapter/walletadt/walletadt.go
+  - Games-Labs-Wallet@560aeaa:internal/core/handlers/wallethdl/wallet_handler.go
+  - Games-Labs-Wallet@560aeaa:internal/repositories/payment_reconciliation.go
+  - Games-Labs-Wallet@ec69292:internal/repositories/wallet.go
+  - Games-Labs-Wallet@ec69292:internal/core/handlers/wallethdl/wallet_handler.go
+  - Games-Labs-Wallet@ec69292:cmd/reconcile.go
+  - Games-Labs-Wallet@ec69292:docs/payment-reconciliation.md
+  - Games-Labs-Order@5d6d897:internal/adapter/walletadt/walletadt.go
+  - Games-Labs-Order@5d6d897:docs/order-activity-outbox.md
+  - ai-dev-office/runs/TASK-EAR-419/multica-handoff.md
+  - ai-dev-office/runs/TASK-EAR-419/evidence.yaml
+  - ai-dev-office/knowledge-reviews/20261029T065940Z-01a1866b-games-labs-payment-redeem.yaml
+recommended_action: add_to_inbox
+requires_human_review: true
+note_patch: |
+  ### Games Labs payment/redeem activity delivery — scoped DEV evidence
+
+  TASK-EAR-419 adds an Order transactional outbox with confirmed, mandatory,
+  persistent AMQP publication and reconnect, fenced leases and aggregate order.
+  At-least-once delivery retains deterministic event IDs; broker ACK is distinct
+  from downstream consumer application. Database/outbox failures remain errors,
+  while a committed outcome no longer depends on broker availability.
+
+  Wallet default-dry-run recovery retrieves authenticated Stripe truth and
+  compares the original quote, owner/references and owned ledgers before
+  replaying original completion. It blocks live, reversed, unsettled or
+  contradictory records; a separate read-only command verifies redemption
+  debits/refunds. Order recovery only enqueues committed outcomes. Legacy
+  redemption catalog labels cannot be reconstructed and are omitted.
+
+  Unit, PostgreSQL/RabbitMQ integration, crash/replay, migration, race, build
+  and vet checks passed. DEV foundation104 was deployed before atomic Order105;
+  Wallet80 followed after a minimal private-module Docker authentication fix.
+  All runtime config hashes match the original revisions. Rollback retains the
+  foundation worker and additive outbox schema/data.
+
+  Authenticated Stripe and Wallet-owned ledger evidence now proves the one
+  allowlisted payment already had its original package credits. Replay repaired
+  paid/failed to paid/fulfilled with the exact same operation and two ledger
+  rows; no replacement credit was created. Both Order events are published and
+  Missions handled the spend event. A Logs-owned read-only query confirms one
+  physical row per original event with its original occurrence time. Earlier
+  diagnostic500 was caused by the inspection query's aggregate alias shadowing
+  its filtered column; correcting the alias proved the projection (ev-086).
+
+  Oct30 App acceptance plus read-only checks verify one paid/fulfilled payment
+  and two successful POINT redemptions (5/30), with their Order events published
+  (ev-089/090/094). One payment does not establish both Card and PromptPay;
+  neither redemption establishes DIAMOND acceptance. Full coverage stays open.
+
+  A recovery precondition is separate from App-visible success: exact-key
+  Wallet reports find one matching-amount debit and no linked refund for each
+  fresh redemption, but matches=false (ev-091/093). Before remediation, source showed the
+  Order HTTP adapter sends reason while Wallet's mux reads reward, and the
+  inspector requires the canonical reason (ev-095). Record this contract trap
+  for review; the raw stored reason was not read, so this likely explanation
+  is not direct raw-record proof. Do not relax the predicate, infer a customer failure, or rewrite
+  original ledgers to pass an inspection. ECS Exec exit0 does not prove child
+  success: read the report and remote failure log. ev-092 used a truncated key
+  and is superseded by the correct-key read ev-093.
+
+  App owns missing payment-method/DIAMOND coverage and original-record selection.
+  Three succeeded redemption candidates were inspected but none applied: the
+  operator explicitly chose to wait for App to identify the original record.
+  Independent review, those runtime gates and the initial disconnect trigger
+  remain open. This updates rather than closes the prior investigation.
+
+  Operator subsequently approved Wallet-owned duplicate-credit prevention and
+  new-record redemption field correction. Wallet ec69292 acquires its existing
+  balance row lock BEFORE inspecting a reward key in the same transaction.
+  Deterministic PG tests reproduced four operations/eight credits before this
+  fix (ev-096); four callers now receive one original operation/two credits
+  (ev-113/114). A processing webhook claim is not an exclusive ledger lease.
+
+  Wallet now accepts POINT reason with legacy reward precedence retained;
+  Order5d6d897 sends DIAMOND source alongside reason and the original key.
+  HTTP-to-service-to-PostgreSQL tests prove new mappings and retries, while old
+  blank/missing reason/source evidence still rejects. Historical rows and the
+  inspector predicate were not rewritten. DEV-only CLI execution and an exact
+  transaction:user allowlist default empty; blocked dry runs exit nonzero.
+
+  Final clean-HEAD full suites ran with real PG/RabbitMQ and fresh/replayed
+  schemas: Order ev-105 and Wallet ev-113, zero skipped tests, race ev-106/114,
+  readonly builds ev-110/111 and vet ev-108/109. Separate destructive repository
+  fixture databases from migration-managed reconciliation databases: sharing
+  them caused ev-107/112 failures, resolved by isolation without weakening tests.
+  Multica subsequently independently approved both exact new SHAs. Authorized
+  Wallet81 rollout completed and passed expected digest/steady/HTTP/config
+  verification BEFORE dispatching Order106; both rollouts succeeded (ev-117–127).
+  Only reviewed Wallet APP_ENV addition changed configuration; secret names and
+  other hashes match baseline. Post-rollout read-only checks retain original
+  payment operations/two credits, published existing App events, and sampled
+  backlog pending0/dead0. This is not new App financial acceptance. No new
+  payment/redemption/apply or historical rewrite was performed. Full App
+  coverage and original historical evidence remain required; retain corrected
+  Wallet on Order producer rollback to foundation104.
