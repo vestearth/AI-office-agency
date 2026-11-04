@@ -1,0 +1,345 @@
+task_id: TASK-VS-058
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/VerifySlip/UpSlip Blog API And Cover Upload — 2026-11-02.md"
+
+summary: "UpSlip blog articles now live in slip-api (blog_posts, migration 069). The public read is published-only and no-store, admin CRUD has cover upload, and the landing answers 503 with no fallback. Uploads use the shared S3 key pair from the GitHub environment secrets (decision 10), with its accepted risks. Ownership split at staging (decision 11); a prod upload was never exercised (decision 12). The note also keeps the deploy facts proven on slip-api-production:127 -> :128 and a vacuous JSON-log boot check (ev-065 vs ev-066)."
+
+sources:
+  - "ai-dev-office/runs/TASK-VS-058/task.md"
+  - "ai-dev-office/runs/TASK-VS-058/status.yaml"
+  - "ai-dev-office/runs/TASK-VS-058/evidence.yaml"
+  - "ai-dev-office/runs/TASK-VS-058/authorization.yaml"
+  - "ai-dev-office/runs/TASK-VS-058/backend-handoff.md"
+  - "ai-dev-office/runs/TASK-VS-058/backend-review.md"
+  - "ai-dev-office/runs/TASK-VS-058/frontend-handoff.md"
+  - "ai-dev-office/runs/TASK-VS-058/staging-preflight.md"
+  - "ai-dev-office/runs/TASK-VS-058/staging-result.md"
+  - "ai-dev-office/runs/TASK-VS-058/production-preflight.md"
+  - "ai-dev-office/runs/TASK-VS-058/production-result.md"
+  - "ai-dev-office/runs/TASK-VS-058/verify_deploy_workflows.rb"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-038.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-041.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-042.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-043.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-044.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-045.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-046.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-052.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-053.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-055.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-057.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-058.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-059.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-060.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-065.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-066.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-067.log"
+  - "ai-dev-office/runs/TASK-VS-058/evidence/ev-068.log"
+  - "slip-api/migrations/069_blog_posts.sql (read at release head cc5dd29, prod tree 41f50b9, in the slip-api-TASK-VS-058-prod worktree; the local slip-api main checkout predates it)"
+  - "https://github.com/SparqLab/slip-api/pull/116"
+  - "https://github.com/SparqLab/slip-api/pull/117"
+  - "https://github.com/SparqLab/slip-api/pull/118"
+  - "https://github.com/SparqLab/slip-api/actions/runs/41426709199"
+
+recommended_action: create_note
+requires_human_review: true
+
+provenance:
+  freshness: current
+  verified_at: "2026-11-02"
+  task_id: TASK-VS-058
+  evidence_refs: [ev-015, ev-038, ev-041, ev-042, ev-043, ev-044, ev-045, ev-046, ev-048, ev-052, ev-053, ev-055, ev-056, ev-057, ev-058, ev-059, ev-060, ev-062, ev-064, ev-065, ev-066, ev-067, ev-068]
+  repo_origin: SparqLab/slip-api
+  repo_sha: e0ddd56dbf5a4b33720738d27cff2083b152b923
+  confidence: medium
+
+note_patch: |
+  ---
+  freshness: current
+  verified_at: 2026-11-02
+  task_id: TASK-VS-058
+  evidence_refs: [ev-015, ev-038, ev-041, ev-042, ev-043, ev-044, ev-045, ev-046, ev-048, ev-052, ev-053, ev-055, ev-056, ev-057, ev-058, ev-059, ev-060, ev-062, ev-064, ev-065, ev-066, ev-067, ev-068]
+  repo_origin: SparqLab/slip-api
+  repo_sha: e0ddd56dbf5a4b33720738d27cff2083b152b923
+  confidence: medium
+  ---
+
+  # VerifySlip — UpSlip Blog Is Served By slip-api (TASK-VS-058, 2026-11-02)
+
+  The articles on up-slip.com/blog used to live in slip-landing `app/data/articles.ts`.
+  They now live in slip-api. slip-admin edits them and slip-landing reads them over the
+  API. Read this before you change the blog API, the blog storage or the slip-api `S3_*`
+  env, or before you promote slip-landing or slip-admin.
+
+  - `verified_at` is the day of the slip-api prod deploy checks (2026-11-02, ev-053..ev-066).
+    The check that no prod upload happened ran on 2026-11-04 (ev-067, ev-068).
+  - The operator decisions are numbered in task.md. A later decision replaces an earlier
+    one: decision 10 replaced the dedicated task role of decisions 6 and 8, and decision
+    11 limited the run to slip-api.
+  - Before you say something is "on prod", recheck `origin/prod` and the running task
+    definition.
+
+  ```text
+  slip-admin ──/v1/admin/blog/posts (admin auth)──> slip-api ──> blog_posts (migration 069)
+                         └─ POST …/{slug}/cover ──> S3 public/blog/{uuid}.{ext} ──> CDN /blog/…
+  slip-landing (SSR + client navigation) ──GET /v1/web/blog/posts[/{slug}]──> slip-api
+  ```
+
+  ## slip-api contract (owner: slip-api)
+
+  - **Table.** `069_blog_posts.sql` creates only the new `blog_posts` table and two
+    indexes on it. It seeds `fake-slip-signs` as published and featured, and 6 sample
+    articles as drafts (decision 5). Two rules are in the database itself:
+    - `CHECK (NOT featured OR status = 'published')`
+    - a partial unique index that allows at most one featured published post.
+  - **Rollback.** Leave the table in place. The `:127` code booted cleanly against a v69
+    database in a local test (backend-review).
+  - **Public reads** (no login): `GET /v1/web/blog/posts` and `GET /v1/web/blog/posts/{slug}`.
+    - Only published posts are returned. A draft or unknown slug answers 404.
+    - A database failure answers 503. Every answer carries `Cache-Control: no-store`.
+    - The blog repository uses the shared 3 s `queryTimeout`. With the table locked, list
+      and detail answered 503 in about 3.0 s (ev-015).
+  - **Admin routes**, all behind the existing `AdminAuth` (401 for a missing or invalid
+    token, 403 for a non-admin):
+    - `GET` and `POST /v1/admin/blog/posts`
+    - `GET`, `PUT` and `DELETE /v1/admin/blog/posts/{slug}`
+    - `POST` and `DELETE /v1/admin/blog/posts/{slug}/cover`
+  - **Client traps** (backend-review contract notes):
+    - `PUT` takes the editable fields only (`DisallowUnknownFields`). Sending a GET
+      response back unchanged answers 400.
+    - Saving a published post as draft unpublishes it at once, because there is no
+      separate draft revision. Its URL answers 404 right away.
+    - A featured post needs `featured:false` before it can go to draft, or the API
+      answers 400. slip-admin clears `featured` when the status goes to draft. `/blog`
+      must render when there is no featured post.
+    - `content_updated_at` moves only when a changed content revision is published. A
+      draft save, a status-only change, a preset change or a cover change leaves it alone.
+    - The seed time `2026-10-01T00:00:00+07:00` comes back as `2026-09-30T17:00:00Z`, so
+      format dates in `Asia/Bangkok`.
+    - With no cover, `cover_url` is `""`, not null. `excerpt` can be `""`; fall back to
+      `summary`.
+  - **Cover upload.**
+    - The post must already exist. Send the image as the multipart field `file`.
+    - The request body is capped with `MaxBytesReader` at 5 MiB + 64 KiB. The server
+      sniffs the bytes, decodes the whole image and checks that the format matches.
+      Allowed formats are JPEG, PNG, GIF and WebP, up to 8000 px or 16 MP.
+    - The server generates the key `public/blog/{uuid}.{ext}` and returns the URL
+      `https://<S3_PUBLIC_BASE_URL>/blog/…`. The CDN origin path is `/public`, so
+      `public/` is dropped from the URL.
+    - A `cover_url` or key sent by the client is rejected. Replaced and removed objects
+      stay in S3.
+    - A file over the cap answers 400, not 413 (follow-up). With no S3 env, upload
+      answers 503.
+    - The S3 `PutObject` is not under `queryTimeout`. The server `ReadTimeout` is 15 s.
+
+  ## slip-landing rule — 503, never a fallback (decision 4)
+
+  - Landing fetches the API at SSR. Client navigation calls `apiBase` directly, so it
+    needs CORS.
+  - API 404 → page 404. API unreachable → 503 with a notice page. There is no fallback
+    to `articles.ts`, a build copy or a stale cache, so a post moved to draft can never
+    reappear. An empty `apiBase` also answers 503.
+  - F3 fix: page calls time out after 5 s. With the API hung, landing answered 503 in
+    5.1–5.3 s instead of about 16.5 s. This was measured on a local dev server only
+    (frontend-handoff).
+  - **Rollback trap:** a landing build from before #13 reads `articles.ts` and shows the
+    6 drafts again. Fix forward; reverting landing is an emergency path only.
+
+  ## Storage credentials — the shared S3 key pair (decision 10)
+
+  - **No dedicated task role.** slip-api stays on the shared `ecsTaskRole`, so ECS Exec
+    works as before. `storage_role` is `na`.
+  - **How the uploader picks credentials:**
+    - Both `S3_ACCESS_KEY` and `S3_SECRET_KEY` set → static credentials.
+    - Exactly one set → startup fails.
+    - Neither set → the default credential chain.
+    - The AWS endpoint stays the default. `S3_ENDPOINT` and `S3_FORCE_PATH_STYLE` are
+      not read; those secrets are now unused.
+  - **One key pair serves both environments.** It sits in the slip-api `staging` and
+    `production` GitHub environments. The prod key secrets still carry their
+    2026-09-21 timestamps (ev-052).
+  - **Values per environment** (names and public hosts only):
+    - `S3_REGION` is `ap-southeast-1`.
+    - `S3_BUCKET` is `upslip-assets-staging` or `upslip-assets-prod`.
+    - `S3_PUBLIC_BASE_URL` is a bare host with no scheme and no path:
+      `d8nuh3zcuo9fd.cloudfront.net` on staging, `d1emyocrm9dw73.cloudfront.net` on prod.
+    - Prod `:128` carries the expected values (ev-058).
+  - **The startup guard is fatal.** A malformed base URL (with a scheme or path), or a
+    bucket, region and URL set that is incomplete, crash-loops all of slip-api, not just
+    upload. That is why the 2026-09-21 secrets were re-set before the first deploy (P2 on
+    staging, P3 on prod).
+  - **Guard mismatch:** the workflow checks raw non-empty values, but Go trims the access
+    key. A whitespace-only `S3_ACCESS_KEY` passes the workflow and then fails startup.
+  - **Accepted risks (Earth):**
+    - Staging slip-api can write the prod bucket.
+    - vestearth cannot read the key's IAM scope, which may reach beyond `public/blog/*`
+      (for example `slips/`).
+    - The keys are plain task-definition env, readable with `ecs:DescribeTaskDefinition`,
+      as `JWT_SECRET` is.
+  - **Follow-ups** (need an IAM admin):
+    - Rotate the key and split it per environment, scoped to `s3:PutObject` on
+      `public/blog/*`.
+    - Move the keys to ECS `secrets`.
+  - **Never write under `slips/`.** It is not on the CDN and has a 90-day lifecycle.
+    This comes from Tommy's review and was not re-verified.
+  - **Proven on staging only:**
+    - The task's key pair put an object under `public/blog/`, and the CDN served the same
+      bytes (ev-044).
+    - Earth's real admin upload, `POST …/close-chat-orders-faster/cover`, answered 200 in
+      566 ms (ev-045). The staging CDN served it as 200 `image/png`, 1,848,230 bytes
+      (ev-046).
+  - **Not proven on prod (decision 12):**
+    - No 2xx `POST …/cover` appears from `:128` COMPLETED (2026-11-02 10:23:17Z) to
+      2026-11-04 08:30Z. The only cover call was a 401 for an invalid token (ev-067,
+      ev-068).
+    - Still unverified: that the key pair can `PutObject` into `upslip-assets-prod`, and
+      that the prod CDN serves `/blog/`.
+    - If the first real prod upload fails with 503 or a storage error, check that key's
+      permission on the prod bucket first.
+
+  ## Ownership and promote order (decision 11)
+
+  - After staging, TASK-VS-058 covered slip-api only.
+  - viewsupat owns slip-landing and slip-admin: their staging browser checks, their prod
+    promotes and their follow-ups (F4 draft-offline warning, the missing
+    `typescript`/`vue-tsc` devDependencies, section id reuse).
+  - The squad keeps the backend follow-ups: 413 over 5 MiB, field names in validation
+    errors, byte limits in the README, and the key rotation and split.
+  - **Promote order:** landing or admin go to prod only after slip-api prod serves
+    `/v1/web/blog/posts`. Before that, prod `/blog` answers 503 and the admin blog view
+    fails to load.
+  - Both `main` branches already carry the blog (#13 `8000296`, #43 `2374b2b`), so any
+    promote ships it.
+  - Posts typed into the old admin prod localStorage mock (`e1e7980`) were not migrated.
+  - Per decision 12 (operator-recorded, not checked by this run), viewsupat put admin
+    prod (`slip-admin-production:79`, `NUXT_PUBLIC_API_BASE=https://api.up-slip.com`)
+    and landing prod live on 2026-11-04. The prod CORS preflight for `POST …/cover`
+    from `https://admin.up-slip.com` answers 204.
+
+  ## CORS (decision 7)
+
+  - The landing origins were added to slip-api `CORS_ALLOWED_ORIGINS`; there is no
+    landing proxy.
+  - The allowlist is global. Earth accepted this because admin, API-key and user auth
+    read only the `Authorization` header and slip-api sets no cookie.
+  - The list is a GitHub environment secret per slip-api environment.
+    - `deploy.yml` (staging) has no fallback.
+    - `deploy-production.yml` falls back to the two landing origins only, which would
+      drop app and admin.
+  - On prod, `up-slip.com`, `www`, `app` and `admin` get their exact origin back with
+    `Vary: Origin`, and a random origin gets none (ev-059).
+
+  ## slip-api deploy facts proven here
+
+  - **Branches.** Merging to `main` deploys nothing. `deploy.yml` runs on a push to
+    `staging`, and `deploy-production.yml` on a push to `prod`. This run promoted
+    through PRs: #116 (main `6cc03d1`) → #117 (staging `bab5594`) → #118 (prod `e0ddd56`).
+  - **Env comes from the GitHub environment secrets.** Both workflows start from the
+    family's latest task definition and keep `taskRoleArn` and unrelated env. On every
+    run they overwrite the injected names (`S3_*`, the key pair, CORS) from that
+    environment's secrets.
+    - A value set only on a task definition is undone by the next deploy.
+    - An empty key-pair secret removes the variable instead of writing `""`.
+      `verify_deploy_workflows.rb` checked this for both workflows (ev-038).
+    - Prod CORS is the exception: an empty value falls back, as above.
+    - A partial key pair stops the job before `register-task-definition`.
+    - The task-definition JSON goes in as a `file://` temp file under `RUNNER_TEMP`, with
+      no `set -x`.
+  - **Checking secrets.** GitHub cannot read a secret back. Compare SHA-256 hashes of
+    the locally sent values with the deployed task-definition env, and check the
+    secret's `updated_at`, without printing any value (ev-048, ev-052, ev-053).
+  - **Prod ECS settings:** ROLLING with min 100% / max 200%. The circuit breaker and
+    automatic rollback are both off. Grace period 90 s, health check `wget /health`.
+    - If new tasks cannot start, the deployment stays IN_PROGRESS while the old tasks
+      keep serving, and the workflow's `services-stable` waiter times out (~10 min).
+    - Judge a rollout by the deployment state, task health, stopped reasons and logs,
+      not by a 3/3 count.
+    - Rollback by hand: `aws ecs update-service … --task-definition
+      slip-api-production:<prev> --force-new-deployment` (profile vestearth).
+  - **Rollout timing, `:127` → `:128` (2026-11-02):**
+    - `build-push` ended at 10:13:41Z.
+    - The first new task applied 069 (65 ms) and listened at 10:14:37Z. The other two
+      listened at 10:15:07Z.
+    - The old tasks stopped between 10:21:02Z and 10:21:45Z.
+    - ECS reported COMPLETED at 10:23:17Z, and `deploy-ecs` ended at 10:23:14Z (ev-057,
+      ev-066, ev-055). All 3 new tasks were RUNNING and HEALTHY (ev-056).
+    - So the deploy took about 9.5 minutes from build to COMPLETED. Most of it came after
+      the new tasks were already serving.
+    - *Inference, not tested:* that is close to the ~10 min waiter. A slightly slower
+      but healthy rollout could fail the job while ECS still completes, so check ECS
+      before you roll back.
+  - **Migration across tasks.** goose `PostgresSessionLocker` serializes the migration
+    across the 3 starting tasks. 069 was applied once (ev-060, ev-066).
+  - **5xx before and after** (equal 5-minute windows):
+    - blog: 0 5xx after the deploy.
+    - verify: 0/1,964 before, 1/1,755 after. The one was a 502 "bank verifier
+      unavailable", not shown to be KBank 8500 (ev-062, ev-064).
+
+  ## Verification traps from this run
+
+  - **A boot check over non-JSON lines found nothing to check.**
+    - ev-065 looked for boot lines (goose, migration, listener, fatal, panic) only among
+      log lines that did not parse as JSON.
+    - slip-api writes every line as JSON, startup included: 0 of 22,147 events in the
+      three windows were text. So "no fatal at boot" was checked against 0 lines, and the
+      script still printed `VERDICT PASS`.
+    - ev-066 read the same pages by the JSON `msg` field. It found migration 069 OK,
+      3 HTTP listeners started, 3 old servers stopped and 0 ERROR or fatal.
+    - Rule: a "no fatal" check must also count the positive lines it expects (migration,
+      listener start). If that count is 0, the check proved nothing. This is the same
+      family as the zero-violation-log trap.
+  - **A script probe got 403 where curl passed.** A Python `urllib` probe of
+    `api-staging.up-slip.com/health` got 403 (Cloudflare, per staging-result). The
+    equivalent `curl` probe passed (ev-041 vs ev-042). When a scripted edge probe gets a
+    403, suspect the client first.
+  - **Staging startup check.** Staging `:170` showed migration 069 and the HTTP listener
+    once each, with no fatal (ev-043). That check counted the positive lines, so it was
+    not vacuous.
+
+  ## Sources
+
+  Sources:
+  - ai-dev-office/runs/TASK-VS-058/task.md (operator decisions 1–12, field model, rollback order)
+  - ai-dev-office/runs/TASK-VS-058/status.yaml
+  - ai-dev-office/runs/TASK-VS-058/authorization.yaml
+  - ai-dev-office/runs/TASK-VS-058/backend-handoff.md
+  - ai-dev-office/runs/TASK-VS-058/backend-review.md
+  - ai-dev-office/runs/TASK-VS-058/frontend-handoff.md
+  - ai-dev-office/runs/TASK-VS-058/staging-preflight.md
+  - ai-dev-office/runs/TASK-VS-058/staging-result.md
+  - ai-dev-office/runs/TASK-VS-058/production-preflight.md
+  - ai-dev-office/runs/TASK-VS-058/production-result.md
+  - ai-dev-office/runs/TASK-VS-058/verify_deploy_workflows.rb
+  - slip-api/migrations/069_blog_posts.sql (at `cc5dd29`, prod tree `41f50b9`)
+  - https://github.com/SparqLab/slip-api/pull/116
+  - https://github.com/SparqLab/slip-api/pull/117
+  - https://github.com/SparqLab/slip-api/pull/118
+  - https://github.com/SparqLab/slip-api/actions/runs/41426709199
+
+  Evidence: TASK-VS-058 ev-015, ev-038, ev-041..ev-046, ev-048, ev-052, ev-053,
+  ev-055..ev-060, ev-062, ev-064..ev-068. The raw logs live only in the gitignored run
+  folder. PRs (from status.yaml and the handoffs):
+  - slip-api #115 (S3 config), #116 (merged as `6cc03d1`), #117 (staging `bab5594`,
+    `slip-api-staging:170`), #118 (prod `e0ddd56`, `slip-api-production:128`)
+  - slip-admin #43 (main `2374b2b`), #44 (staging, `slip-admin-staging:88`)
+  - slip-landing #13 (main `8000296`), #14 (staging, `slip-landing-staging:19`)
+
+  ## Related
+
+  - [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]
+  - [[10 Projects/Games Labs Order/S3 Object Storage Env And Credentials|S3 Object Storage Env And Credentials]] (the Order key-pair pattern decision 10 copied; a different product)
+  - [[10 Projects/VerifySlip/Slip Time Zone And Admin Latency Fixes — 2026-09-28|Slip Time Zone And Admin Latency Fixes]] (check the ECS rollout, not only the Actions result)
+  - [[40 Lessons/Every Name In ecs-env.names Is Injected — Non-String Env Vars Kill The Container On Deploy|Every Name In ecs-env.names Is Injected]] (an injected bad env crash-loops on deploy)
+  - [[40 Lessons/Verification Traps — Claude Memory Map|Verification Traps — Claude Memory Map]] (the zero-is-vacuous family)
+  - [[Promotion Rule]]
+
+  <!-- Companion patch, optional, for the human applying this note:
+  Project Map.md › Knowledge Routing, add:
+  - UpSlip blog in slip-api: `blog_posts` (069), admin CRUD and cover upload, landing
+    reads at SSR with 503 and no fallback. On slip-api-production:128 since 2026-11-02:
+    [[10 Projects/VerifySlip/UpSlip Blog API And Cover Upload — 2026-11-02|UpSlip Blog API And Cover Upload]].
+  Project Map.md › Related, add the same link.
+  The "Repository relationships — rechecked 2026-09-08" snapshot says slip-landing makes
+  no slip-api call. That has not held since TASK-VS-058. Add a dated pointer to this
+  note instead of rewriting the snapshot. -->

@@ -2,11 +2,11 @@
 task_id: TASK-VS-058
 task_label: 'UpSlip blog: articles served by slip-api, edited in slip-admin, with
   cover upload'
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -158,6 +158,17 @@ history:
     the key pair''s PutObject on upslip-assets-prod'
   at: '2026-11-04T08:34:21Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261104T085449Z-upslip-blog-api.yaml'
+  at: '2026-11-04T08:54:49Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-04T08:55:03Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -289,13 +300,14 @@ completion_gates:
     updated_at: '2026-11-02T08:21:42Z'
     evidence_refs: []
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-02T03:34:56Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261104T085449Z-upslip-blog-api.yaml'
+    updated_at: '2026-11-04T08:54:49Z'
     evidence_refs: []
 handoff:
   from: pm
   to: dev
   artifact: forced-route
+decision_applied_at: '2026-11-04T08:55:03Z'

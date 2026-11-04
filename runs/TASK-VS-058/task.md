@@ -180,10 +180,20 @@ including a per-article cover upload with the existing SVG preset as fallback.
       `upslip-assets-prod`, and that the prod CDN serves `/blog/`. vestearth cannot read
       the key's IAM policy. If the first real prod upload fails with 503 or a storage
       error, check that key's permission on the prod bucket first.
-    - Admin prod (`slip-admin-production:79`, `NUXT_PUBLIC_API_BASE=https://api.up-slip.com`)
-      and landing prod went live on 2026-11-04 (viewsupat). The prod CORS preflight for
-      `POST .../cover` from `https://admin.up-slip.com` answers 204 with POST and
-      `Authorization` allowed.
+    - The blog reached the front ends on prod earlier than the hand-off order, as the
+      knowledge reconcile found and the conductor re-checked (task definitions, the
+      admin prod workflow run and commit history):
+      - Admin: `slip-admin-production:76` (`a28f9a9`, viewsupat's direct "Merge branch
+        'staging' into prod", 2 s after #44 merged into staging) deployed 2026-11-02
+        09:29–09:34Z. That is about 40 minutes before slip-api `:128` served the blog
+        API (10:14Z), so the admin blog view had no API in that window.
+      - Landing: `slip-landing-production:19` (`6c50da4`), registered 2026-11-03 02:04Z,
+        after the API.
+      - The current revisions are admin `:79` (`NUXT_PUBLIC_API_BASE=https://api.up-slip.com`)
+        and landing `:26` (2026-11-04). slip-api prod is now `:133` (`ccf727d`, teammates'
+        payment commits on 2026-11-03), which still contains `e0ddd56`.
+    - The prod CORS preflight for `POST .../cover` from `https://admin.up-slip.com`
+      answers 204 with POST and `Authorization` allowed.
 
 Defaults from the proposal, not contested: Thai only; the existing admin accounts
 write and publish; publishing is immediate (no schedule); slug is editable while

@@ -1,0 +1,8 @@
+---
+task_id: TASK-VS-058
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-04T08:55:03Z'
+  against_phase: assigned
+  note: "recorded from chat by the Claude conductor: operator chose 'ปิด พร้อมเก็บความรู้' (2026-11-04); all gates resolved (production_acceptance on the staging upload per decision 12; knowledge closeout recorded as capture + librarian reconcile, proposals pending)"
