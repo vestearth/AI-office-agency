@@ -75,6 +75,11 @@ runs/*/*
 !runs/*/verification-evidence.md
 !runs/*/findings.md
 !runs/*/win-definition-spec.md
+# TASK-VS-060: retain the production migration plan, SQL preflight, and log
+# comparison script referenced by this task's rollout evidence.
+!runs/TASK-VS-060/production-migration-plan.md
+!runs/TASK-VS-060/production-preflight.sql
+!runs/TASK-VS-060/production-service-windows.py
 !runs/.gitkeep
 
 runs/*/*.log
