@@ -33,3 +33,13 @@ The actual deploy is recorded here, but `deploy_production` remains pending beca
 ## Extended service log evidence pending
 
 Jason requested service-level log evidence over all `/ecs/slip-api-production` streams covering rollout and equal 12-minute before/after windows. ECS deployment started 2026-11-04 15:09:40.929 UTC and completed 15:18:33.096 UTC; therefore the requested post-completion period ends at 15:30:33.095 UTC. It was not complete at the time of preparation. `production-service-windows.py` records fixed inclusive millisecond windows before, during and after rollout, paginates `filter-log-events` without a server filter, emits aggregate counts only, and distinguishes blog, verify, decode, other and unattributed errors. It must be run after the period ends, preferably with a short ingestion buffer, through `scripts/record-evidence.sh`; compare counts, status histograms, ERROR/5xx, unparsed lines and page totals without declaring no error when visibility or traffic is absent. No category data or runtime configuration is changed. Do not modify pending acceptance gates based on this log check.
+
+Completed 2026-11-04: `ev-021`, `production-service-windows.py` through `record-evidence.sh` exited 0. `/ecs/slip-api-production`, all streams, no server filter, inclusive bounds:
+
+| Window (UTC) | Pages / events | Blog requests, status histogram | Verify requests, status histogram |
+| --- | --- | --- | --- |
+| Before 14:57:40.929–15:09:40.928 | 5 / 11,029 | 1: 200=1 | 5,498: 200=5,281; 400=2; 409=91; 422=124 |
+| Rollout 15:09:40.929–15:18:33.095 | 4 / 8,327 | 7: 200=5; 401=1; 404=1 | 4,138: 200=3,933; 400=1; 401=1; 409=99; 422=104 |
+| After 15:18:33.096–15:30:33.095 | 5 / 10,527 | 6: 200=4; 401=1; 404=1 | 5,241: 200=4,991; 400=1; 401=1; 409=131; 422=117 |
+
+All three windows had zero logged blog/verify 5xx, zero JSON ERROR lines for each of those paths, zero unattributed JSON ERROR, zero non-JSON events, zero bad statuses and zero duplicate events. Before/after windows are each 12 minutes; rollout is a separate mixed-version interval. Blog paths cover `/v1/web/blog[/...]` and `/v1/admin/blog[/...]`; verify covers `/v1/slips/verify[/...]`. Decode and other endpoints are counted separately in `ev-021`; successful health/ready/metrics, gRPC, edge/WAF rejects and other services are outside these HTTP access-log counts. Non-JSON events would not have attributable statuses. Blog traffic is sparse and includes smoke tests; verify request counts and status proportions changed, but these observations alone do not establish a cause. Evidence did not change any acceptance gate.
