@@ -1,0 +1,15 @@
+---
+task_id: TASK-VS-060
+authorizations:
+- id: authz-001
+  type: grant
+  actor: earth
+  via: Multica issue 01a19a18-3551-79d8-8ad7-2a3271dee68c comment 01a1a5d9-81c2-7a0c-9b05-041285f401d3,
+    2026-11-04T09:17:37Z
+  reason: 'Earth approved the requested scope and migration 070 after reviewing the
+    TASK-VS-060 summary and draft staging PR #120'
+  at: '2026-11-04T09:18:22Z'
+  action: deploy_staging
+  scope: 'slip-api draft PR #120 only: main 1ac8e880 -> staging ccf727d, dry-run tree
+    f18b52ae, TASK-VS-060 blog categories including migration 070; staging only, not
+    production/admin/landing'
