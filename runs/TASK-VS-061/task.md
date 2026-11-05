@@ -73,8 +73,13 @@ Proposed starting values; make them env-configurable so they can be tuned withou
 
 Ask before `deploy_production`; do not infer the answer from logs again.
 
-1. **Merchant:** the actual client timeout, whether it resends after giving up, and whether it can
-   send `Idempotency-Key`.
+1. **Merchant** (answers relayed by Earth, 2026-11-06):
+   - Client timeout: "10 s". This does not match the logs: 408s stop at about 8.0 s (157 at 7.88–8.01 s on
+     2026-11-05), and slip-api source and its prod workflow have no 8 s setting. **Still open:** what the
+     10 s covers and what cuts at 8 s. Keep the 7.4 s budget until this is explained.
+   - Resend: on timeout or 502, every 3 minutes, up to 12 times. The merchant can change this. A 408 saves
+     no row, so the resend calls KBank again. **Still open:** which statuses trigger it, and how it treats 409.
+   - `Idempotency-Key`: the reply was about checking logs and did not answer. **Still open.**
 2. **KBank:** why some calls cluster near 6 s and others pass 8 s, and whether that can be fixed on
    their side.
 3. **Price per `0000` call:** needed to confirm the saving is worth the risk. If it is not, keeping
