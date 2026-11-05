@@ -1,0 +1,14 @@
+---
+task_id: TASK-VS-059
+authorizations:
+- id: authz-001
+  type: grant
+  actor: earth
+  via: 'chat with the Claude conductor, 2026-11-05 (''Merge to staging'' after the
+    PR #20 dry run)'
+  reason: 'Earth approved merging slip-system PR #20 to staging after audit of PR
+    #19 and a clean dry run'
+  at: '2026-11-05T11:54:41Z'
+  action: deploy_staging
+  scope: 'slip-system PR #20: main 20e4e99 -> staging (tree b840c3c, TASK-VS-059 commits
+    only); staging only, production not included'

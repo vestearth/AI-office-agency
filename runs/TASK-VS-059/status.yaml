@@ -59,6 +59,13 @@ history:
     cc80e8d and three mutations fail tests'
   at: '2026-11-05T11:29:38Z'
   operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: pm
+  reason: 'PR #20 merged as 0720ac1; tree equals dry-run T1; Deploy STAGING success;
+    slip-system-staging:33 COMPLETED 1/1 on staging-sha-0720ac1 with TIMEOUT and RESPONSE_HEADER_TIMEOUT
+    12s; rollback revision :32'
+  at: '2026-11-05T11:55:04Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -78,15 +85,27 @@ completion_gates:
       ref: 20e4e99cf3b2315b22fd4ea62594c45ebcabd5a9
       url: https://github.com/SparqLab/slip-system/pull/19
   deploy_staging:
-    status: pending
+    status: pass
     actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-04T06:09:23Z'
-    evidence_refs: []
+    reason: 'PR #20 merged as 0720ac1; tree equals dry-run T1; Deploy STAGING success;
+      slip-system-staging:33 COMPLETED 1/1 on staging-sha-0720ac1 with TIMEOUT and
+      RESPONSE_HEADER_TIMEOUT 12s; rollback revision :32'
+    updated_at: '2026-11-05T11:55:04Z'
+    evidence_refs:
+    - ev-005
+    - ev-006
+    - ev-007
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: claude
+      ref: 0720ac1d5844df9749839f2785e527e99d8d8398
+      url: https://github.com/SparqLab/slip-system/pull/20
   staging_acceptance:
     status: pending
     actor: pm
