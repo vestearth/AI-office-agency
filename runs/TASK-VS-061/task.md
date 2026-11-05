@@ -12,10 +12,10 @@ answer: wait longer on the first call, then retry once inside a fixed time budge
 
 ## Prerequisite
 
-`main`, `staging` and `prod` still contain the 12 s code from TASK-VS-059. This task must not ship on
-top of it by accident: check branch state first, and follow whatever the operator decided about
-reverting it. Reuse from that work: `elapsed_ms`, the slow-call line, histogram buckets, the
-`WroteRequest` classification, the 15 s gRPC shutdown grace.
+The 12 s code from TASK-VS-059 was reverted on `main`, `staging` and `prod` on 2026-11-05, and prod runs
+`slip-system-production:29` at 3.05 s. The parts worth reusing are no longer on those branches, so take
+them from PR #19 (`task/TASK-VS-059-kbank-timeout`): `elapsed_ms`, the slow-call line, histogram buckets,
+the `WroteRequest` classification, the 15 s gRPC shutdown grace.
 
 ## Evidence and what is still a guess
 
@@ -99,5 +99,5 @@ Ask before `deploy_production`; do not infer the answer from logs again.
 
 ## Rollback
 
-Point `slip-system-production` at the revision recorded just before the deploy (`:27` today), then
+Point `slip-system-production` at the revision recorded just before the deploy (`:29` today), then
 revert on the branches. Decide the revision again at deploy time.

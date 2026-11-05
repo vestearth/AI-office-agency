@@ -23,3 +23,13 @@ authorizations:
   action: deploy_production
   scope: 'slip-system: staging 0720ac1 -> prod via release/TASK-VS-059-production
     (tree 294fa95, TASK-VS-059 commits only); rollback slip-system-production:27'
+- id: authz-003
+  type: grant
+  actor: earth
+  via: 'chat with the Claude conductor, 2026-11-05 (''Merge to prod'' after the PR
+    #24 dry run)'
+  reason: Earth approved merging the revert of the 12 s code to prod
+  at: '2026-11-05T17:50:53Z'
+  action: deploy_production
+  scope: 'slip-system PR #24: staging 35c5942 -> prod via release/TASK-VS-059-revert-production
+    (tree b5aeac4, identical to running e87a03e; revert only); rollback slip-system-production:27'

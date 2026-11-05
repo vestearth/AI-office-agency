@@ -34,8 +34,27 @@ KBank may already be billing.
 - **The conductor's analysis was wrong.** It treated one 14.3 s 200 as proof that the merchant waits
   past 12 s and downgraded asking the merchant to a confirmation. The merchant timeout should have
   stayed a blocker. The 408 acceptance check is what caught it.
-- **Hazard still open:** `main`, `staging` and `prod` branches all contain the 12 s code, and `prod`
-  (`82fb802`) is ahead of what runs. Any push to `prod` or manual workflow run re-ships it.
+- **Branch hazard closed:** the 12 s code is reverted on all three branches: `main` `d5a8a5f` (PR #22),
+  `staging` `35c5942` (PR #23), `prod` `171baeb` (PR #24, Earth's "Merge to prod", authz-003).
+
+### Revert deploy (2026-11-05)
+
+- PR #24 merged 17:28:19Z. Prod now runs `slip-system-production:29` (`production-sha-171baeb`), 3/3,
+  workflow success. Tree `b5aeac4` is identical to `e87a03e`. Env and secret hashes equal `:27` (ev-012).
+  New tasks up 17:31:39–17:32:00Z; old tasks shut down 17:32:19–17:33:00Z. Rollback revision: `:27`.
+- **KBank 8500 incident during the merge, not caused by it** (ev-011): 2,486 8500 lines, 17:21:34–17:29:00Z,
+  on all 3 old tasks, starting 7 minutes before the merge and ending before any new task started. The
+  slip-api 502 count (2,486) and time range match exactly. 157 408s fell in the same period.
+- After the new tasks: 17:32–17:48Z had 0 408s and 0 5xx. `bank_network` returned to normal, 1–6 lines per
+  5 minutes (ev-013).
+- **Conductor gap:** the pre-merge check read branches, runs and the service but not live traffic, so the
+  merge went ahead during the incident. Nothing was harmed here. Check `slip_verify` status counts for the
+  last few minutes before any prod merge.
+- **More evidence for the merchant limit:** during the incident all 157 408s came at 7.88–8.01 s on 3.05 s
+  code, so the about-8 s limit does not depend on the 12 s change. Still inferred from logs.
+- **Unexplained:** 450 422s from merchant `84006774…` at 17:29–17:30Z, right after KBank recovered, against
+  about 10 per minute normally. Back to normal by 17:32Z. They began before the new tasks started, so the
+  deploy did not cause them. Logs do not show the reason; `verifications` or `payment_transactions` would.
 
 ## What KBank told the operator (2026-11-04)
 
