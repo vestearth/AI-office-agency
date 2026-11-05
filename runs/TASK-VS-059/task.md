@@ -17,6 +17,26 @@ KBank may already be billing.
   log line), TASK-VS-039 (shutdown drain), TASK-VS-041 (result cache never hits).
   KB: `knowledge-base/Knowledge Base/10 Projects/VerifySlip/Verify Reliability And Privacy Fixes — 2026-10-16.md`.
 
+## Outcome (2026-11-05): deployed, regression found, rolled back
+
+**12 s is not viable with the current merchant. Successor design: TASK-VS-061.**
+
+- Deployed `slip-system-production:28` (`production-sha-82fb802`, PR #21), tasks up 12:15–12:16Z.
+- 12:16–12:29Z on `:28`: 5xx 0, `bank_network` 0, `bank_timeout` 0, 13 slow 2xx (12 of them at
+  6.2–6.5 s), but **16 slip-api 408s from merchant `84006774…`, all at 7.65–8.02 s**. The same window
+  the day before had 0, and the previous 24 h had 1. The merchant appears to give up at about 8 s
+  (inferred from logs, not confirmed by the merchant). These slips used to get 200 through the proxy
+  retry, so this was a merchant-visible regression of about 0.3 % of verifies. Whether the merchant
+  resends is unknown.
+- Rolled back on Earth's approval at 12:33:34Z to `:27` (`production-sha-e87a03e`), complete 3/3 by
+  12:38Z. 19:36:54–19:45:54 ICT on `:27`: 3,726 200s, 0 408s, 0 5xx, 18 `bank_network`, 18 slow 200s.
+  So the 408s came from this change, and the double KBank calls are back.
+- **The conductor's analysis was wrong.** It treated one 14.3 s 200 as proof that the merchant waits
+  past 12 s and downgraded asking the merchant to a confirmation. The merchant timeout should have
+  stayed a blocker. The 408 acceptance check is what caught it.
+- **Hazard still open:** `main`, `staging` and `prod` branches all contain the 12 s code, and `prod`
+  (`82fb802`) is ahead of what runs. Any push to `prod` or manual workflow run re-ships it.
+
 ## What KBank told the operator (2026-11-04)
 
 - KBank's timeout is 65,000 ms. If we stop waiting at 3.05 s and KBank answers successfully at
@@ -198,7 +218,7 @@ the same 502 "bank verifier unavailable" + `Retry-After: 30` as an 8500, with no
   task definition. If it is lower than 15 s, 12 s no longer fits. The task definition holds plaintext
   secrets, so filter for that variable name only and never print the whole env.
 
-- **Merchant client timeout (not a blocker):** a merchant whose own HTTP timeout is below about 12 s
+- **Merchant client timeout (this conclusion was wrong; see Outcome):** a merchant whose own HTTP timeout is below about 12 s
   would give up before we do. If it then resends, that is another billed call.
   - Today one merchant (`84006774…`) sends all API verifies (TASK-VS-057).
   - The logs already show it waits longer than 12 s. Baseline item 5 has 40 successful verifies

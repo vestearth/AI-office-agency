@@ -73,6 +73,19 @@ history:
     were observed on staging; behaviour is to be observed on prod per task.md
   at: '2026-11-05T12:00:16Z'
   operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: pm
+  reason: 'PR #21 merged as 82fb802 and slip-system-production:28 rolled out 3/3;
+    only the two timeout env values changed. It was rolled back afterwards, see production_acceptance'
+  at: '2026-11-05T12:52:24Z'
+  operator: claude
+- phase: 'gate production_acceptance: pending -> na'
+  agent: orchestrator
+  reason: 'NOT accepted: merchant-visible 408s at about 8 s on :28 (16 in 13 min,
+    previous normal about 1 per day). Rolled back to :27 at 12:33Z on Earth''s approval;
+    0 408s after. 12 s design abandoned, successor TASK-VS-061'
+  at: '2026-11-05T12:52:24Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -125,20 +138,34 @@ completion_gates:
     - deploy_staging
     requires_record: true
   deploy_production:
-    status: pending
+    status: pass
     actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-04T06:09:23Z'
-    evidence_refs: []
+    reason: 'PR #21 merged as 82fb802 and slip-system-production:28 rolled out 3/3;
+      only the two timeout env values changed. It was rolled back afterwards, see
+      production_acceptance'
+    updated_at: '2026-11-05T12:52:24Z'
+    evidence_refs:
+    - ev-008
+    - ev-009
+    - ev-010
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: claude
+      ref: 82fb8025b6b2a34c279c756a23885d2da81dacd4
+      url: https://github.com/SparqLab/slip-system/pull/21
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-04T06:09:23Z'
+    status: na
+    actor: earth
+    reason: 'NOT accepted: merchant-visible 408s at about 8 s on :28 (16 in 13 min,
+      previous normal about 1 per day). Rolled back to :27 at 12:33Z on Earth''s approval;
+      0 408s after. 12 s design abandoned, successor TASK-VS-061'
+    updated_at: '2026-11-05T12:52:24Z'
     evidence_refs: []
     after:
     - deploy_production

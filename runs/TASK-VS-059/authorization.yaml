@@ -12,3 +12,14 @@ authorizations:
   action: deploy_staging
   scope: 'slip-system PR #20: main 20e4e99 -> staging (tree b840c3c, TASK-VS-059 commits
     only); staging only, production not included'
+- id: authz-002
+  type: grant
+  actor: earth
+  via: chat with the Claude conductor, 2026-11-05 ('Deploy now' after review of the
+    prod plan, staging acceptance na)
+  reason: Earth approved deploying slip-system to production now, watching for about
+    25 minutes
+  at: '2026-11-05T12:11:56Z'
+  action: deploy_production
+  scope: 'slip-system: staging 0720ac1 -> prod via release/TASK-VS-059-production
+    (tree 294fa95, TASK-VS-059 commits only); rollback slip-system-production:27'
