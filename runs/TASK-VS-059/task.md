@@ -137,8 +137,9 @@ Base `main`. On 2026-11-04 `origin/main` (cc80e8d) has nothing that `origin/prod
    - Add `elapsed_ms=` to the TASK-VS-043 line for `bank_timeout`
      (`internal/core/services/kbank_normalize.go:39–50`).
    - Log one line per KBank 2xx that took more than 3.05 s, e.g.
-     `kbank verify slow: elapsed_ms=%d request_id=%q`. These are exactly the late successes we used
-     to pay for and discard, so their daily count is the saving.
+     `kbank verify slow: elapsed_ms=%d`. As merged, the line has no `request_id`, is written before
+     the body is read, and counts every 2xx including non-`0000` answers, so it is an upper bound on
+     the late successes we used to discard, not a count of money saved.
    - Measure elapsed around `httpClient.Do` (`started` already exists in the loop).
    - Do not log transRef, account, name or any slip field (same rule as VS-043). Log KBank `rqUID`
      only after checking it carries no slip data.
@@ -271,7 +272,9 @@ that, the 1,200/min `BANK_ATTEMPT_LIMIT_PER_MINUTE` budget sheds load as 429.
 - **`production_acceptance`:** wait at least 48 h after the deploy, compare with the baseline above,
   and use counts only.
   1. CloudWatch `cause=bank_timeout` lines per day are far below the old 1,401 `bank_network` lines
-     per day. `kbank verify slow` lines per day show the late successes we now keep.
+     per day. `kbank verify slow` lines per day give an upper bound on the late successes we now
+     keep. One call can log both lines, and `bank_timeout` can slightly overcount (a timeout right
+     after `WroteRequest` does not prove KBank received the request).
   2. The daily ratio `GrpcRequestCount` / `RequestCountPerTarget` is about 1.00, meaning the proxy no
      longer retries timeouts.
   3. slip-api verify 502s per day (ALB target 5xx minus 8500 lines, the TASK-VS-057 math) are not
@@ -291,7 +294,8 @@ building depends on this task's data. Opened 2026-11-04 by operator decision.
    all-pages `filter-log-events` on `/ecs/slip-system-production`:
    - `cause=bank_timeout` lines: calls still cut at 12 s. Each may be billed with its result
      discarded.
-   - `kbank verify slow` lines: late successes that phase 1 now keeps.
+   - `kbank verify slow` lines: an upper bound on late successes that phase 1 now keeps (all 2xx, not
+     only `0000`).
    - Optional: where the slow calls land in `bank_call_duration_seconds`, read through ECS Exec on
      all tasks.
 2. **Residual cost per month** ≈ `bank_timeout` per day × 30 × the KBank price per `0000` answer.
@@ -307,6 +311,25 @@ building depends on this task's data. Opened 2026-11-04 by operator decision.
    measure.
    - If phase 2 goes ahead, open it as a design/decision run first, not an implementation run.
    - If it does not, record "phase 1 is sufficient" with the numbers.
+
+## Implementation record (2026-11-05)
+
+- Implemented through Multica SPAR-60 (operator override of decision 4's lane routing: assigned to
+  the AI Dev Team squad). Merged by operator approval: `SparqLab/slip-system#19`, HEAD `2256c62`,
+  merge commit `20e4e99` on `main`. `staging` and `prod` are unchanged.
+- Added beyond the original scope, at the conductor's audit: gRPC shutdown grace 10 s → 15 s
+  (`grpcGraceTimeout`, `cmd/main.go`). The old bound was below the new 12 s KBank timeout, so a
+  forced stop could turn a slow call into a proxy-retried `Unavailable`. 20 + 5 + 15 + 5 = 45 s fits
+  `stopTimeout=60`.
+- Also changed: cancel or deadline during the body read now returns `Canceled` /
+  `DeadlineExceeded` instead of `bank_network` / `Unavailable`. It is counted as `read_error`, not
+  `canceled`, in `bank_calls_total`, so acceptance item 4 must read gRPC `Canceled` / slip-api 408 too.
+- Known and left open:
+  - connection reset or EOF after the request was sent stays `Unavailable` and proxy-retried;
+  - `fetchAndCacheToken` holds `tokenMu` during OAuth, now up to 12 s, while waiters hold bulkhead
+    slots (read from code by the reviewer, not run);
+  - no CI on the PR; not yet run on ECS, staging, prod or against real KBank.
+- Rollback: revert the merge of the whole PR (`git revert -m 1 20e4e99`).
 
 ## Rollback
 
