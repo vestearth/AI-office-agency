@@ -285,6 +285,25 @@ that, the 1,200/min `BANK_ATTEMPT_LIMIT_PER_MINUTE` budget sheds load as 429.
 - **Billing check (not a gate):** compare the next KBank invoice count with our stored bank results
   (`verifications` + `payment_transactions`). This needs finance and a read-only prod DB count.
 
+## Staging gap and first-verify-on-prod plan (operator, 2026-11-05)
+
+KBank restricts which slips can be read on staging, so no verify could run through slip-api staging
+after the deploy. `staging_acceptance` is therefore `na`, not passed. Staging proved rollout, env,
+boot and `/ready` only. **The first real verify on this code happens on prod.** To compensate:
+
+1. Before merging to `prod`, capture a baseline for the same hours on the previous days, counts only:
+   `slip_verify` by status, and `cause=bank_network` lines.
+2. Deploy outside the evening peak and with the operator available. The deploy replaces tasks in a
+   rolling way, so old and new tasks serve together for a few minutes.
+3. Check at once after the first new task serves, then to about +12 min (`slip_verify` is high
+   volume, so a real signal arrives within a minute):
+   - 200s continue at the normal rate, with no gap;
+   - 5xx and ERROR lines do not rise, and slip-system logs no `panic` or `fatal`;
+   - `cause=bank_timeout` lines appear with `elapsed_ms` near 12,000 and `cause=bank_network` falls;
+   - `FailedPrecondition` maps to 502 with `Retry-After: 30`, the same as 8500.
+4. Roll back at once on a 5xx spike or a drop in 200s: point `slip-system-production` at `:27`
+   (`production-sha-e87a03e`), then revert the merge on the branches.
+
 ## Phase 2 decision input (not a gate)
 
 Phase 2 (65 s through an async/pending verify) has no run yet, on purpose. Whether it is worth

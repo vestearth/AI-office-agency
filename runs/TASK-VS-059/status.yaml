@@ -66,6 +66,13 @@ history:
     12s; rollback revision :32'
   at: '2026-11-05T11:55:04Z'
   operator: claude
+- phase: 'gate staging_acceptance: pending -> na'
+  agent: orchestrator
+  reason: KBank restricts readable slips on staging, so no verify through slip-api
+    staging is possible (Earth, chat 2026-11-05). Only rollout, env, boot and /ready
+    were observed on staging; behaviour is to be observed on prod per task.md
+  at: '2026-11-05T12:00:16Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -107,10 +114,12 @@ completion_gates:
       ref: 0720ac1d5844df9749839f2785e527e99d8d8398
       url: https://github.com/SparqLab/slip-system/pull/20
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-04T06:09:23Z'
+    status: na
+    actor: earth
+    reason: KBank restricts readable slips on staging, so no verify through slip-api
+      staging is possible (Earth, chat 2026-11-05). Only rollout, env, boot and /ready
+      were observed on staging; behaviour is to be observed on prod per task.md
+    updated_at: '2026-11-05T12:00:16Z'
     evidence_refs: []
     after:
     - deploy_staging
