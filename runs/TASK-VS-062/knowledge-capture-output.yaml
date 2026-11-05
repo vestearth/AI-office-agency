@@ -1,0 +1,60 @@
+task_id: TASK-VS-062
+capture_type: lesson
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Credit Top-Up Flow And Admin Top-Up Tracing.md
+summary: Full-length bank masks require positional-only matching; malformed and overlong masks must fail closed before suffix fallback.
+sources:
+  - ai-dev-office/runs/TASK-VS-062/task.md
+  - ai-dev-office/runs/TASK-VS-062/audit.md
+  - ai-dev-office/runs/TASK-VS-062/prod-history-number-impact.sql
+  - ai-dev-office/runs/TASK-VS-062/evidence/ev-038.log
+  - slip-api-spar62-audit/internal/core/service/payment.go
+  - slip-api-spar62-audit/internal/core/service/payment_receiver_match_test.go
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-11-05'
+  task_id: TASK-VS-062
+  run_id: null
+  evidence_refs: [ev-037, ev-038, ev-039, ev-040, ev-041, ev-042, ev-043, ev-044, ev-045]
+  repo_origin: SparqLab/slip-api
+  repo_sha: f82ba69307c982eaa1ee619f23be2bf3b6f23b94
+  confidence: high
+note_patch: |
+  Proposed addition only: local v3 is tested but awaits independent re-review;
+  it is not committed, merged or deployed. Supersedes the earlier v1/v2 proposal.
+
+  ## Receiver-mask policy and parser boundary — TASK-VS-062
+
+  Earth chose full-length bank masks to use positional-only matching, requiring
+  at least four visible digits. Valid shortened masks and unmasked numbers retain
+  legacy rules. Invalid characters and overlong masked strings must be rejected
+  before the shortened-mask suffix path; otherwise a conflicting full mask can
+  regain acceptance by adding an unknown character. Reviewer reproducer and
+  fake-repository Confirm tests failed before the local fix and pass after it.
+  PromptPay/type/AND/bankCode/priority and first-match semantics remain unchanged.
+
+  At the readonly prod snapshot2026-11-05T18:35:50Z, all33 stored credited live
+  payments are assessable and accepted by v3 (28 sendingBank006,5 sendingBank004).
+  Zero old-suffix/v2-accepted rows become rejected. Five older004 rows already
+  fail the suffix-only rule but pass positional matching. Only aggregate counts
+  were exported; this compares stored number fields with current linked settings,
+  not full payment flows or original provider responses. Earth's later supplied
+  aggregates agree; no DB query followed the no-repeat instruction.
+
+  Local full tests/build/vet and Linux/amd64 build pass; Docker Desktop is paused,
+  so container-image build and CI/runtime recovery are unverified. Existing DB
+  integration tests require test DSNs. Partial-mask identity and first-match
+  ambiguity remain; positive history does not prove receiver ownership. No actual
+  credit operation, Git commit, publication, deployment or vault write occurred.
+
+  Related: [[10 Projects/VerifySlip/Project Map]]
+
+  Sources:
+  - ai-dev-office/runs/TASK-VS-062/task.md
+  - ai-dev-office/runs/TASK-VS-062/audit.md
+  - ai-dev-office/runs/TASK-VS-062/prod-history-number-impact.sql
+  - ai-dev-office/runs/TASK-VS-062/evidence/ev-038.log
+  - slip-api-spar62-audit/internal/core/service/payment.go
+  - slip-api-spar62-audit/internal/core/service/payment_receiver_match_test.go

@@ -1,0 +1,235 @@
+---
+task_id: TASK-VS-062
+task_label: SPAR-62 audit platform top-up receiver matching handoff
+phase: in_review
+state: in_review
+iteration: 0
+current_agent: reviewer
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-06'
+updated_at: '2026-11-06'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: earth_matching_decision, knowledge_closeout'
+  at: '2026-11-05T17:33:34Z'
+  operator: codex
+- phase: 'gate earth_matching_decision: absent -> pending'
+  agent: pm
+  reason: Earth must decide security and business matching policy before production
+    code changes
+  at: '2026-11-05T17:33:34Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-05T17:33:34Z'
+  operator: codex
+- phase: pending -> assigned
+  agent: pm
+  reason: Conductor auditing SPAR-62 handoff against fetched main; no matching implementation
+    authorized yet
+  at: '2026-11-05T17:35:24Z'
+  operator: codex
+- phase: assigned -> blocked
+  agent: debugger
+  reason: 'Branch receiver_matching: declared -> blocked; Real-repository regression
+    and draft evaluation recorded; production matching implementation remains gated
+    on operator decision'
+  at: '2026-11-05T17:36:36Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261105T173645Z-spar62-topup-receiver-matching.yaml'
+  at: '2026-11-05T17:36:45Z'
+  operator: codex
+- phase: 'gate earth_matching_decision: pending -> pass'
+  agent: pm
+  reason: Earth comment 01a1acd0-b6bb-7eaa-8c14-0add5e1b9e02 and Jason trigger 01a1acd1-0f64-7608-a308-ff6b009a0a62
+    authorize bank-only substring fallback, preserve account/PromptPay semantics and
+    reject contradictory runs
+  at: '2026-11-05T17:47:19Z'
+  operator: codex
+- phase: blocked -> assigned
+  agent: debugger
+  reason: 'Branch receiver_matching: blocked -> ready; Matching scope decided by Earth;
+    implementing bank-only fallback and regressions'
+  at: '2026-11-05T17:47:19Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261105T175043Z-spar62-topup-receiver-matching.yaml'
+  at: '2026-11-05T17:50:43Z'
+  operator: codex
+- phase: assigned -> assigned
+  agent: debugger
+  reason: 'Branch receiver_matching: ready -> done; Narrow bank-only fallback implemented
+    with failing-before/passing-after regression, repository tests, build and vet;
+    delivered local patch for review'
+  at: '2026-11-05T17:50:43Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: debugger
+  reason: Local implementation and verification complete; source and portable patch
+    ready for review, no commit or publication requested
+  at: '2026-11-05T17:50:43Z'
+  operator: codex
+- phase: 'gate provider_evidence_decision: absent -> pending'
+  agent: pm
+  reason: Earth paused matching-policy work in 01a1acd6-6218-719f-8311-dc338de28a46;
+    actual provider fields and a scoped decision are required before any fix
+  at: '2026-11-05T17:53:35Z'
+  operator: codex
+- phase: in_review -> blocked
+  agent: debugger
+  reason: 'Branch provider_evidence: declared -> blocked; Actual slip correction supersedes
+    prior hypothesis; issue has a queued read-only investigation run'
+  at: '2026-11-05T17:53:36Z'
+  operator: codex
+- phase: blocked -> blocked
+  agent: debugger
+  reason: Earth actual-slip correction pauses prior patch; target CloudWatch log evidence
+    recorded, queued direct-human run owns provider replay
+  at: '2026-11-05T17:54:30Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261105T175430Z-spar62-topup-receiver-matching.yaml'
+  at: '2026-11-05T17:54:30Z'
+  operator: codex
+- phase: 'gate provider_evidence_decision: pending -> pass'
+  agent: debugger
+  reason: Live verifier replays ev-018 and ev-019 both show receiver BANKAC XXXXX####X,
+    null bankCode/proxy, receivingBank004; Earth explicitly authorized targeted local
+    fix once actual provider format is known
+  at: '2026-11-05T18:01:22Z'
+  operator: codex
+- phase: blocked -> assigned
+  agent: debugger
+  reason: 'Branch provider_evidence: blocked -> ready; Raw masked receiver fields
+    obtained directly from live verifier; implementing positional bank-only regression
+    fix, no substring fallback'
+  at: '2026-11-05T18:01:22Z'
+  operator: codex
+- phase: assigned -> assigned
+  agent: debugger
+  reason: 'Branch provider_evidence: ready -> done; Both live verifier responses captured
+    without credit routes; original matcher failure reproduced and positional bank-only
+    fix verified with repository tests/build/vet'
+  at: '2026-11-05T18:05:20Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: debugger
+  reason: Actual provider evidence and positional-mask patch ready for review; prior
+    substring artifact withdrawn, no commit/push/deploy
+  at: '2026-11-05T18:05:20Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261105T180520Z-spar62-topup-receiver-matching.yaml'
+  at: '2026-11-05T18:05:20Z'
+  operator: codex
+- phase: 'gate v3_independent_review: absent -> pending'
+  agent: debugger
+  reason: V2 reviewer MAJOR required changes are repaired locally; v3 needs independent
+    re-review before acceptance
+  at: '2026-11-05T18:43:02Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: debugger
+  reason: Read-only credited-history compatibility complete; malformed-mask unit/Confirm
+    failing-before/passing-after and local readiness checks recorded; v3 patch awaits
+    independent re-review
+  at: '2026-11-05T18:43:02Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261105T184303Z-spar62-topup-receiver-matching.yaml'
+  at: '2026-11-05T18:43:03Z'
+  operator: codex
+- phase: 'release: promoted slip-api to staging and prod'
+  agent: devops
+  reason: 'Earth approved in chat: "Squash และขึ้น staging" and "ขึ้น prod". #122
+    squashed to main 79892ac, tree equal to reviewed v3 plus fictional test fixtures
+    d85b7d1, which had no independent review. Staging 0cda653..e3e21d1 (#123, Deploy
+    STAGING success, slip-api-staging:180, clean boot, ev-046, no HTTP traffic on
+    the new task). Prod ae08dfd..ea5e0d3 (#124, Deploy PRODUCTION success, slip-api-production:138,
+    image production-sha-ea5e0d3, 3/3). Scope also carries f82ba69 (viewsupat). Env
+    and secrets hash-unchanged from :137, 27 entries. After COMPLETED 19:42:14..19:54:13Z:
+    2609 requests, 0 5xx, 0 ERROR lines (ev-047); before window 2855 requests, 0 5xx.
+    No payment route request reached the new image in that window, so the fix is not
+    yet exercised live. Rollback: service back to slip-api-production:137.'
+  at: '2026-11-05T19:56:00Z'
+  operator: claude
+- phase: 'check_after: 2026-11-06T14:30:00Z'
+  agent: pm
+  reason: promoted to prod 2026-11-05T19:42Z; both slips reach the 24 hour limit about
+    14:15Z
+  at: '2026-11-05T19:55:26Z'
+  operator: claude
+completion_gates:
+  earth_matching_decision:
+    status: pass
+    actor: pm
+    reason: Earth comment 01a1acd0-b6bb-7eaa-8c14-0add5e1b9e02 and Jason trigger 01a1acd1-0f64-7608-a308-ff6b009a0a62
+      authorize bank-only substring fallback, preserve account/PromptPay semantics
+      and reject contradictory runs
+    updated_at: '2026-11-05T17:47:19Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261105T184303Z-spar62-topup-receiver-matching.yaml'
+    updated_at: '2026-11-05T18:43:03Z'
+    evidence_refs: []
+  provider_evidence_decision:
+    status: pass
+    actor: debugger
+    reason: Live verifier replays ev-018 and ev-019 both show receiver BANKAC XXXXX####X,
+      null bankCode/proxy, receivingBank004; Earth explicitly authorized targeted
+      local fix once actual provider format is known
+    updated_at: '2026-11-05T18:01:22Z'
+    evidence_refs:
+    - ev-018
+    - ev-019
+  v3_independent_review:
+    status: pending
+    actor: debugger
+    reason: V2 reviewer MAJOR required changes are repaired locally; v3 needs independent
+      re-review before acceptance
+    updated_at: '2026-11-05T18:43:02Z'
+    evidence_refs: []
+handoff:
+  from: debugger
+  to: reviewer
+  artifact: forced-route
+branches:
+  receiver_matching:
+    state: done
+    actor: debugger
+    reason: Narrow bank-only fallback implemented with failing-before/passing-after
+      regression, repository tests, build and vet; delivered local patch for review
+    updated_at: '2026-11-05T17:50:43Z'
+  provider_evidence:
+    state: done
+    actor: debugger
+    reason: Both live verifier responses captured without credit routes; original
+      matcher failure reproduced and positional bank-only fix verified with repository
+      tests/build/vet
+    updated_at: '2026-11-05T18:05:20Z'
+check_after:
+  at: '2026-11-06T14:30:00Z'
+  what: In /ecs/slip-api-production since 2026-11-05T19:42:14Z, list POST /v1/payments/slips
+    and /v1/payments/confirm by status, then check payment_transactions for credited
+    rows from sending_bank 004 and 014 and whether both SCB slips credited once
