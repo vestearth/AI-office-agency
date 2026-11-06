@@ -1,11 +1,11 @@
 ---
 task_id: TASK-VS-062
 task_label: SPAR-62 audit platform top-up receiver matching handoff
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -177,6 +177,39 @@ history:
     14:15Z
   at: '2026-11-05T19:55:26Z'
   operator: claude
+- phase: 'verification: customer slips credited on prod'
+  agent: pm
+  reason: 'Both affected slips were credited once each on 2026-11-06 at 11:14:57 and
+    11:15:17 ICT, inside the 24 hour limit. Earth read the two rows from prod with
+    a read-only query (screenshot in chat) and they match the /v1/payments/confirm
+    200 responses in /ecs/slip-api-production. Earth confirmed in chat that the account
+    is the customer''s, both transfers reached the KBank statement and both invoices
+    were received. Since the fix went live to 06:23Z there were 11 slips-and-confirm
+    pairs, all 200, with no 4xx on those routes. A later prod deploy, slip-api-production:139
+    (10:10 ICT, 02c5186 coupons by watcharapol-spl), keeps the fix, so rollback to
+    :137 needs a fresh assessment. Follow-ups: SPAR-63, SPAR-64, SPAR-65. Gate v3_independent_review
+    stays pending; this row does not resolve it.'
+  at: '2026-11-06T06:30:00Z'
+  operator: claude
+- phase: 'check_after: cleared'
+  agent: pm
+  reason: 'done early: both slips confirmed credited, statement and invoices confirmed
+    by Earth on 2026-11-06'
+  at: '2026-11-06T06:29:27Z'
+  operator: claude
+- phase: 'gate v3_independent_review: pending -> pass'
+  agent: reviewer
+  reason: Michael De Santa approved v3 with caveats in independent-review-v3.md. ev-048
+    shows payment.go blob e4929ce from the reviewed v3 patch on main, origin/prod
+    and the running image commit. The later d85b7d1 changed only test fixtures and
+    had no independent review; the approval does not cover it.
+  at: '2026-11-06T06:34:18Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-06T06:34:18Z'
+  operator: claude
 completion_gates:
   earth_matching_decision:
     status: pass
@@ -204,12 +237,15 @@ completion_gates:
     - ev-018
     - ev-019
   v3_independent_review:
-    status: pending
-    actor: debugger
-    reason: V2 reviewer MAJOR required changes are repaired locally; v3 needs independent
-      re-review before acceptance
-    updated_at: '2026-11-05T18:43:02Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: Michael De Santa approved v3 with caveats in independent-review-v3.md.
+      ev-048 shows payment.go blob e4929ce from the reviewed v3 patch on main, origin/prod
+      and the running image commit. The later d85b7d1 changed only test fixtures and
+      had no independent review; the approval does not cover it.
+    updated_at: '2026-11-06T06:34:18Z'
+    evidence_refs:
+    - ev-048
 handoff:
   from: debugger
   to: reviewer
@@ -228,8 +264,4 @@ branches:
       matcher failure reproduced and positional bank-only fix verified with repository
       tests/build/vet
     updated_at: '2026-11-05T18:05:20Z'
-check_after:
-  at: '2026-11-06T14:30:00Z'
-  what: In /ecs/slip-api-production since 2026-11-05T19:42:14Z, list POST /v1/payments/slips
-    and /v1/payments/confirm by status, then check payment_transactions for credited
-    rows from sending_bank 004 and 014 and whether both SCB slips credited once
+decision_applied_at: '2026-11-06T06:34:18Z'

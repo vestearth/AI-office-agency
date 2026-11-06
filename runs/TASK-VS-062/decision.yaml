@@ -1,0 +1,8 @@
+---
+task_id: TASK-VS-062
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-06T06:34:18Z'
+  against_phase: in_review
+  note: "recorded from chat by the Claude conductor: operator asked to finish the run state and gate (2026-11-06). Fix on prod and customer slips credited; operator confirmed the account, statement and invoices in chat. Follow-ups SPAR-63, SPAR-64, SPAR-65."
