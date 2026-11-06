@@ -82,8 +82,9 @@ Ask before `deploy_production`; do not infer the answer from logs again.
    - `Idempotency-Key`: the reply was about checking logs and did not answer. **Still open.**
 2. **KBank:** why some calls cluster near 6 s and others pass 8 s, and whether that can be fixed on
    their side.
-3. **Price per `0000` call:** needed to confirm the saving is worth the risk. If it is not, keeping
-   3.05 s + proxy retry is a legitimate outcome and this task closes without shipping.
+3. **Price per `0000` call:** received from Earth on 2026-11-06 (rates kept out of this repo). The estimated
+   saving is about 146–1,632 baht per month incl. VAT, whichever sending-bank mix applies. The conductor
+   recommends keeping 3.05 s + proxy retry and closing this task without shipping; Earth's decision is pending.
 
 ## Verification and acceptance
 

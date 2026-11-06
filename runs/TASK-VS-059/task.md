@@ -52,9 +52,25 @@ KBank may already be billing.
   last few minutes before any prod merge.
 - **More evidence for the merchant limit:** during the incident all 157 408s came at 7.88–8.01 s on 3.05 s
   code, so the about-8 s limit does not depend on the 12 s change. Still inferred from logs.
-- **Unexplained:** 450 422s from merchant `84006774…` at 17:29–17:30Z, right after KBank recovered, against
-  about 10 per minute normally. Back to normal by 17:32Z. They began before the new tasks started, so the
-  deploy did not cause them. Logs do not show the reason; `verifications` or `payment_transactions` would.
+- **422 burst explained** (prod DB, run by Earth 2026-11-06): 450 422s from merchant `84006774…` at
+  17:29–17:30Z, right after KBank recovered, are all `rejected` 8404 "Transaction Reference does not exist".
+  They cover 358 slips, and 347 of those (97 %) were verified later, against 12 of 52 (23 %) at 17:15–17:20Z.
+  So KBank answered "not found" for real slips during recovery (still to raise with KBank). They began
+  before the new tasks started, so the deploy did not cause them.
+
+### October reconciliation with KBank (2026-11-06)
+
+The gap that started this task was reported as 18,173 (KBank 10,362,202, ours 10,344,029). That figure is wrong:
+
+- Ours is **10,331,394** verified on Bangkok month edges. The `bank-flows` per-day cache and the hourly rollup match
+  on every October day, and a raw count of 10-11 matches both.
+- 10,344,029 is 10,331,394 + 12,635. The person who totalled it confirmed adding `unknown`, but `total` already
+  includes `unknown`, so it was counted twice. slip-api code does not do this.
+- KBank's 10,362,202 is Transfer only; Billpay is a separate 3,250. The gap is **30,808 (0.30 %)** on Transfer, or
+  34,058 if our rows include Billpay. Both assume KBank also cuts on Bangkok time, which is unconfirmed.
+- By direction (KBank Transfer minus ours): internal 8,357, out 13,507, in 8,513, other 12,928, unknown -12,497. The
+  even spread fits both late billing and a month-edge difference, so the cause is not proven. Daily counts or billed
+  `rqUID`s from KBank would separate them.
 
 ## What KBank told the operator (2026-11-04)
 
@@ -73,7 +89,9 @@ KBank may already be billing.
 - **What the invoice should count** (for the billing check below):
   - Billed (0000):
     - `verifications` rows with `status=verified`, including the receiver-mismatch ones;
-    - post-bank race `duplicate` rows (non-empty `response_payload`);
+    - post-bank race `duplicate` rows (`response_payload` does not identify them: pre-bank rows copy it
+      from the original via `withVerifiedSlip`, and all 64,610 duplicates in 7 days to 2026-11-05 had it;
+      estimate from 409 `duration_ms`);
     - top-up verifies in `payment_transactions`;
     - `not_found` rows that came from a 0000 answer with no `Data`
       (`slip-system/internal/core/services/kbank_normalize.go` ~:78, error code `invalid_slip`);
