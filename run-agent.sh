@@ -60,7 +60,7 @@ usage() {
 Usage: ./run-agent.sh [--profile <name>] <TASK_ID> <AGENT> [RUNNER]
        ./run-agent.sh [--profile <name>] <TASK_ID> scaffold <dev|dev-2|reviewer> [--force]
        ./run-agent.sh [--profile <name>] status [TASK_ID]
-       ./run-agent.sh [--profile <name>] intake "<request>"
+       ./run-agent.sh [--profile <name>] intake [--prefix <PREFIX>] "<request>"
        ./run-agent.sh [--profile <name>] open <TASK_ID> --title "<title>" (--preset <name> | --gate <name>:<reason> | --no-gates "<reason>")
        ./run-agent.sh [--profile <name>] verify <TASK_ID>
        ./run-agent.sh [--profile <name>] cleanup
@@ -95,9 +95,17 @@ Status:
 
 Operator helpers:
   ./run-agent.sh intake "Fix wallet callback failure"
+  ./run-agent.sh intake --prefix VS "Fix the slip quota rule"   # another namespace this machine mints in
   ./run-agent.sh open TASK-EAR-012 --title "Fix wallet callback" --agent dev --preset staging
   ./run-agent.sh verify TASK-011
   ./run-agent.sh cleanup
+
+Task namespaces (docs/multi-user-git.md):
+  New ids are TASK-<PREFIX>-NNN. intake uses office.task_prefix; --prefix picks one
+  of office.extra_task_prefixes (both in office.config.local.yaml). open, and pm on a
+  new task, accept an id in either. Once office.team.yaml lists prefixes, each must
+  be registered there; PKG and GW are reserved. OFFICE_TASK_PREFIX=<PREFIX> replaces
+  both keys for one command and names exactly that namespace.
 EOF
   exit 1
 }
@@ -246,26 +254,36 @@ fi
 
 show_intake_preview() {
   local request="$1"
+  local requested_prefix="${2:-}"
   # Multi-user git mode: each user allocates ids in their own TASK-<PREFIX>-NNN
   # namespace so concurrent intakes on different machines never collide.
   # Prefix comes from OFFICE_TASK_PREFIX or office.task_prefix in
   # office.config.local.yaml; empty prefix keeps the legacy shared TASK-NNN pool.
+  # --prefix picks another namespace this machine mints in, listed in
+  # office.extra_task_prefixes; OFFICE_TASK_PREFIX names exactly one namespace.
   local task_prefix="${OFFICE_TASK_PREFIX:-}"
-  if [[ -z "$task_prefix" ]]; then
+  local extra_prefixes="" env_prefix=0
+  if [[ -n "$task_prefix" ]]; then
+    env_prefix=1
+  else
     # Let the resolver's own '[ERROR] invalid YAML in ...' through and fail
     # closed: swallowing it would mis-report a broken config as "no prefix set"
     # and send the user to fix the very file they just edited.
-    if ! task_prefix="$(ruby "$CONFIG_RESOLVER" get "$OFFICE_DIR" office.task_prefix "")"; then
+    if ! task_prefix="$(ruby "$CONFIG_RESOLVER" get "$OFFICE_DIR" office.task_prefix "")" ||
+       ! extra_prefixes="$(ruby "$CONFIG_RESOLVER" list "$OFFICE_DIR" office.extra_task_prefixes "")"; then
       echo "[ERROR] could not read office config (see message above); fix it before intake" >&2
       return 1
     fi
   fi
 
-  ruby - "$RUNS_DIR" "$OFFICE_DIR/tasks" "$request" "$task_prefix" "$OFFICE_DIR/office.team.yaml" <<'RUBY'
+  ruby - "$RUNS_DIR" "$OFFICE_DIR/tasks" "$request" "$task_prefix" "$OFFICE_DIR/office.team.yaml" \
+    "$requested_prefix" "$extra_prefixes" "$env_prefix" <<'RUBY'
 # encoding: utf-8
 require "yaml"
 
-runs_dir, tasks_dir, request, raw_prefix, registry_path = ARGV
+runs_dir, tasks_dir, request, default_prefix, registry_path, requested_prefix, raw_extras, env_prefix = ARGV
+requested = !requested_prefix.to_s.strip.empty?
+raw_prefix = requested ? requested_prefix : default_prefix
 
 prefix = raw_prefix.to_s.strip.upcase
 unless prefix.empty? || prefix.match?(/\A[A-Z][A-Z0-9]*\z/)
@@ -329,6 +347,23 @@ if registry.any?
     warn "  add this line under prefixes:, then commit and push:"
     warn "    #{prefix}: <Your Name>"
     exit 1
+  end
+  # Registration alone grants nothing: --prefix must name a namespace this
+  # machine mints in, or two machines would race max+1 in the same one.
+  if requested
+    default = default_prefix.to_s.strip.upcase
+    if env_prefix == "1"
+      if prefix != default
+        warn "[ERROR] --prefix #{prefix} is not OFFICE_TASK_PREFIX=#{default}, which names the only namespace for this command; unset it to use office.extra_task_prefixes"
+        exit 1
+      end
+    else
+      mine = ([default] + raw_extras.to_s.split(/[\s,]+/)).map { |p| p.strip.upcase }.reject(&:empty?)
+      unless mine.include?(prefix)
+        warn "[ERROR] prefix #{prefix} is registered to #{prefix_owner}, but this machine does not mint in it; if this machine owns #{prefix}, add it to office.extra_task_prefixes in office.config.local.yaml"
+        exit 1
+      end
+    end
   end
 end
 
@@ -401,16 +436,24 @@ RUBY
 
 enforce_new_task_namespace() {
   local task_id="$1"
+  # OFFICE_TASK_PREFIX names exactly one namespace (the event gateway mints
+  # TASK-GW-N under it); without it, this machine's config gives
+  # office.task_prefix plus office.extra_task_prefixes.
   local task_prefix="${OFFICE_TASK_PREFIX:-}"
+  local extra_prefixes=""
   if [[ -z "$task_prefix" ]]; then
     task_prefix="$(ruby "$CONFIG_RESOLVER" get "$OFFICE_DIR" office.task_prefix "")" || return 1
+    extra_prefixes="$(ruby "$CONFIG_RESOLVER" list "$OFFICE_DIR" office.extra_task_prefixes "")" || return 1
   fi
 
-  ruby - "$task_id" "$task_prefix" "$OFFICE_DIR/office.team.yaml" <<'RUBY'
+  ruby - "$task_id" "$task_prefix" "$OFFICE_DIR/office.team.yaml" "$extra_prefixes" <<'RUBY'
 require "yaml"
 
-task_id, raw_prefix, registry_path = ARGV
+task_id, raw_prefix, registry_path, raw_extras = ARGV
 prefix = raw_prefix.to_s.strip.upcase
+# Reserved prefixes never count as extras (scripts/task-namespace.rb RESERVED).
+reserved = %w[PKG GW]
+extras = raw_extras.to_s.split(/[\s,]+/).map { |p| p.strip.upcase }.reject { |p| p.empty? || reserved.include?(p) }.uniq
 registry = {}
 
 if File.exist?(registry_path)
@@ -428,14 +471,20 @@ if File.exist?(registry_path)
 end
 
 exit 0 if registry.empty?
-abort "[ERROR] set your Dashboard name before creating a task" if prefix.empty?
-owner = registry[prefix]
-abort "[ERROR] prefix #{prefix} is not registered" unless owner && !owner.empty?
-
-expected = /\ATASK-#{Regexp.escape(prefix)}-\d+\z/
-unless task_id.match?(expected)
-  abort "[ERROR] new task id must use active namespace TASK-#{prefix}-NNN; run intake and use its returned id"
+registered = ->(p) { !registry[p].to_s.empty? }
+namespace = task_id[/\ATASK-([A-Z][A-Z0-9]*)-\d+\z/, 1]
+if namespace && extras.include?(namespace)
+  exit 0 if registered.call(namespace)
+  abort "[ERROR] prefix #{namespace} is not registered"
 end
+abort "[ERROR] set your Dashboard name before creating a task" if prefix.empty?
+abort "[ERROR] prefix #{prefix} is not registered" unless registered.call(prefix)
+exit 0 if namespace == prefix
+if namespace && !reserved.include?(namespace) && registered.call(namespace)
+  abort "[ERROR] #{task_id} is in the registered #{namespace} namespace (#{registry[namespace]}), which this machine does not mint in; " \
+        "if this machine owns #{namespace}, add it to office.extra_task_prefixes in office.config.local.yaml"
+end
+abort "[ERROR] new task id must use active namespace TASK-#{prefix}-NNN; run intake and use its returned id"
 RUBY
 }
 
@@ -609,11 +658,27 @@ RUBY
 }
 
 if [[ "${1:-}" == "intake" ]]; then
-  [[ $# -ge 2 ]] || usage
+  shift
+  INTAKE_REQUEST=""
+  INTAKE_PREFIX=""
+  INTAKE_HAVE_REQUEST=0
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--prefix" ]]; then
+      [[ $# -ge 2 && -n "$2" ]] || usage
+      INTAKE_PREFIX="$2"
+      shift 2
+    else
+      [[ "$INTAKE_HAVE_REQUEST" -eq 0 ]] || usage
+      INTAKE_REQUEST="$1"
+      INTAKE_HAVE_REQUEST=1
+      shift
+    fi
+  done
+  [[ "$INTAKE_HAVE_REQUEST" -eq 1 ]] || usage
   # Multi-user git mode: see the latest team state (allocated ids, prefix
   # registry) before previewing a new task id. No-op unless git_sync is on.
   bash "$GIT_SYNC" pull || true
-  show_intake_preview "$2"
+  show_intake_preview "$INTAKE_REQUEST" "$INTAKE_PREFIX"
   exit $?
 fi
 

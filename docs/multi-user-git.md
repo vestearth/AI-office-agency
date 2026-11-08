@@ -32,12 +32,40 @@ office:
 ```
 
 หรือใช้ env แทน: `export OFFICE_TASK_PREFIX=EA`
-(env ชนะ config; `PKG` สงวนไว้สำหรับ package tasks)
+(env ชนะ config และระบุ namespace เดียวพอดี — ปิด `extra_task_prefixes`
+ด้านล่างไปด้วยสำหรับคำสั่งนั้น; `PKG` สงวนไว้สำหรับ package tasks, `GW`
+สำหรับ event gateway)
 
 จากนั้น `./run-agent.sh intake "..."` จะจองเลขใน namespace ของตัวเอง:
 
 - Earth → `TASK-EA-001`, `TASK-EA-002`, …
 - Bob → `TASK-BOB-001`, …
+
+### หลาย namespace ในเครื่องเดียว (prefix เป็นรหัสโปรเจกต์)
+
+ถ้าเครื่องนี้เป็นเจ้าของ prefix มากกว่าหนึ่งตัว — เช่นคนเดียวใช้ prefix
+เป็นรหัสโปรเจกต์ (`EAR` = Games-Labs, `KAS` = Kasper, `VS` = VerifySlip) —
+ให้ list prefix ที่เหลือไว้ใน `office.config.local.yaml` ของเครื่องนั้น:
+
+```yaml
+office:
+  task_prefix: EAR                # intake ใช้ตัวนี้ถ้าไม่ระบุ --prefix
+  extra_task_prefixes: [KAS, VS]  # namespace อื่นที่เครื่องนี้จองเลขได้
+```
+
+- `./run-agent.sh intake --prefix VS "..."` → จอง `TASK-VS-NNN`
+- `./run-agent.sh open TASK-VS-063 ...` และ `./run-agent.sh TASK-VS-063 pm`
+  (task ใหม่) รับ id นั้นได้เลย ไม่ต้องตั้ง `OFFICE_TASK_PREFIX`
+- ทุก prefix ใน list ต้องลงทะเบียนใน `office.team.yaml` แล้ว; `PKG`/`GW`
+  ใส่ไปก็ไม่มีผล
+
+**ลงทะเบียน ≠ สิทธิ์จองเลข:** registry บอกว่า prefix เป็นของใคร แต่เครื่องหนึ่ง
+จองเลขได้เฉพาะ `task_prefix` ของตัวเองกับที่ list ไว้ใน `extra_task_prefixes`
+เท่านั้น — open/intake/pm ปฏิเสธ id ใน namespace ที่ลงทะเบียนแล้วแต่เครื่องนี้
+ไม่ได้ list (เช่น `TASK-BOB-…` บนเครื่องของ Earth) การันตีเดิมจึงยังอยู่:
+ถ้าแต่ละคน list เฉพาะ prefix ของตัวเอง เลขไม่มีทางซ้ำข้ามเครื่อง
+**ห้าม list prefix ของคนอื่น** — สองเครื่องจองใน namespace เดียวกันจะนับ
+max+1 ชนกัน
 
 เลขเดิมแบบ `TASK-NNN` ยังใช้ได้ (legacy pool) แต่**ห้ามใช้พร้อมกันหลายเครื่อง**
 เพราะการนับ max+1 จะ race กัน — ทุกคนในทีมต้องมี prefix

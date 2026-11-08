@@ -6,10 +6,16 @@ office:
   # gitignored office.config.local.yaml (NOT here), e.g.:
   #   office:
   #     task_prefix: EA   # -> intake allocates TASK-EA-001, TASK-EA-002, ...
-  # Uppercase letters/digits, starts with a letter. PKG is reserved.
+  # Uppercase letters/digits, starts with a letter. PKG and GW are reserved.
   # Env override: OFFICE_TASK_PREFIX. Empty = legacy shared TASK-NNN pool
   # (single-machine only — it races across machines).
   # task_prefix: ""
+  # Other registered prefixes THIS machine also mints in, e.g. a solo
+  # operator's per-project codes (also local-only). `intake --prefix VS`
+  # allocates in one; `open` and a new `pm` accept ids in them. List only
+  # prefixes you own: two machines minting in one prefix race max+1.
+  # OFFICE_TASK_PREFIX, when set, turns this off for that command.
+  # extra_task_prefixes: [KAS, VS]
 
 agents:
   - id: pm
