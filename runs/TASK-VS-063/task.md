@@ -67,8 +67,12 @@ The slip key is branch + channel + `lower(sending_bank)` + `lower(trans_ref)`, t
 
 - **slip-api** (owner of quota):
   - Apply decisions 1–6 to bank verify results with `statusCode` 8404.
-  - 8404 must not bind the `Idempotency-Key`, the same as not_found today
-    (`verification.go` ~:281–285 and `replayBankVerification`).
+  - ~~8404 must not bind the `Idempotency-Key`~~ **Changed in review (2026-11-08):** an 8404 keeps
+    its key for the 30 s repeat window. A same-key retry inside it replays the stored 8404 with no
+    bank call and no charge, and after that the key is released so the retry reaches the bank.
+    Not binding at all made a same-key retry under 30 s cost +1, more than the old rule, which
+    contradicts decision 10. A same-key retry is the same request (often a transport failure), and
+    Earth's condition was to charge only resends the merchant caused.
   - Decision 4 needs a fresh KBank call. `recentNotFound` / `NOT_FOUND_COOLDOWN` must not answer
     8404 from a stored row. Today it only matches `status = 'not_found'`, so check this if 8404
     rows become not_found.
@@ -96,6 +100,25 @@ The slip key is branch + channel + `lower(sending_bank)` + `lower(trans_ref)`, t
   - charging post-bank duplicates (decision 9);
   - the KBank count gap from timeouts and proxy retries (accepted as cost in VS-059 / VS-061);
   - executing any refund.
+
+## Implementation (2026-11-08)
+
+- **slip-api PR:** SparqLab/slip-api#125, branch `task/TASK-VS-063` (bf1b290 + review fixes d486b25).
+- **Design:** state lives in `verification_not_found_slips` (migration 078, a small table only, with no
+  index on `verifications`, so no prod pre-build). The decision, quota, state upsert and insert run
+  in one transaction under a row lock. The verified lookup fails open (it charges as before).
+- **Logs:** `bank 8404 quota decision charged=<bool>` and
+  `verified inside a charged 8404 window; not charged` for acceptance counts.
+- **Review:** an independent reviewer returned APPROVE with nits. All warnings were fixed with
+  red-first tests.
+- **Out of scope, found in review:** on `main`, `assertReceiverCheck` relabels any error (including a
+  DB error) as verified + receiver mismatch.
+- **Rollback:** revert the task definition first. Never run the 078 Down migration under live code.
+- **Known limitation:** batch `quota_used` stays code-based.
+- **No backfill:** 8404s charged before deploy have no state row, so acceptance counts start at
+  the deploy time.
+- **slip-landing PR:** SparqLab/slip-landing#15 (text only). Hold its staging/prod promotion until slip-api
+  is live on prod.
 
 ## Acceptance
 

@@ -71,33 +71,74 @@ history:
     pre-build and the merchant notice still need Earth'
   at: '2026-11-08T06:19:37Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: vet, build, go test ./... ok; 65/65 repository tests vs local PostgreSQL
+    18; reviewer APPROVE with nits, all warnings fixed red-first
+  at: '2026-11-08T06:48:43Z'
+  operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'PR #126 merged with tree == dry run T1 d3b3e73; Deploy STAGING success;
+    rollout COMPLETED 1/1; rollback slip-api-staging:183'
+  at: '2026-11-08T07:02:29Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: devops
+  reason: 'staging proves boot: goose applied 078 in 33 ms, gRPC and HTTP listeners
+    up, 0 ERROR / panic / fatal since the merge. Rule C behaviour is proven by the
+    tests in ev-001; production acceptance counts the 8404 decision logs'
+  at: '2026-11-08T07:02:29Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-08T05:59:59Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: vet, build, go test ./... ok; 65/65 repository tests vs local PostgreSQL
+      18; reviewer APPROVE with nits, all warnings fixed red-first
+    updated_at: '2026-11-08T06:48:43Z'
+    evidence_refs:
+    - ev-001
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api d486b25 (task/TASK-VS-063)
+      url: https://github.com/SparqLab/slip-api/pull/125
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-08T05:59:59Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'PR #126 merged with tree == dry run T1 d3b3e73; Deploy STAGING success;
+      rollout COMPLETED 1/1; rollback slip-api-staging:183'
+    updated_at: '2026-11-08T07:02:29Z'
+    evidence_refs:
+    - ev-002
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api staging e90200f (slip-api-staging:184, staging-sha-e90200f)
+      url: https://github.com/SparqLab/slip-api/pull/126
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-08T05:59:59Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'staging proves boot: goose applied 078 in 33 ms, gRPC and HTTP listeners
+      up, 0 ERROR / panic / fatal since the merge. Rule C behaviour is proven by the
+      tests in ev-001; production acceptance counts the 8404 decision logs'
+    updated_at: '2026-11-08T07:02:29Z'
+    evidence_refs:
+    - ev-002
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api staging e90200f
+      url: https://github.com/SparqLab/slip-api/pull/126
   deploy_production:
     status: pending
     actor: pm
