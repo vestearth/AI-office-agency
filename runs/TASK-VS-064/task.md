@@ -31,7 +31,8 @@ SparqLab/slip-api#125 (TASK-VS-063). The bug predates that PR and is outside VS-
    what `queue.go` `batchOutcomeFromVerify` already gives a non-sentinel error).
 
 Option 3 deviates from the requested default "fail open" (continue as if the check passed). See
-the PR for the trade-off. Flipping it is a one-line change.
+the PR for the trade-off. Flipping it is a one-line change. **Decision (Earth, chat,
+2026-11-08, after the prod frequency check below): keep fail closed.**
 
 4. Added at Earth's request on 2026-11-08 (same defect class). After the bank answers, `Verify`
    (legacy, gRPC) and `VerifyBank` treated any post-bank `rejectIfDuplicate` error as a duplicate.
