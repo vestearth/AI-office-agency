@@ -61,12 +61,14 @@ the PR for the trade-off. Flipping it is a one-line change. **Decision (Earth, c
 ## Status (2026-11-08)
 
 - PR: SparqLab/slip-api#127 (`task/TASK-VS-064`), into `main`, not merged. Commits:
-  e19a09c receiver, 038fd73 duplicate, 802dc14 queue. Head is 802dc14.
+  e19a09c receiver, 038fd73 duplicate, 802dc14 queue, 2826114 queue guard tests. Head is 2826114.
 - All five regression tests failed before their fix and pass after it. A mutation check shows
-  each guard has its own failing test. On head 802dc14, `go vet`, `go build -mod=readonly` and
+  each guard has its own failing test. On head 2826114, `go vet`, `go build -mod=readonly` and
   `go test ./... -count=1` all exit 0. The raw output is in the PR.
-- Independent review (reviewer lane) approved e19a09c and 038fd73. Open follow-ups from that
-  review, not done here:
+- Independent reviews (reviewer lane) approved e19a09c + 038fd73, and separately 802dc14.
+  2826114 is test-only and closes that review's guard-coverage gap. Open follow-ups, not done
+  here:
+  - `processJob` discards `MarkFailed` and `Complete` errors, so a job can stay `PROCESSING`;
   - raw error text reaches LINE and gRPC users (existing pattern);
   - historical keyed `duplicate` rows from lost idempotency leases (count off-peak);
   - carrying `ReceiverCheckEnabled` in `BranchIdentity` so `GetByID` is skipped.
