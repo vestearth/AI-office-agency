@@ -1,0 +1,107 @@
+---
+task_id: TASK-VS-064
+task_label: 'slip-api: receiver-check lookup errors must not save a charged verified
+  row'
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-08'
+updated_at: '2026-11-08'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, deploy_production, production_acceptance, knowledge_closeout'
+  at: '2026-11-08T14:51:56Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-08T14:51:56Z'
+  operator: claude
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-08T14:51:56Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-08T14:51:56Z'
+  operator: claude
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: the production deploy ran from the commit accepted on staging
+  at: '2026-11-08T14:51:56Z'
+  operator: claude
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working in production
+  at: '2026-11-08T14:51:56Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-08T14:51:56Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-11-08T14:51:56Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-11-08T14:51:56Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-11-08T14:51:56Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+  deploy_production:
+    status: pending
+    actor: pm
+    reason: the production deploy ran from the commit accepted on staging
+    updated_at: '2026-11-08T14:51:56Z'
+    evidence_refs: []
+    requires_authorization: deploy_production
+    after:
+    - staging_acceptance
+    requires_record: true
+  production_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working in production
+    updated_at: '2026-11-08T14:51:56Z'
+    evidence_refs: []
+    after:
+    - deploy_production
+    requires_record: true
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-11-08T14:51:56Z'
+    evidence_refs: []
