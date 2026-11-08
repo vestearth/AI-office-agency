@@ -33,21 +33,28 @@ SparqLab/slip-api#125 (TASK-VS-063). The bug predates that PR and is outside VS-
 Option 3 deviates from the requested default "fail open" (continue as if the check passed). See
 the PR for the trade-off. Flipping it is a one-line change.
 
-Out of scope (follow-up): `rejectIfDuplicate` errors (an `ExistsVerified` DB error) are also
-treated as a duplicate in `VerifyBank`. That is the same defect class.
+4. Added at Earth's request on 2026-11-08 (same defect class). After the bank answers, `Verify`
+   (legacy, gRPC) and `VerifyBank` treated any post-bank `rejectIfDuplicate` error as a duplicate.
+   An `ExistsVerified` DB error saved a `duplicate` row that carried the Idempotency-Key and
+   answered "duplicate slip" for a genuine slip, and a same-key retry replayed "duplicate"
+   forever. Now only `models.ErrDuplicateSlip` takes the duplicate path. Any other error is
+   returned without saving or charging, as the pre-bank check already does.
 
 ## Acceptance
 
 - Regression tests in `internal/core/service`, seen failing on `origin/main` before the fix:
   - a branch repo whose `GetByID` fails plus a bank 8404 produces no verified or charged row;
-  - a bank-account lookup failure on a verified result saves nothing and charges nothing.
+  - a bank-account lookup failure on a verified result saves nothing and charges nothing;
+  - a failed post-bank duplicate check (`Verify` and `VerifyBank`) returns the error, saves no
+    duplicate row, and a same-key retry verifies.
 - `GOWORK=off go vet ./...`, `go build -mod=readonly ./...`, `go test ./... -count=1` pass.
 - A PR into slip-api `main`. Promotion to staging and prod waits for Earth (verifyslip-promote).
 
 ## Status (2026-11-08)
 
-- PR: SparqLab/slip-api#127 (`task/TASK-VS-064`, commit e19a09c), into `main`. Not merged.
-- Both regression tests failed on `origin/main` 7de73f8 and pass with the fix. A mutation check
-  shows each half of the fix has its own failing test. `go vet`, `go build -mod=readonly` and
+- PR: SparqLab/slip-api#127 (`task/TASK-VS-064`, commits e19a09c receiver + 038fd73 duplicate,
+  head 038fd73), into `main`. Not merged.
+- All four regression tests failed before their fix and pass after it. A mutation check shows
+  each guard has its own failing test. On head 038fd73, `go vet`, `go build -mod=readonly` and
   `go test ./... -count=1` all exit 0. The raw output is in the PR.
 - Staging and prod promotion wait for Earth (verifyslip-promote).
