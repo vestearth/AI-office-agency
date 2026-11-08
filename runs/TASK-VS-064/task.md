@@ -58,3 +58,22 @@ the PR for the trade-off. Flipping it is a one-line change.
   each guard has its own failing test. On head 038fd73, `go vet`, `go build -mod=readonly` and
   `go test ./... -count=1` all exit 0. The raw output is in the PR.
 - Staging and prod promotion wait for Earth (verifyslip-promote).
+
+## Prod frequency check (2026-11-08 ~15:10 UTC, read-only, counts only)
+
+The queries ran read-only through ECS Exec on `slip-api-production`, with the same method as
+TASK-VS-055 `prod-readonly-psql.py` (5 s statement timeout).
+
+- **Receiver bug (1): no sign it has ever fired.** All time there are 5 `receiver_mismatch` rows.
+  All 5 have bank code `0000` and sit on the one branch that has the check on (last one
+  2026-10-08), so they are likely real mismatches. There are 0 rows with a non-verified bank code
+  and 0 rows on branches with the check off. Either kind could only come from a lookup error.
+- **Receiver check usage:** 1 of 10 active branches has `receiver_check_enabled`. In the last 30
+  days that branch had no verifications. All verified traffic came from branches with the check
+  off.
+- **Duplicate bug (2): no sign in the last 24 h.** All 9,599 `duplicate` rows have a verified row
+  for the same slip that was created before them. The 7-day query hit the 5 s timeout and was not
+  rerun with a longer timeout.
+- Both bugs are latent, with no observed damage, so no data repair is needed. The fail-closed
+  choice costs roughly nothing at today's lookup-error rate. Its protection applies today only to
+  the one enabled branch.
