@@ -43,3 +43,11 @@ treated as a duplicate in `VerifyBank`. That is the same defect class.
   - a bank-account lookup failure on a verified result saves nothing and charges nothing.
 - `GOWORK=off go vet ./...`, `go build -mod=readonly ./...`, `go test ./... -count=1` pass.
 - A PR into slip-api `main`. Promotion to staging and prod waits for Earth (verifyslip-promote).
+
+## Status (2026-11-08)
+
+- PR: SparqLab/slip-api#127 (`task/TASK-VS-064`, commit e19a09c), into `main`. Not merged.
+- Both regression tests failed on `origin/main` 7de73f8 and pass with the fix. A mutation check
+  shows each half of the fix has its own failing test. `go vet`, `go build -mod=readonly` and
+  `go test ./... -count=1` all exit 0. The raw output is in the PR.
+- Staging and prod promotion wait for Earth (verifyslip-promote).
