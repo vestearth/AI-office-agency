@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-067
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Jason-Duval
+  via: cli
+  reason: Earth-delegated staging instruction in Multica comment 01a1bf55-cfe6-7684-ab0b-7d037f9a08df;
+    production explicitly excluded
+  at: '2026-11-09T08:07:34Z'
+  action: deploy_staging
+  scope: slip-api PR 131 reviewed head 0c5b3476; merge to main and promote main to
+    staging only

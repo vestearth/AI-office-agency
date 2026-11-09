@@ -1,0 +1,63 @@
+summary: >-
+  Reviewed source head 0c5b3476 was unchanged. Merged implementation PR 131 to
+  main 7954612 and promoted main to staging through PR 132 at 913bdfd2. Actual
+  main/staging tree equals reviewed dry-run T1 c29f2776112f5b2add93b335f9c121336dc75044.
+  Deploy STAGING run 42583903596 was in progress when handed off; runtime
+  deployment and staging acceptance are pending. Production was not changed.
+artifacts:
+  - path: https://github.com/SparqLab/slip-api/pull/131
+    action: modified
+    description: Reviewed head verified and merged into main with match-head-commit.
+  - path: https://github.com/SparqLab/slip-api/pull/132
+    action: created
+    description: Main-to-staging promotion merged, pinned to main 7954612.
+  - path: runs/TASK-VS-067/evidence/staging-preflight.json
+    action: created
+    description: Local-only source scope, dry-run tree, image and rollback evidence.
+  - path: runs/TASK-VS-067/evidence/staging-rollout-check.py
+    action: created
+    description: Prepared and syntax-checked one-shot runtime/boot/metrics checker; not yet executed.
+evidence_refs: [ev-020, ev-021, ev-022, ev-024, ev-025, ev-026, ev-027, ev-028]
+infra_checks:
+  - check: reviewed_source_and_scope
+    result: pass
+    details: >-
+      Current PR head 0c5b3476 exactly matches Michael's approval in Multica
+      comment 01a1bf55-92ba-7ec9-8f91-1d0cef2fbf42. Only two new commits by
+      Sichol-Earth and seven slip-api files; no pending unrelated main commits
+      or migrations. Exact-source race/build/vet checks ev-020/021/022 pass.
+  - check: promotion_tree
+    result: pass
+    details: >-
+      PR 131 main merge 7954612, PR 132 staging merge 913bdfd2. Both match
+      reviewed tree c29f2776112f5b2add93b335f9c121336dc75044. Staging previous
+      commit de07f6b; staging rollback slip-api-staging:187 / staging-sha-de07f6b.
+  - check: production_exclusion
+    result: pass
+    details: >-
+      No production merge or deploy. Prod ref remains d8e1542; preflight observed
+      slip-api-production:142 running production-sha-d8e1542 at 3/3. Only the
+      staging authorization authz-001 was recorded.
+blockers:
+  - Deploy STAGING run 42583903596 is external CI; its observed state is in_progress, not a verified deployment.
+  - Authenticated staging 422 and counter delta need a known staging test account/token and rejected-slip fixture; secure local paths requested from Earth.
+  - No real post-deploy 422, request ID or counter delta is claimed yet. All production gates remain pending until Earth's decision and real production acceptance.
+metric_alert_observations:
+  - The counter includes user_lookup_error, platform_account_error, duplicate_lookup_error, verify_error and verify_unavailable alongside business rejection reasons; alert decisions must filter reason rather than sum blindly.
+  - Confirm rejects some users before entering inspect; those initial rejections are outside this counter and Warn path.
+  - The metric's numeric bank allowlist reuses lineBankNames (13 bank codes); future numeric additions change the label set.
+  - Prometheus counters are per process/replica and reset on restart; acceptance must compare appropriate before/after samples on stable tasks.
+followup:
+  wakeup_id: 01a1bf5e-1439-7cdd-8d5a-964877533f0e
+  at_utc: '2026-11-09T08:22:56Z'
+  original_comment: 01a1bf55-cfe6-7684-ab0b-7d037f9a08df
+  workflow: https://github.com/SparqLab/slip-api/actions/runs/42583903596
+  expected_staging_commit: 913bdfd2a3500fff90802ee09e7aa80b6d087d78
+  expected_staging_image: staging-sha-913bdfd
+next_action:
+  agent: reviewer
+  reason: >-
+    Durable one-time Multica wakeup will verify the workflow and ECS/boot state
+    once, then run Reviewer smoke with approved staging fixture/auth if supplied.
+    Keep staging_acceptance pending if any 422/request_id/counter evidence is
+    missing. Do not promote or deploy production.

@@ -1,10 +1,10 @@
 ---
 task_id: TASK-VS-067
 task_label: 'UpSlip: log topup slip rejection reasons by request_id'
-phase: assigned
-state: assigned
-iteration: 0
-current_agent: dev
+phase: in_review
+state: in_review
+iteration: 4
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -51,14 +51,80 @@ history:
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-09T07:29:20Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261109T075436Z-spar63-topup-rejection-observability.yaml'
+  at: '2026-11-09T07:54:36Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review draft PR 131 against main and source/tests on eae53ad8. Keep all
+    release and production-acceptance gates pending. Follow main -> staging -> prod
+    via separate promotion PRs only under the required operator decision.
+  at: '2026-11-09T07:55:06Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev
+  reason: Review draft PR 131 against main and source/tests on 0c5b3476. Keep all
+    release and production-acceptance gates pending. Follow main -> staging -> prod
+    via separate promotion PRs only under the required operator decision.
+  at: '2026-11-09T08:00:32Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261109T080032Z-spar63-topup-rejection-observability.yaml'
+  at: '2026-11-09T08:00:32Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: devops
+  reason: Reviewer Michael approved unchanged head 0c5b3476 in comment 01a1bf55-92ba-7ec9-8f91-1d0cef2fbf42;
+    exact-head local race/build/vet evidence rechecked against current PR
+  at: '2026-11-09T08:07:34Z'
+  operator: codex
+- phase: 'check_after: 2026-11-09T08:22:56Z'
+  agent: devops
+  reason: Merged staging PR 132; durable Multica one-time wakeup 01a1bf5e-1439-7cdd-8d5a-964877533f0e;
+    production prohibited
+  at: '2026-11-09T08:13:35Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: devops
+  reason: Durable one-time Multica wakeup will verify the workflow and ECS/boot state
+    once, then run Reviewer smoke with approved staging fixture/auth if supplied.
+    Keep staging_acceptance pending if any 422/request_id/counter evidence is missing.
+    Do not promote or deploy production.
+  at: '2026-11-09T08:13:35Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: devops
+  reason: Durable one-time Multica wakeup will verify the workflow and ECS/boot state
+    once, then run Reviewer smoke with approved staging fixture/auth if supplied.
+    Keep staging_acceptance pending if any 422/request_id/counter evidence is missing.
+    Do not promote or deploy production.
+  at: '2026-11-09T08:13:55Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: devops
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261109T081355Z-spar63-topup-rejection-observability.yaml'
+  at: '2026-11-09T08:13:56Z'
+  operator: codex
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-09T07:29:20Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: Reviewer Michael approved unchanged head 0c5b3476 in comment 01a1bf55-92ba-7ec9-8f91-1d0cef2fbf42;
+      exact-head local race/build/vet evidence rechecked against current PR
+    updated_at: '2026-11-09T08:07:34Z'
+    evidence_refs:
+    - ev-020
+    - ev-021
+    - ev-022
+    - ev-024
     requires_record: true
+    ran:
+      by: Tommy-Vercetti
+      ref: 0c5b3476e3958fe7b6356f4ec6ccd684834b7aff
+      url: https://github.com/SparqLab/slip-api/pull/131
   deploy_staging:
     status: pending
     actor: pm
@@ -98,9 +164,20 @@ completion_gates:
     - deploy_production
     requires_record: true
   knowledge_closeout:
-    status: pending
-    actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-09T07:29:20Z'
+    status: pass
+    actor: devops
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261109T081355Z-spar63-topup-rejection-observability.yaml'
+    updated_at: '2026-11-09T08:13:56Z'
     evidence_refs: []
+handoff:
+  from: devops
+  to: reviewer
+  artifact: runs/TASK-VS-067/devops-output.yaml
+last_synced_output:
+  file: devops-output.yaml
+  digest: 2da347848d647c4f2d5a877d156350e613352648f64f61b26f19e1770828d488
+  next: reviewer
+check_after:
+  at: '2026-11-09T08:22:56Z'
+  what: Verify Deploy STAGING 42583903596, ECS staging-sha-913bdfd, boot logs, and
+    authenticated 422/request_id/counter when fixture is available

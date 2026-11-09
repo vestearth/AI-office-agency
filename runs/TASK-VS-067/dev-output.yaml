@@ -1,0 +1,84 @@
+summary: >-
+  Implemented slip-api top-up rejection observability on 0c5b3476, draft PR
+  https://github.com/SparqLab/slip-api/pull/131 into main. All 19 inspect error
+  scenarios emit a single Warn with stable reason and request_id, bounded-label
+  counter increments using normalized request bank codes from the existing known-bank table, sanitized receiver shape and truncated SHA-256 reference.
+  Access/stored error extraction reads rejection_reason after existing fields.
+  API response, schema, dependencies, frontend and runtime deployment are unchanged.
+artifacts:
+  - path: slip-api/internal/core/service/payment.go
+    action: modified
+    description: Instrument all inspect error exits; shared by Submit and Confirm.
+  - path: slip-api/internal/core/service/payment_observability.go
+    action: created
+    description: Stable reasons, allowlisted log fields, receiver mask and bounded bank labels.
+  - path: slip-api/internal/core/service/payment_observability_test.go
+    action: created
+    description: Every error exit, shared entry points, PII exclusion, masking and counter deltas.
+  - path: slip-api/internal/models/reports.go
+    action: modified
+    description: Extract rejection_reason while preserving existing message/outcome precedence.
+  - path: slip-api/internal/models/reports_test.go
+    action: modified
+    description: ErrorReason regression and precedence cases.
+  - path: slip-api/internal/handler/middleware/audit_test.go
+    action: modified
+    description: A rejected payment logs its reason without echoing slip data.
+  - path: slip-api/internal/observability/metrics.go
+    action: modified
+    description: Register slip_api_payment_rejections_total with reason and sending_bank.
+evidence_refs: [ev-009, ev-010, ev-014, ev-018, ev-019, ev-020, ev-021, ev-022]
+context_sources:
+  github:
+    branch: task/TASK-VS-067
+    pr: https://github.com/SparqLab/slip-api/pull/131
+  socraticode:
+    status: used
+    queries: ['slip-api PaymentService inspect rejection ErrorReason metrics payment']
+    relevant_symbols: [payment.inspect, models.ErrorReason, observability.PaymentRejections]
+    notes: Remote-primary status/search used; source verified on origin/main 5a8eb87 before changes.
+claims:
+  - claim: Acceptance RED reproduces actual unchanged origin/main behavior with regression tests added, without a simulated defect.
+    evidence_refs: [ev-018, ev-019]
+    result: 'FAIL on base 5a8eb87: ErrorReason returns an empty string; all 19 inspect error scenarios lack rejection logs.'
+  - claim: Metric label follows revised spec 863690b9.
+    evidence_refs: [ev-014, ev-020]
+    result: >-
+      RED on previous PR commit for unlisted numeric codes. GREEN on current
+      commit: request-only NormalizeBankCode plus numeric-code membership in the
+      existing lineBankNames table. Known codes retained, empty/malformed/alias/
+      unlisted codes unknown. Provider bank cannot select the label. Warn metadata
+      is not folded by the metric allowlist.
+  - claim: Privacy test runs against real implementation and first proves an emitted rejection with safe fields before checking exclusion.
+    evidence_refs: [ev-020]
+    result: 'PASS: Warn/message, request_id, reason, masked account, hash and other safe fields asserted before negative checks for names, accounts and full reference.'
+  - claim: Full default race suite, readonly build and go vet pass on exact PR commit 0c5b3476.
+    evidence_refs: [ev-020, ev-021, ev-022]
+    result: 'PASS. Optional infrastructure-dependent integration tests retain their existing environment gates; no live database/provider test is claimed.'
+  - claim: Production acceptance remains unverified.
+    evidence_refs: [ev-009, ev-010]
+    result: >-
+      Earlier read-only check at 2026-11-09 07:50 UTC verified AWS identity
+      as vestearth/account 122991883560. That check found production task
+      slip-api-production:142 runs image production-sha-d8e1542; the new commit is
+      not deployed. Fully paginated endpoint query (10 pages) for 2026-11-08
+      07:45 to 2026-11-09 07:45 UTC (14:45 to 14:45 ICT) returned no top-up
+      traffic. A separate one-event access-log sample proves the log sink has
+      traffic, not a top-up count. Neither result proves post-deploy behavior.
+blockers:
+  - Production promotion requires Earth's decision per Jason's trigger comment; none performed.
+  - Staging deployment and acceptance have not run.
+  - A real post-deploy 422 with reason and receiver shape joined by request_id remains required; no provider replay was made.
+next_action:
+  agent: reviewer
+  reason: >-
+    Review draft PR 131 against main and source/tests on 0c5b3476. Keep all
+    release and production-acceptance gates pending. Follow main -> staging ->
+    prod via separate promotion PRs only under the required operator decision.
+
+spec_revision: 863690b9
+historical_evidence_note: >-
+  ev-004 is retained as append-only historical evidence but is not used for
+  acceptance. No new simulated bug was introduced. Current privacy evidence
+  comes from the real implementation in ev-020.
+worktree: /Users/earth/Documents/GitHub/slip-api-TASK-VS-067
