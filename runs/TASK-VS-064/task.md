@@ -92,3 +92,19 @@ TASK-VS-055 `prod-readonly-psql.py` (5 s statement timeout).
 - Both bugs are latent, with no observed damage, so no data repair is needed. The fail-closed
   choice costs roughly nothing at today's lookup-error rate. Its protection applies today only to
   the one enabled branch.
+
+## Merged and on staging (2026-11-09, recorded from TASK-VS-066's promotion)
+
+- Earth merged PR #127 into `main` as `e7da8d3` (2026-11-09 04:22:39 UTC); TASK-VS-066's #129
+  merged on top of it as `2b2d30e`. On `2b2d30e` the full suite (with PostgreSQL), vet and build
+  pass: TASK-VS-066 `ev-007`–`ev-009`.
+- Earth approved staging for both ("ขึ้น staging ทั้งคู่"), recorded here as `authz-001`.
+  PR https://github.com/SparqLab/slip-api/pull/130 promoted `main` `2b2d30e` into `staging`
+  (`10d0870..3b33b8e`, tree `fe4dcd3c` = dry run). Deploy STAGING run 42563785540 succeeded;
+  `slip-api-staging:186` (`staging-sha-3b33b8e`) PRIMARY COMPLETED 1/1 at 04:59:15 UTC;
+  rollback revision `slip-api-staging:185`. Boot logs and public smoke: TASK-VS-066 `ev-011`
+  onward and `ev-012`.
+- Not changed here: this run's gates. `implementation_verification` and `deploy_staging` are
+  this run's lane to record (the deploy evidence above lives in TASK-VS-066). Staging boot and
+  smoke do not exercise the lookup-failure paths. Production is not promoted and needs its own
+  approval.

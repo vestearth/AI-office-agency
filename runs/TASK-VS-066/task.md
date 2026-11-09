@@ -177,12 +177,42 @@ image ignores it; alts entered meanwhile come back when the new image returns.
   `implementation_verification` passed on that basis, its reason stating that no review is
   recorded. Staging and production each need Earth's approval (`verifyslip-promote`).
 
+## Staging promotion (2026-11-09)
+
+- Approval: Earth answered "ขึ้น staging ทั้งคู่" (TASK-VS-064 #127 and this run's #129), then
+  approved migration 079 running at boot. Recorded as `authz-001` in both runs. Staging only.
+- Scope (`origin/staging..origin/main`, no merges, all by Sichol-Earth): TASK-VS-064 `e19a09c`,
+  `038fd73`, `802dc14`, `2826114`; this run `a763481`. Running images matched their branches
+  (`staging-sha-10d0870`, `production-sha-2abb1d9`), and no deploy run was active.
+- Dry run: T1 = T2 = `fe4dcd3c4325ac78b3b41a4ca740f68ab4786080` (staging and prod had equal
+  trees), no conflict, only the files of those commits. Migration in scope: `A 079_blog_post_cover_alt.sql`.
+- PR https://github.com/SparqLab/slip-api/pull/130 (`main` → `staging`), merged pinned to head
+  `2b2d30e` as `3b33b8e40a3b3269fe9fcc7cf880a9afbe68c717`; the merged tree equals T1.
+- Deploy STAGING run 42563785540: success. `slip-api-staging:186`, image `staging-sha-3b33b8e`,
+  PRIMARY COMPLETED 1/1 (deployment created 04:50:40.930 UTC, completed 04:59:15.760 UTC).
+  Rollback revision: `slip-api-staging:185` (the staging service also has the circuit breaker).
+- Boot: the new task logged `goose: OK up 079_blog_post_cover_alt.sql (94ms)` and
+  `migrated database to version 79` at 04:51:25 UTC, then `Starting slip-api HTTP`.
+  Every event of `/ecs/slip-api-staging` from 04:48:00 to 05:01:20 UTC (11:48–12:01 ICT,
+  merge to COMPLETED + 2 min, read after the window closed; `ev-013`): pages=2 events=102 across
+  the old and new task (a mixed-rollout window), 95 HTTP requests (200=88, 401=6, 404=1,
+  including the smoke), 0 5xx, 0 ERROR/panic/fatal lines, 0 parse failures. `ev-011` is an
+  earlier read of the same window taken before it closed (incomplete; superseded by `ev-013`).
+- Public smoke (`ev-012`): every public post carries `cover_alt` as a string (9 posts, all `""`),
+  the detail too; missing post 404; categories keys unchanged (5 categories); unauthenticated
+  admin posts 401; packages 200; unauthenticated verify 401.
+- `deploy_staging` passed on this evidence. `staging_acceptance` is pending: the authenticated
+  admin writes (set an alt, keep it on a save without the field, alt-only edit keeps the content
+  date, 251 characters and a newline 400, cover removal clears it) need an admin login and were
+  not exercised. Production is not promoted and needs its own approval.
+
 ## Handoff to viewsupat (ready to relay)
 
-ส่วน slip-api อยู่ที่ PR https://github.com/SparqLab/slip-api/pull/129 (ยังไม่ merge และยังไม่ขึ้น
-staging) เริ่มทำฝั่ง admin และ landing ได้เลย แต่ **deploy admin หลังจาก slip-api ขึ้น environment
-นั้นแล้วเท่านั้น** เพราะ API ตัวเดิมปฏิเสธฟิลด์ที่ไม่รู้จัก ถ้าส่ง `cover_alt` ไปก่อนจะได้ 400
-`invalid blog post JSON` ส่วน landing ขึ้นก่อนได้ เพราะถ้าไม่มีฟิลด์ก็ทำงานเหมือนเดิม
+ส่วน slip-api (PR https://github.com/SparqLab/slip-api/pull/129) **ขึ้น staging แล้ว** ตั้งแต่
+2026-11-09 04:59 UTC (`staging-sha-3b33b8e`) แต่ **ยังไม่ขึ้น prod** เริ่มทำฝั่ง admin และ landing ได้เลย
+และ deploy admin ขึ้น staging ได้แล้ว ส่วน admin บน prod ต้องรอให้ slip-api ขึ้น prod ก่อน เพราะ API ตัวเดิม
+ปฏิเสธฟิลด์ที่ไม่รู้จัก ถ้าส่ง `cover_alt` ไปก่อนจะได้ 400 `invalid blog post JSON` ส่วน landing ขึ้นก่อนได้
+เพราะถ้าไม่มีฟิลด์ก็ทำงานเหมือนเดิม
 
 **API**
 
