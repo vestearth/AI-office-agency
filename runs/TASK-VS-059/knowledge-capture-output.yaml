@@ -1,0 +1,263 @@
+task_id: TASK-VS-059
+capture_type: lesson
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/VerifySlip/KBank Timeouts Billing And Monthly Reconciliation — 2026-11-06.md"
+summary: "A KBank timeout is a billing decision: by KBank's statement, a 0000 answer is billed even after we stop waiting, and the proxy retry can bill again. Raising the timeout to 12 s caused merchant-visible 408s near 8 s and was rolled back, so 3.05 s stays. bank-flows total already includes unknown, and October reconciles to a 30,808 (0.30 %) Transfer gap with its cause unproven. The merchant limit and late billing as the gap's cause are unconfirmed. The 8404 finding is an open pointer only."
+sources:
+  - ai-dev-office/runs/TASK-VS-059/task.md
+  - ai-dev-office/runs/TASK-VS-059/status.yaml
+  - ai-dev-office/runs/TASK-VS-059/evidence.yaml
+  - ai-dev-office/runs/TASK-VS-059/evidence/ev-008.log
+  - ai-dev-office/runs/TASK-VS-059/evidence/ev-009.log
+  - ai-dev-office/runs/TASK-VS-059/evidence/ev-010.log
+  - ai-dev-office/runs/TASK-VS-059/evidence/ev-011.log
+  - ai-dev-office/runs/TASK-VS-059/evidence/ev-012.log
+  - ai-dev-office/runs/TASK-VS-059/evidence/ev-013.log
+  - ai-dev-office/runs/TASK-VS-059/evidence/baseline/merchant-key-and-cancel.txt
+  - ai-dev-office/runs/TASK-VS-061/task.md
+  - ai-dev-office/runs/TASK-VS-061/decision.yaml
+  - slip-api/internal/repositories/bank_flows.go
+  - slip-api/internal/repositories/bank_flows_test.go
+  - slip-api/internal/core/service/reports_bank_flow_cache.go
+  - slip-system/internal/core/services/kbank_normalize.go
+  - slip-admin/app/features/slips/ui/KbankFlowSummary.vue
+  - slip-admin/i18n/locales/en.json
+recommended_action: create_note
+requires_human_review: true
+provenance:
+  freshness: unknown
+  task_id: TASK-VS-059
+  run_id: null
+  evidence_refs: [ev-008, ev-009, ev-010, ev-011, ev-012, ev-013]
+  repo_origin: SparqLab/slip-system
+  repo_sha: 82fb8025b6b2a34c279c756a23885d2da81dacd4
+note_patch: |
+  ---
+  freshness: unknown
+  task_id: TASK-VS-059
+  evidence_refs: [ev-008, ev-009, ev-010, ev-011, ev-012, ev-013]
+  repo_origin: SparqLab/slip-system
+  repo_sha: 82fb8025b6b2a34c279c756a23885d2da81dacd4
+  ---
+
+  # VerifySlip — KBank Timeouts, Billing And Monthly Reconciliation (TASK-VS-059, 2026-11-06)
+
+  Read this before you change a KBank timeout or retry mapping, or compare our counts
+  with KBank's.
+
+  **State at closure (2026-11-06):** the 12 s change is reverted on `main`, `staging` and
+  `prod`. Prod slip-system runs at 3.05 s with the proxy retry (`slip-system-production:29`,
+  env equal to `:27`, ev-012). The successor, TASK-VS-061, closed without shipping. Recheck
+  `origin/prod` and the running task definition before repeating this.
+
+  `freshness` is `unknown` on purpose. The production observations were checked on
+  2026-11-05, but the billing rules rest on KBank's statements. `repo_sha` is the 12 s
+  build the regression was seen on, not what prod runs now. Each claim below says what
+  backs it:
+
+  - **Observed:** a recorded production check, with its evidence id.
+  - **Source read:** read in the code on 2026-11-06, not executed.
+  - **KBank said:** KBank's reply as relayed by the operator, 2026-11-04.
+  - **Task record:** in `task.md`, with no evidence id.
+
+  ## Unconfirmed: do not quote these as fact
+
+  - **The merchant's limit.** "About 8 s" is inferred from logs. Asked directly, the
+    merchant answered "10 s". What cuts at about 8 s is still unknown.
+  - **Late billing as the cause of the October gap.** A month-edge difference fits the
+    numbers equally well.
+  - **Late billing in practice.** It rests on KBank's statement. Nobody has seen per-call
+    billing data.
+  - **KBank's month edges.** Our figures use Bangkok time. That KBank also does is assumed.
+  - **Whether our rows include Billpay.** This is why the gap has two figures below.
+
+  ## 1. A KBank timeout is a billing decision
+
+  - **KBank said:**
+    - Its own timeout is 65 s. If we stop waiting and KBank then answers successfully, the
+      call counts as a success and is billed. KBank recommends a 65 s timeout.
+    - It bills only `statusCode=0000`. Every other code is free: 404/4040, `rejected`
+      codes and 8500.
+    - It does not dedupe, so repeats are billed. It has no inquiry API, and the HTTP
+      response is the only result.
+  - **Why it costs twice here (task record):** slip-system returns a KBank timeout as gRPC
+    `Unavailable`, and Service Connect retries that on another task. That is a second
+    billed call. The 2026-11-03/04 baseline suggests about 1,400 slips a day: 1,401
+    `cause=bank_network` lines, 1,416 slow 200s and only 6 502s. This is an estimate from
+    matching counts.
+  - **So a timeout is not only a reliability setting.** Shortening it does not make the
+    call cheaper. Lengthening it runs into the caller's limit (section 2). 65 s is not a
+    config change either: slip-api's request timeout and Service Connect both cap the
+    chain at 15 s.
+  - **Decision (Earth, 2026-11-06):** keep 3.05 s with the proxy retry, and accept the
+    October gap of about 0.3 % as a cost. KBank said it cannot help further. Reopen only
+    if the monthly gap or the price changes materially (TASK-VS-061).
+  - Never drop the retry without lengthening the timeout. See
+    [[40 Lessons/A Status Code Is A Retry Policy — Check What The Proxy Retry Was Masking|A Status Code Is A Retry Policy]].
+
+  **What KBank's count should include** (KBank's rule mapped to our rows, task record):
+
+  - Billed:
+    - `verified` rows, including receiver-mismatch ones;
+    - post-bank race `duplicate` rows;
+    - top-up verifies in `payment_transactions`;
+    - `not_found` rows from a 0000 answer with no `Data` (source read:
+      `kbank_normalize.go:82`);
+    - late 0000 answers after our timeout, and 0000 answers slip-api failed to save. We
+      have no row for either.
+  - Not billed: `rejected`, `not_found` from 404/4040, pre-bank `duplicate` rows and 8500.
+  - Trap: `response_payload` does not identify post-bank duplicates, because pre-bank rows
+    copy it from the original. Estimate them from 409 `duration_ms`.
+
+  ## 2. Acceptance watches caller-side timeouts first
+
+  - **Observed (ev-009, 13 minutes on the 12 s build, 2026-11-05):** 15 408s against 0 in
+    the same window the day before. 5xx, `bank_network` and `bank_timeout` were all 0, so
+    the metrics the change aimed at looked clean. The task record counts 16 through
+    12:29Z; ev-009 was taken at 12:28:47Z.
+  - **Task record:** those 408s took 7.65–8.02 s. These slips used to get a 200 through
+    the proxy retry, so about 0.3 % of verifies regressed. After the rollback to `:27`
+    (ev-010), a 9-minute window had 3,726 200s and 0 408s.
+  - **The cluster does not depend on the 12 s change.** During a KBank 8500 incident on
+    3.05 s code the same day, there were 157 408s (count: ev-011, ev-013), at 7.88–8.01 s
+    (durations: task record only).
+  - **Why the limit is unconfirmed (TASK-VS-061):**
+    - The merchant says its client timeout is 10 s, relayed by Earth on 2026-11-06.
+    - slip-api source and its prod workflow have no 8 s setting.
+    - The 2026-11-03/04 baseline also has a 408 at 11.1 s and 200s up to 14.3 s.
+    - Treat 8 s as an observed cluster, not a contract. TASK-VS-061 closed with this open.
+  - **A resend can bill again (TASK-VS-061):** the merchant says it resends on timeout or
+    502, every 3 minutes, up to 12 times. Which statuses trigger it is still open. A 408
+    saves no row, so a resend calls KBank again.
+
+  Rules:
+
+  1. **Before raising a timeout, ask the caller what its limit is, and treat the answer as
+     a blocker.** The conductor took one 14.3 s 200 as proof the merchant waits past 12 s
+     and downgraded the question to a confirmation. That was wrong: a slow 200 does not
+     show what a caller will tolerate.
+  2. **Check slip-api 408s with `duration_ms` first, from the first minutes.** That check
+     caught this within 13 minutes while the target metrics improved.
+  3. **Compare 408s by duration band, not by total.** The baseline has 27 in 24 h to
+     2026-11-04 07:42Z: 24 under 1 s and one each at 1–3.5 s, 5–10 s and over 10 s. The
+     "about 1 per day" in the task records does not match that total, and they do not say
+     which window or band it covers. A cluster is the signal.
+  4. **Staging cannot prove this.** KBank restricts readable slips there, so the first real
+     verify happens on prod. Plan the watch for that.
+
+  ## 3. `bank-flows` `total` already includes `unknown`
+
+  - **Source read** (slip-api `origin/prod` `06a4160`, the image running on 2026-11-06):
+    - `bank_flows.go:108` adds every direction to `summary.Total`, and `unknown` is one of
+      them (`:52`, a blank sending or receiving bank).
+    - The per-day cached path sums the same totals (`reports_bank_flow_cache.go:373`).
+    - The test fixture expects a total of 8 with 1 `unknown` (`bank_flows_test.go:390`, `:396`).
+  - **What happened (task record):** the reported October figure of 10,344,029 was
+    10,331,394 + 12,635. The person who totalled it confirmed adding `unknown`, so those
+    rows were counted twice. slip-api does not do this.
+  - **Possible source of the mistake (inferred):** the slip-admin footer reads "From {rows}
+    verified slips · unknown bank {unknown}" (`en.json:99`, `KbankFlowSummary.vue:780`),
+    which can read as two separate counts. The footer wording change was left undone at
+    closure.
+  - **Rule:** use `total` as it is. Never add `unknown` to it.
+
+  ## 4. Reconcile with KBank by direction, with Billpay separate
+
+  October 2026 (task record, reconciled 2026-11-06):
+
+  | Figure | Count |
+  |---|---|
+  | KBank Transfer | 10,362,202 |
+  | KBank Billpay (separate line) | 3,250 |
+  | Ours, `bank-flows` `total`, Bangkok month edges | 10,331,394 |
+  | Gap on Transfer | 30,808 (0.30 %) |
+  | Gap if our rows include Billpay | 34,058 |
+
+  The 18,173 gap first reported came from the double count in section 3. Our figure was
+  cross-checked: the per-day cache and the hourly rollup match on every October day, and a
+  raw count of 10-11 matches both.
+
+  | Direction (KBank Transfer minus ours) | Difference |
+  |---|---|
+  | internal | 8,357 |
+  | out | 13,507 |
+  | in | 8,513 |
+  | other | 12,928 |
+  | unknown | -12,497 |
+  | Sum | 30,808 |
+
+  - **The cause is not proven.** The even spread fits both late billing and a month-edge
+    difference. Daily counts or a list of billed requests from KBank would separate them,
+    and KBank said it cannot help further. Do not call this gap overbilling.
+  - **Inferred here, not in the task record:** the negative `unknown` suggests KBank gives
+    a direction to rows we leave `unknown`. If so, the four positive differences are not
+    pure per-direction gaps.
+
+  Monthly check, no code needed:
+
+  1. Use Bangkok month edges.
+  2. Compare KBank's Transfer line with `total`. Do not add `unknown`. Keep Billpay out,
+     and report both gap figures while the Billpay question is open.
+  3. Compare by direction, to see whether the spread changes.
+  4. Compare the gap with the month's `cause=bank_network` log count, reading all pages.
+  5. Investigate if the gap passes 0.5 % or that ratio moves sharply.
+
+  This run records no October `bank_network` total, so the ratio has no baseline until the
+  first check. It also names no owner or schedule for the check.
+
+  ## Open pointer: KBank code 8404
+
+  Open, with no conclusion here. KBank's not-found code 8404 maps to `rejected` and is
+  charged 1 merchant quota, because slip-system treats only 404/4040 as not_found (source
+  read: `kbank_normalize.go:71`). The task record has about 14,000 rows a day, mostly SCB
+  since 2026-10-19. The cause, and whether to keep charging, are pending the merchant's
+  check of a 20-slip sample. Start from the Closure and "422 burst explained" sections of
+  `ai-dev-office/runs/TASK-VS-059/task.md`, and recheck before repeating any of this.
+
+  ## Sources
+
+  Sources:
+  - ai-dev-office/runs/TASK-VS-059/task.md (Closure, Outcome, Revert deploy, October reconciliation, KBank billing rules, Baseline)
+  - ai-dev-office/runs/TASK-VS-059/status.yaml
+  - ai-dev-office/runs/TASK-VS-059/evidence/baseline/merchant-key-and-cancel.txt
+  - ai-dev-office/runs/TASK-VS-061/task.md (merchant answers, closure)
+  - ai-dev-office/runs/TASK-VS-061/decision.yaml
+  - slip-api/internal/repositories/bank_flows.go
+  - slip-api/internal/repositories/bank_flows_test.go
+  - slip-api/internal/core/service/reports_bank_flow_cache.go
+  - slip-system/internal/core/services/kbank_normalize.go
+  - slip-admin/app/features/slips/ui/KbankFlowSummary.vue
+  - slip-admin/i18n/locales/en.json
+
+  Evidence: TASK-VS-059 ev-008 (`:28` rollout), ev-009 (first 13 minutes against the day
+  before), ev-010 (rollback to `:27`), ev-011 and ev-013 (8500 incident census), ev-012
+  (`:27` and `:29` env diff). No evidence id backs the October reconciliation, the 408
+  durations or KBank's statements. Raw logs live only in the gitignored run folder.
+
+  ## Related
+
+  - [[40 Lessons/A Status Code Is A Retry Policy — Check What The Proxy Retry Was Masking|A Status Code Is A Retry Policy]]
+  - [[10 Projects/VerifySlip/Verify Reliability And Privacy Fixes — 2026-10-16|Verify Reliability And Privacy Fixes]]
+  - [[10 Projects/VerifySlip/Admin Bank Flow Summary and Transfers|Admin Bank Flow Summary and Transfers]]
+  - [[10 Projects/VerifySlip/Verify Capacity 600-1200 Per Minute — 2026-09-24|Verify Capacity 600–1200 Per Minute]]
+  - [[10 Projects/VerifySlip/VerifySlip — Claude Memory Map|VerifySlip — Claude Memory Map]]
+  - [[10 Projects/VerifySlip/Project Map|VerifySlip — Project Map]]
+
+  <!-- Companion patches, optional, for the human applying this note. The schema allows one
+  target_note, so these are not separate proposals.
+
+  Admin Bank Flow Summary and Transfers.md › Contract and ownership, add:
+  - `total` already counts `unknown`, so never add the two. See
+    [[10 Projects/VerifySlip/KBank Timeouts Billing And Monthly Reconciliation — 2026-11-06|KBank Timeouts, Billing And Monthly Reconciliation]].
+
+  Project Map.md › Knowledge Routing, add:
+  - KBank billing rules, why the timeout stays 3.05 s, the monthly reconciliation and the
+    open 8404 pointer, 2026-11-06:
+    [[10 Projects/VerifySlip/KBank Timeouts Billing And Monthly Reconciliation — 2026-11-06|KBank Timeouts, Billing And Monthly Reconciliation]].
+
+  A Status Code Is A Retry Policy — Check What The Proxy Retry Was Masking.md › Related, add
+  the same link.
+
+  This stays in the VerifySlip folder, as Project Map says lessons do until they meet the
+  Promotion Rule. The general form (a client timeout does not cancel vendor billing; check
+  caller give-ups first) is a later promotion candidate, not part of this capture. -->

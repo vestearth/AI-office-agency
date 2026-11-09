@@ -2,18 +2,18 @@
 task_id: TASK-VS-059
 task_label: KBank timeout 3.05s to ~12s and stop proxy retry of KBank timeouts (billed
   late successes)
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-04'
-updated_at: '2026-11-05'
+updated_at: '2026-11-06'
 history:
 - phase: created -> assigned
   agent: pm
@@ -85,6 +85,17 @@ history:
     previous normal about 1 per day). Rolled back to :27 at 12:33Z on Earth''s approval;
     0 408s after. 12 s design abandoned, successor TASK-VS-061'
   at: '2026-11-05T12:52:24Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261106T113758Z-verifyslip-kbank-billing.yaml'
+  at: '2026-11-06T11:37:58Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-06T11:37:58Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -171,9 +182,10 @@ completion_gates:
     - deploy_production
     requires_record: true
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-04T06:09:23Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261106T113758Z-verifyslip-kbank-billing.yaml'
+    updated_at: '2026-11-06T11:37:58Z'
     evidence_refs: []
+decision_applied_at: '2026-11-06T11:50:00Z'

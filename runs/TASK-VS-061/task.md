@@ -1,5 +1,10 @@
 # TASK-VS-061: KBank capped retry inside the merchant's 8 s limit (successor to TASK-VS-059)
 
+**Closed without shipping on 2026-11-06 (Earth: "Close both").** Nothing was implemented. At the KBank price the
+estimated saving is about 146–1,632 baht per month incl. VAT (about 405–1,029 at the October mix), which does not
+justify longer waits and the risk of repeating the 408 regression. KBank said it cannot help further. Slip-system stays
+at 3.05 s + proxy retry. Reopen only if the monthly gap or the price changes materially.
+
 TASK-VS-059 raised the KBank timeout to 12 s with no retry and was rolled back on 2026-11-05: the
 merchant gives up at about 8 s, so slips that used to succeed through the proxy retry stopped getting
 a result. This task keeps the goal (fewer double-billed KBank calls) and keeps merchants getting an

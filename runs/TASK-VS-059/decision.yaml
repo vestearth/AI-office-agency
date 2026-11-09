@@ -1,0 +1,8 @@
+---
+task_id: TASK-VS-059
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-06T11:50:00Z'
+  against_phase: assigned
+  note: 'recorded from chat by the Claude conductor: operator said "Close both" (2026-11-06). Approves closing the run, not the 12 s change, which regressed and is reverted on main, staging and prod. The October gap is accepted as about 0.3 % cost with its cause unproven; KBank cannot help further.'

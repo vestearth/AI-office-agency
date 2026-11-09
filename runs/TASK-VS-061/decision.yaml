@@ -1,0 +1,8 @@
+---
+task_id: TASK-VS-061
+decisions:
+- decision: reject
+  actor: operator
+  decided_at: '2026-11-06T11:40:00Z'
+  against_phase: assigned
+  note: 'recorded from chat by the Claude conductor: operator said "Close both" (2026-11-06). Closed without shipping; nothing was implemented. Estimated saving does not justify the merchant risk, and KBank cannot help further.'

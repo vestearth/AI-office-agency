@@ -17,6 +17,20 @@ KBank may already be billing.
   log line), TASK-VS-039 (shutdown drain), TASK-VS-041 (result cache never hits).
   KB: `knowledge-base/Knowledge Base/10 Projects/VerifySlip/Verify Reliability And Privacy Fixes — 2026-10-16.md`.
 
+## Closure (2026-11-06)
+
+Closed by Earth ("Close both"). The 12 s change is reverted everywhere and slip-system stays at 3.05 s. This task did
+not reduce double billing; it established that the cost is small and that the change is unsafe.
+
+- The October gap (30,808 on Transfer, see the reconciliation below) is accepted as about 0.3 % cost. KBank said it
+  cannot help further, so the cause stays unproven: late billing and a month-edge difference both fit.
+- Monthly check, no code needed: KBank's monthly table against `bank-flows` `total` (do not add `unknown`) and the
+  `cause=bank_network` log count. Investigate if the gap passes 0.5 % or that ratio moves sharply.
+- Not done: admin footer wording and the `kbankCost.ts` tier question (needs the real invoice).
+- Found on the way, out of scope here: KBank's not-found code 8404 maps to `rejected` and is charged 1 quota, because
+  slip-system treats only 404/4040 as not_found. It runs about 14,000 rows a day, mostly SCB since 2026-10-19. The cause
+  and whether to keep charging are open, pending the merchant's check of a 20-slip sample.
+
 ## Outcome (2026-11-05): deployed, regression found, rolled back
 
 **12 s is not viable with the current merchant. Successor design: TASK-VS-061.**
