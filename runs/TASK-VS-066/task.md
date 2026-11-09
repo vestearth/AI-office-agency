@@ -154,7 +154,11 @@ image ignores it; alts entered meanwhile come back when the new image returns.
 - Branch `task/TASK-VS-066` from `origin/main` `7de73f8`, worktree
   `/Users/earth/Documents/GitHub/slip-api-TASK-VS-066`. Commit
   `a763481780f10eaff2d6636d9ddab293288f57e0`. PR https://github.com/SparqLab/slip-api/pull/129
-  to `main`, open, not reviewed or merged. Nothing is on staging or prod.
+  to `main`: Earth merged it as `2b2d30e8f5c809590655bc89946ef1745b36a0ab` at 2026-11-09 04:23 UTC
+  with no GitHub review recorded. The merge sits on top of TASK-VS-064's PR #127 (`e7da8d3`,
+  merged a minute earlier); the blog files and migration 079 equal the tested head. Nothing is on
+  staging or prod: `origin/staging` `10d0870` and `origin/prod` `2abb1d9` contain neither #127
+  nor #129, so promoting `main` now carries both.
 - Matches the API section above. One difference from the draft: the check also rejects `\r`.
 - Tests seen failing first: a compile error for the missing field and a count of 78 migration
   files, then (fields only) an untrimmed value and the missing migration file. Now green:
@@ -168,8 +172,10 @@ image ignores it; alts entered meanwhile come back when the new image returns.
   skipped): `ev-004` `go test ./... -count=1` exit 0, `ev-005` `go vet ./...` exit 0, `ev-006`
   `go build ./...` exit 0. `ev-001`–`ev-003` are invocation errors (exit 127: zsh passed the whole
   command as one word), not test results.
-- Gates unchanged: `implementation_verification` waits for review and merge of the reviewed
-  commit. Staging and production each need Earth's approval (`verifyslip-promote`).
+- On the merge commit `2b2d30e` (clean tree, same disposable PostgreSQL): `ev-007` full tests
+  exit 0 (15 packages ok), `ev-008` vet, `ev-009` build, `ev-010` the PR merge record.
+  `implementation_verification` passed on that basis, its reason stating that no review is
+  recorded. Staging and production each need Earth's approval (`verifyslip-promote`).
 
 ## Handoff to viewsupat (ready to relay)
 
