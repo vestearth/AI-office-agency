@@ -179,3 +179,144 @@ saved by the old image (its fixed map rejects the name) until it is moved back. 
   3/3 during preflight and is the rollback target. Keep migration 070's schema on image rollback;
   an old binary rejects renamed or new category names. Production has no automatic deployment
   circuit-breaker rollback. No production deploy or schema operation was performed in preflight.
+
+## Status (checked 2026-11-09, read-only)
+
+- The slip-api production rollout completed on 2026-11-04: `slip-api-production:134`, image
+  `production-sha-b9f8cda`, PRIMARY COMPLETED at 15:18:33 UTC. Details and evidence
+  (`ev-012`–`ev-021`) are in `production-migration-plan.md`. slip-api `origin/prod` has since
+  moved to `8b8ac7d` (other tasks); `internal/blog` changed once after VS-060 (`f82ba69`, below).
+- This update changes no gate. `implementation_verification` and `deploy_staging` pass.
+  `staging_acceptance` is pending (authenticated CRUD and draft visibility still unobserved).
+  `deploy_production` is pending only because it depends on `staging_acceptance`; the deploy
+  itself ran. `production_acceptance` and `knowledge_closeout` are pending.
+- The condition on "do not rename or delete production categories until production admin reads
+  the API" is now met: slip-admin prod has read the API since 2026-11-05 01:27 UTC and
+  slip-landing prod since 2026-11-06 09:27 UTC (below). Public
+  `GET https://api.up-slip.com/v1/web/blog/categories` at 2026-11-09 02:45 UTC still returned
+  the four seeded categories, counts `[1,0,0,0]`, `no-store`: nobody has changed a production
+  category yet.
+- Staging at the same time had five categories. The fifth is `test-1a` «ทดสอบ», sort 5, with one
+  published post, so someone created it through the admin and put a published post in it. That
+  suggests create works end to end, but it is not acceptance evidence (no observed rename,
+  delete with move, 409 or 400), and nothing records who created it or when (see the last
+  section). Acceptance includes cleaning up test categories.
+- What the admin UI can cover for `staging_acceptance`: create, rename, reorder (sort number)
+  and delete with move. It cannot reach the error paths: it never sends an in-use delete without
+  `move_to`, it disables delete on the last category, and the post form offers only existing
+  categories. The 409 in-use, 409 last-category and 400 `category: unknown` checks need direct
+  authenticated API calls.
+
+## Frontend integration (viewsupat; checked 2026-11-09 from git and deploy runs, read-only)
+
+Both halves of the contract shipped. viewsupat's commits went main → staging → prod by direct
+merges, without PRs.
+
+### slip-admin `9e8f4e1` (2026-11-04 21:28 +07)
+
+Deployed to staging by `82c77c3` (Deploy STAGING 2026-11-04 14:29 UTC, success) and to prod by
+`11e63de` (Deploy PRODUCTION 2026-11-05 01:27 UTC, success).
+
+- `BLOG_CATEGORIES` is gone. The post-list filter and the post form's category dropdown load
+  `GET /v1/admin/blog/categories` (option value = name, key = slug). A filter left on a renamed
+  or deleted category resets.
+- A new «จัดการหมวด» button (with the count) opens `BlogCategoriesModal.vue`:
+  - List: sort order, name, `slug · default preset`, and a post-count badge (all statuses; the
+    tooltip shows published).
+  - Inline edit: name, sort order, default preset. Renaming a category in use shows how many
+    posts it affects. The slug is read-only.
+  - Delete: a category in use needs a "move posts to" pick and then calls
+    `DELETE …?move_to=`; an empty one deletes directly; the delete button is disabled on the last
+    category. A failed delete reloads the counts.
+  - Add: name, slug (format and uniqueness checked in the browser, max 60), sort order (defaults
+    to the highest + 1), default preset.
+  - After any change, both the categories and the post list reload (renames cascade, deletes
+    move posts).
+- A new post starts in the first category, and picking a category sets `thumb_preset` to that
+  category's `default_thumb_preset`. Existing posts keep their preset.
+- `BlogPresetPicker.vue` shows the 7 presets as thumbnails in the post form and the category
+  form. The images load from `https://up-slip.com/og/blog/<preset>.png` (the production landing,
+  on the staging admin too).
+- Reordering is the sort-order number field; there is no drag.
+
+### slip-landing `3b8b801` (2026-11-06 16:26 +07)
+
+Deployed to staging by `c2e616d` and to prod by `63578b0` (Deploy PRODUCTION 2026-11-06 09:27
+UTC, success).
+
+- `useBlogCategories()` reads `GET /v1/web/blog/categories` with the short optional timeout. If
+  it fails, the page uses `fallbackCategories` (the four original names).
+- Tabs follow `sort_order` but show only categories with at least one card in the list below
+  (the featured post is excluded), so no tab opens empty. A category name a post uses but the
+  API list lacks is appended at the end. `published_count` is not used. The section
+  description's "แบ่งเป็น N หมวด" is now computed and shown only when N > 1.
+
+### Other blog work in the same period (outside this run)
+
+- slip-api `f82ba69` (viewsupat, 2026-11-05 21:18 +07): sections accept `list_style` = `check`,
+  `bullet` or `number` (empty → `check`, anything else 400), with tests and a README note. No
+  migration (it lives in the `sections` JSONB). It was pushed straight to `main` without its own
+  PR and reached production inside TASK-VS-062's promotion PRs
+  https://github.com/SparqLab/slip-api/pull/123 and
+  https://github.com/SparqLab/slip-api/pull/124 (2026-11-05 19:31 UTC). TASK-VS-062 names it only
+  as its baseline commit; no run reviewed it as a change.
+- slip-admin, in prod since `017bb90` (2026-11-06 09:00 UTC): a list-style picker (`c9a3097`),
+  card previews (`c2b80ab`), opening the unsaved article on the real landing page (`06a018d`:
+  `window.open` plus `postMessage`, with admin and landing origins paired per environment), and
+  body formatting: `**bold**`, links `[label](https://…)` or `[label](/path)` and bare URLs, with
+  only http(s) or relative targets (`ef41e09`), `| table |` rows (`ffa6d88`), and `#`–`###`
+  headings rendered as h3/h4 (`03cd454`).
+- slip-landing renders the same rules (`131396e`, `2046437`, `f8d040f`), adds `/blog/preview`
+  for the admin's live preview (`56be359`), and renders list styles (`f390a7d`). slip-landing
+  `app/` has no `v-html`.
+- The formatting lives inside `body` strings; slip-api stores it as text and needs no change for
+  it.
+
+## Open: record who last edited (operator interest 2026-11-09; not started, no code)
+
+Facts (slip-api `origin/main` `7de73f8`):
+
+- Neither `blog_posts` (069) nor `blog_categories` (070) has an actor column: only `created_at`
+  and `updated_at`, plus `published_at` and `content_updated_at` on posts. `author` is the byline
+  typed in the form (default «ทีม Up-Slip»), not the editor.
+- `AdminAuth` (`internal/handler/middleware/admin.go`) already puts the admin's user ID and
+  email in the request context (`requestctx.WithUser`). `internal/blog` never reads it.
+- A generic audit table exists: `activity_logs` (017) with `actor_user_id`, `actor_email`,
+  `actor_role`, `action` (created, updated, deleted), `entity_type`, `entity_id`, `old_value` and
+  `new_value` JSONB, IP and user agent. `activityLogger.Log` fills the actor from the context, and
+  `GET /v1/admin/activity-logs` lists the rows. Its `entity_type` CHECK (026) allows only user,
+  package, branch, merchant, kyc and configuration, so blog entities need a migration. slip-admin
+  has no screen that calls that endpoint.
+- The admin writes that would count: post create, update, delete, cover upload and cover removal;
+  category create, update, and delete (with move).
+- Users have `first_name`, `last_name` and `email`.
+
+Options:
+
+- A. Columns `created_by` and `updated_by` (`UUID REFERENCES users(id) ON DELETE SET NULL`) on
+  both tables, set from the context on every admin write and returned only by admin endpoints
+  (with a display name or email). This answers "who edited last" in the list. It does not cover
+  deletes (the row is gone) and keeps no history.
+- B. `activity_logs` rows for `blog_post` and `blog_category` (extend the CHECK; keep old and new
+  values). Full history, including deletes and who moved posts. Showing "last edited by" in the
+  list needs a lookup per row, and the admin needs a viewer.
+- C. A for the list display, B for history and deletes.
+
+Decisions to make before opening a run:
+
+1. A, B or C.
+2. What counts as an edit: every admin write (status, featured, cover) or only content changes
+   (the `content_revision` rule)?
+3. Category housekeeping: a rename cascades to posts through the FK, so the posts' `updated_by`
+   would not change. Should a delete with move set the moved posts' `updated_by` to the admin who
+   deleted the category?
+4. Show a name or an email. Either way, keep it out of public `/v1/web/...` responses (personal
+   data).
+5. Existing rows stay NULL (shown as «—»); there is nothing to backfill from.
+
+This is a schema change, so it belongs in its own run (migration 079 or later, idempotent for
+boot replay, slip-api before slip-admin), not in this one.
+
+Opened as TASK-VS-065 on 2026-11-09: Earth chose C, every admin write counts, a delete with move
+sets the moved posts' `updated_by`, show the name else the email, and the admin gets the list
+column plus a per-item history panel.
