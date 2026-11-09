@@ -57,8 +57,19 @@ cannot be explained after the fact. Make every rejection in `inspect` explainabl
    - `trans_ref_sha256` truncated (short prefix of the hash, never the value)
    - `slip_age_seconds`
    Fields not known at the exit point are omitted, not invented.
-3. **Count rejections by `reason` and `sending_bank`** (a counter with those two labels; both
-   are bounded sets). Alerting is decided later from the counts, not in this run.
+3. **Count rejections by `reason` and `sending_bank`.** Alerting is decided later from the
+   counts, not in this run. `reason` is the fixed code set from item 2. `sending_bank` is
+   **not** bounded today: `inspect` (`payment.go:210`) only trims it and checks it is non-empty,
+   and some exits reject before the provider is called, so a client-supplied string can reach
+   the label. `models.ValidBankCode` (`bank_account.go:107`, `^[0-9]{3}$`) is used only for
+   saved bank accounts, and alone still allows 1000 values. So the metric label is:
+   - the request's `sending_bank` after `models.NormalizeBankCode`, not the provider's value
+     (`payment.go:652` overwrites `SendingBank` from the provider response);
+   - kept only if it is in an explicit list of known sending-bank codes defined once in code;
+     anything else (empty, malformed, unknown) becomes `unknown`;
+   - covered by a test: a known code keeps its value, and a malformed or unlisted value is
+     counted as `unknown`.
+   The Warn log may still carry the normalized request value; only the metric label is folded.
 
 ### Never log
 
@@ -70,11 +81,19 @@ Sender and receiver names, the sender account number, the raw provider/response 
 
 - Every rejection exit in `inspect` emits a log line whose `reason` code tells the exits apart;
   a table test drives each exit and asserts the code and `request_id`.
-- A test feeds a provider response containing real-looking names, a full sender account, a full
-  unmasked receiver account and a `trans_ref`, captures the log output, and asserts none of
-  those values appear (RED first: show it failing against a naive log that dumps the response).
+- **RED before the fix, from current behaviour only** (no simulated bug): on `origin/main`,
+  `ErrorReason` returns `""` for a rejected-slip body (`{"status":"rejected","rejection_reason":…}`),
+  and an `inspect` rejection exit emits no rejection log line. Record both failing runs.
 - `ErrorReason` test: a rejected-slip body yields its `rejection_reason`; existing `message` /
   `outcome_reason` cases keep their results.
+- Privacy test against the real implementation (does not need to be RED first): feed a provider
+  response containing real-looking names, a full sender account, a full unmasked receiver
+  account and a `trans_ref`, drive a rejection, capture the log output, then
+  1. assert the rejection line **was emitted** with its safe fields (`request_id`, `reason`,
+     `receiver_account_masked`, truncated `trans_ref_sha256`) — otherwise "nothing leaked" is
+     vacuous;
+  2. assert none of the sensitive values appear anywhere in the output.
+- Metric label test as in Scope item 3 (known code kept, anything else `unknown`).
 - One `request_id` is enough to find the reason and the receiver shape in CloudWatch, without a
   provider replay.
 - **Production check:** one real 422 on prod after the deploy, found by its `request_id`, shows
