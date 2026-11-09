@@ -7,8 +7,9 @@ the share-image tags.
 
 - Type: feature in `slip-api` (migration + API). Schema change: one column on `blog_posts`.
 - Created: 2026-11-09 by the Claude conductor lane at operator request ("ขอเพิ่ม custom tag alt
-  ให้คนแก้ไข blog edit แยกด้วยได้ไหม ตอนนี้ผมไล่ดู น่าจะไม่มี"). Claude opens this run only;
-  implementation goes to another lane.
+  ให้คนแก้ไข blog edit แยกด้วยได้ไหม ตอนนี้ผมไล่ดู น่าจะไม่มี"). Per-run override the same day
+  (decision 5): Claude implements the slip-api part here; slip-admin and slip-landing go to
+  viewsupat through the handoff below.
 - Follows TASK-VS-058 (blog API). Ownership as in TASK-VS-060's decision 3 unless Earth
   reassigns: the SPAR-55 squad builds slip-api; viewsupat builds the slip-admin field and the
   slip-landing changes against the contract below. This run's gates cover slip-api only.
@@ -28,6 +29,9 @@ the share-image tags.
 4. **An alt-only edit does not move «อัปเดตล่าสุด»:** `cover_alt` is not a content field
    (`content_revision` and `content_updated_at` stay), like the cover itself. `updated_at` moves
    as for any save (and `updated_by`, once TASK-VS-065 ships).
+5. **Split of work** ("VS-066 ทำได้ แต่ผมขอเว้นส่วน slip-admin กับ slip-landing ให้ viewsupat
+   ทำต่อเลย เราเตรียม api และส่วนที่แจ้งต้องบอกให้เขาทำต่อ"): the Claude lane builds slip-api
+   and writes the handoff; viewsupat builds slip-admin and slip-landing.
 
 ## Facts checked by the conductor (2026-11-09, read-only)
 
@@ -51,22 +55,22 @@ the share-image tags.
 - The article body has no images (the rich-text rules cover bold, links, tables and headings), so
   the cover is the only content image.
 
-## Data model (migration, next free number)
+## Data model (migration `079_blog_post_cover_alt.sql`)
 
 ```sql
 -- +goose Up
 ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS cover_alt TEXT NOT NULL DEFAULT '';
--- guarded by a pg_constraint lookup so a re-run is a no-op:
+-- inside a DO block guarded by a pg_constraint lookup, so a re-run is a no-op:
 ALTER TABLE blog_posts ADD CONSTRAINT blog_posts_cover_alt_check
     CHECK (cover_alt = btrim(cover_alt) AND char_length(cover_alt) <= 250
-           AND position(E'\n' IN cover_alt) = 0);
+           AND strpos(cover_alt, E'\n') = 0 AND strpos(cover_alt, E'\r') = 0);
 -- +goose Down
 ALTER TABLE blog_posts DROP CONSTRAINT IF EXISTS blog_posts_cover_alt_check;
 ALTER TABLE blog_posts DROP COLUMN IF EXISTS cover_alt;
 ```
 
-- The number: TASK-VS-065's spec names `079_blog_actor.sql`. Whichever run merges second takes
-  the next number; check `migrations/` on `origin/main` right before the PR.
+- The number: PR #129 takes 079. TASK-VS-065's spec proposed `079_blog_actor.sql`; whichever
+  run merges second renumbers; check `migrations/` on `origin/main` right before merging.
 - A constant default is metadata-only, and `blog_posts` is tiny; no lock or boot-window concern.
 - Down loses the alt texts; it is valid at any time.
 
@@ -144,3 +148,75 @@ image ignores it; alts entered meanwhile come back when the new image returns.
   `origin/prod` ancestry and the running ECS image.
 - Multica agents run in place in `/Users/earth/Documents/GitHub`. Touch only slip-api in this
   run; `Games-Lab-Android/` is read-only.
+
+## slip-api implementation (Claude lane, 2026-11-09)
+
+- Branch `task/TASK-VS-066` from `origin/main` `7de73f8`, worktree
+  `/Users/earth/Documents/GitHub/slip-api-TASK-VS-066`. Commit
+  `a763481780f10eaff2d6636d9ddab293288f57e0`. PR https://github.com/SparqLab/slip-api/pull/129
+  to `main`, open, not reviewed or merged. Nothing is on staging or prod.
+- Matches the API section above. One difference from the draft: the check also rejects `\r`.
+- Tests seen failing first: a compile error for the missing field and a count of 78 migration
+  files, then (fields only) an untrimmed value and the missing migration file. Now green:
+  `TestCoverAltValidation`, `TestReadInputCoverAltIsOptional`, `TestCoverAltWithMigration`
+  (PostgreSQL: existing posts `""`, create, keep when absent, alt-only edit keeps the content
+  date and revision, clear, replace and remove the cover, column check, replay plus goose up and
+  down), and `TestGooseSQLFiles` (79). Removing the goose `StatementBegin`/`StatementEnd` markers
+  makes the goose step fail (mutation check, file restored and `cmp`-identical).
+- Evidence on the clean committed head with a disposable local PostgreSQL 16
+  (`SLIP_API_BLOG_TEST_DSN`, `SLIP_API_MIGRATION_TEST_DSN` exported; no blog or migration test
+  skipped): `ev-004` `go test ./... -count=1` exit 0, `ev-005` `go vet ./...` exit 0, `ev-006`
+  `go build ./...` exit 0. `ev-001`–`ev-003` are invocation errors (exit 127: zsh passed the whole
+  command as one word), not test results.
+- Gates unchanged: `implementation_verification` waits for review and merge of the reviewed
+  commit. Staging and production each need Earth's approval (`verifyslip-promote`).
+
+## Handoff to viewsupat (ready to relay)
+
+ส่วน slip-api อยู่ที่ PR https://github.com/SparqLab/slip-api/pull/129 (ยังไม่ merge และยังไม่ขึ้น
+staging) เริ่มทำฝั่ง admin และ landing ได้เลย แต่ **deploy admin หลังจาก slip-api ขึ้น environment
+นั้นแล้วเท่านั้น** เพราะ API ตัวเดิมปฏิเสธฟิลด์ที่ไม่รู้จัก ถ้าส่ง `cover_alt` ไปก่อนจะได้ 400
+`invalid blog post JSON` ส่วน landing ขึ้นก่อนได้ เพราะถ้าไม่มีฟิลด์ก็ทำงานเหมือนเดิม
+
+**API**
+
+- ทุก response ของโพสต์ (public และ admin) มี `cover_alt: string` (`""` แปลว่าไม่มี)
+- `POST /v1/admin/blog/posts` และ `PUT /v1/admin/blog/posts/{slug}` รับ `cover_alt` แบบ optional:
+  - ไม่ส่งหรือส่ง `null` = คงค่าเดิม, ส่ง `""` = ล้าง
+  - server ตัดช่องว่างหัวท้ายให้ ยาวได้ไม่เกิน 250 ตัวอักษร (นับตัวอักษร ภาษาไทยใช้ได้เต็ม 250)
+    และต้องเป็นบรรทัดเดียว ไม่งั้นได้ 400 `cover_alt: must be one line of at most 250 characters`
+- `DELETE /v1/admin/blog/posts/{slug}/cover` ล้าง `cover_alt` ด้วย ส่วนการอัปโหลดรูปใหม่จะคงค่าเดิม
+- แก้ alt อย่างเดียวไม่ขยับ «อัปเดตล่าสุด»
+
+**slip-admin**
+
+1. `app/features/blog/type.ts`: เพิ่ม `coverAlt: string` ใน `BlogPost` (`BlogPostInput` ได้ไปด้วย
+   เพราะเป็น `Omit<BlogPost, …>`)
+2. `app/features/blog/map.ts`: `mapPost` อ่าน `cover_alt`, `toBody` ส่ง `cover_alt`
+3. `BlogManage.vue` ในส่วนรูปปก (ส่วนที่แสดงตอนแก้โพสต์ที่มีอยู่แล้ว):
+   - ช่อง «ข้อความ alt ของรูปปก» บรรทัดเดียว `maxlength="250"` พร้อม hint ว่า "อธิบายสิ่งที่อยู่ในรูป
+     ไม่ต้องซ้ำชื่อบทความ"
+   - เตือนแบบไม่บล็อกเมื่อมีรูปปกแต่ alt ว่าง (บันทึกและ publish ได้ตามปกติ)
+   - หลังอัปโหลดรูปใหม่ เตือนให้ตรวจ alt ว่ายังตรงกับรูปไหม
+   - **หลังลบรูปปก ให้ล้าง alt ในฟอร์มด้วย** (`applyServerPost` อัพเดทแค่ `editing` ไม่ได้อัพเดท
+     ฟอร์ม ถ้าไม่ล้าง พอกดบันทึก alt เก่าจะถูกส่งกลับไปทั้งที่ไม่มีรูปแล้ว)
+4. live preview: ใส่ `cover_alt` ใน `previewPost` (object snake_case ที่ส่งให้ landing)
+5. ข้อความ i18n ทั้ง th และ en
+
+**slip-landing**
+
+1. `app/composables/useBlog.ts`: เพิ่ม `cover_alt?: string` ใน type `BlogPost` (optional เผื่อเจอ
+   API ที่ยังไม่มีฟิลด์)
+2. `app/components/blog/Article.vue` (รูปปกหน้าบทความ): `alt=""` → `:alt="article.cover_alt ?? ''"`
+3. `app/pages/blog/[slug].vue`: `og:image:alt` ใช้ `cover_alt` เมื่อมีทั้ง `cover_url` และ
+   `cover_alt` ไม่งั้นใช้ชื่อบทความเหมือนเดิม และเพิ่ม `twitter:image:alt` ด้วยค่าเดียวกัน
+4. `app/components/blog/Cover.vue` (การ์ดในหน้ารวมและ featured): คง `alt=""` ไว้ เพราะมีชื่อบทความ
+   อยู่ข้างรูปแล้ว
+5. `app/pages/blog/preview.vue` `toPost()`: เพิ่ม `cover_alt: text(raw.cover_alt)`
+
+**ลำดับ deploy:** slip-api staging → admin/landing staging → slip-api prod → admin/landing prod
+(Earth แจ้งเมื่อ slip-api ขึ้นแต่ละ environment)
+
+**เช็คหลังขึ้น:** ใส่ alt ให้โพสต์ที่มีรูปปก แล้วเปิด view-source หน้าบทความ ต้องเห็น `<img alt="…">`
+ของรูปปก และ `og:image:alt` / `twitter:image:alt` เป็นข้อความนั้น ส่วนโพสต์ที่ใช้ preset artwork
+ยังใช้ชื่อบทความ
