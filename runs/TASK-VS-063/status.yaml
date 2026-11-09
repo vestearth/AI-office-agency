@@ -12,7 +12,7 @@ assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-08'
-updated_at: '2026-11-08'
+updated_at: '2026-11-09'
 history:
 - phase: created -> pending
   agent: pm
@@ -90,6 +90,35 @@ history:
     tests in ev-001; production acceptance counts the 8404 decision logs'
   at: '2026-11-08T07:02:29Z'
   operator: claude
+- phase: 'check_after: 2026-11-10T17:00:00Z'
+  agent: pm
+  reason: 'slip-api promoted to prod 2026-11-09T02:15:56Z (PR #128, slip-api-production:140);
+    one full ICT day needed'
+  at: '2026-11-09T02:38:38Z'
+  operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: 'slip-api PR #128 merged 02:15:56Z, prod 8b8ac7d tree == dry run T2 d3b3e73;
+    Deploy PRODUCTION success; slip-api-production:140 production-sha-8b8ac7d COMPLETED
+    3/3; env and secrets unchanged from :139; goose 076/077/078 in 28/28/14 ms; 02:18:59-02:36:38Z:
+    5,557 requests, 0 5xx, 0 ERROR; rollback slip-api-production:139. slip-landing
+    #16 staging, #17 prod (production-sha-420ec7c), copy live on up-slip.com'
+  at: '2026-11-09T02:43:30Z'
+  operator: claude
+- phase: 'promoted to production'
+  agent: devops
+  reason: 'Earth approved prod including watcharapol-spl de5c571 + 6af34a1 (authz-002,
+    "Deploy tonight"). slip-api prod 06a4160..8b8ac7d via PR #128 (release/TASK-VS-063-production
+    629fb4d, tree d3b3e73 == dry run), Deploy PRODUCTION success, slip-api-production:139
+    -> :140 (production-sha-8b8ac7d) 3/3, env and secrets unchanged. Pre-merge traffic
+    02:10-02:15Z normal (0 5xx, 0 408, 0 KBank 8500). Window 02:18:59-02:36:38Z: 5,557
+    requests, 0 5xx, 0 ERROR; rule C logs live (65 charged, 1 free repeat, 4 free
+    verified) (ev-003). One 500 at 02:18:07Z came from an old :139 task (admin daily
+    report 10 s timeout, 4 in the 7 days before). slip-landing main 0240808 -> staging
+    8838882 (#16) -> prod 420ec7c (#17), slip-landing-production:34, copy live (ev-004).
+    Rollback: slip-api-production:139 (table 078 can stay), slip-landing-production:33.'
+  at: '2026-11-09T02:45:00Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -140,15 +169,29 @@ completion_gates:
       ref: slip-api staging e90200f
       url: https://github.com/SparqLab/slip-api/pull/126
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-08T05:59:59Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'slip-api PR #128 merged 02:15:56Z, prod 8b8ac7d tree == dry run T2 d3b3e73;
+      Deploy PRODUCTION success; slip-api-production:140 production-sha-8b8ac7d COMPLETED
+      3/3; env and secrets unchanged from :139; goose 076/077/078 in 28/28/14 ms;
+      02:18:59-02:36:38Z: 5,557 requests, 0 5xx, 0 ERROR; rollback slip-api-production:139.
+      slip-landing #16 staging, #17 prod (production-sha-420ec7c), copy live on up-slip.com'
+    updated_at: '2026-11-09T02:43:30Z'
+    evidence_refs:
+    - ev-003
+    - ev-004
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api prod 8b8ac7d (slip-api-production:140); slip-landing prod 420ec7c
+        (slip-landing-production:34)
+      url: https://github.com/SparqLab/slip-api/pull/128
   production_acceptance:
     status: pending
     actor: pm
@@ -183,3 +226,10 @@ handoff:
   from: pm
   to: dev
   artifact: forced-route
+check_after:
+  at: '2026-11-10T17:00:00Z'
+  what: 'production_acceptance: count 2026-11-10 ICT (17:00Z 11-09 to 17:00Z 11-10)
+    on /ecs/slip-api-production: msg ''bank 8404 quota decision'' charged true/false,
+    msg ''verified inside a charged 8404 window; not charged'', status 409/422 vs
+    the same weekday before deploy; plus the never-verified share by sending bank
+    (task.md, Measurement after deploy)'

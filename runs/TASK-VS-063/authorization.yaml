@@ -14,3 +14,18 @@ authorizations:
   scope: 'slip-api PR #126: main 7de73f8 -> staging e90200f (tree d3b3e73, TASK-VS-063
     commits bf1b290+d486b25 only); staging only, production not included; rollback
     slip-api-staging:183'
+- id: authz-002
+  type: grant
+  actor: earth
+  via: chat with the Claude conductor, 2026-11-09 ('Deploy tonight', chosen over waiting
+    for watcharapol-spl's review of the bundled upload commit the next morning; earlier
+    'Deploy prod including watcharapol-spl's 2 commits?' scope shown with authors)
+  reason: 'Earth approved the larger prod scope: TASK-VS-063 plus watcharapol-spl
+    de5c571 (avatar/KYC upload, migration 076) and 6af34a1 (merchant soft delete,
+    migration 077), after being told the prod frontend already calls the new upload
+    endpoint'
+  at: '2026-11-09T02:17:32Z'
+  action: deploy_production
+  scope: 'slip-api PR #128: release/TASK-VS-063-production 629fb4d (origin/prod 06a4160
+    + origin/staging e90200f, tree d3b3e73) -> prod 8b8ac7d; rollback slip-api-production:139;
+    plus slip-landing main -> staging -> prod for TASK-VS-063 copy (#15, 48489c8 only)'
