@@ -3,7 +3,7 @@ task_id: TASK-VS-067
 task_label: 'UpSlip: log topup slip rejection reasons by request_id'
 phase: in_review
 state: in_review
-iteration: 4
+iteration: 6
 current_agent: reviewer
 ready: true
 blocked_on: []
@@ -12,7 +12,7 @@ assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-09'
-updated_at: '2026-11-09'
+updated_at: '2026-11-10'
 history:
 - phase: created -> assigned
   agent: pm
@@ -108,6 +108,43 @@ history:
   reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261109T081355Z-spar63-topup-rejection-observability.yaml'
   at: '2026-11-09T08:13:56Z'
   operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Deploy STAGING 42583903596 succeeded for 913bdfd2; ECS slip-api-staging:188
+    runs staging-sha-913bdfd at 1/1 COMPLETED, public health/ready/metrics 200 and
+    boot log verification passes. Behavioral 422 acceptance remains separate and pending.
+  at: '2026-11-10T02:33:20Z'
+  operator: codex
+- phase: 'check_after: cleared'
+  agent: devops
+  reason: One-time rollout follow-up completed with ev-032; deploy_staging passes.
+    Staging 422/request_id/counter smoke now waits on approved account and slip fixture,
+    not a scheduled CI check.
+  at: '2026-11-10T02:33:20Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: devops
+  reason: Review staged deployment evidence separately from behavioral acceptance.
+    Earth must provide secure local paths for an approved staging test account/token
+    and rejected-slip image. Then capture a real top-up 422, request-ID join and counter
+    delta on stable tasks. No scheduled CI polling remains, and production is not
+    authorized under the staging grant.
+  at: '2026-11-10T02:34:48Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: devops
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261110T023449Z-spar63-topup-rejection-observability.yaml'
+  at: '2026-11-10T02:34:49Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: devops
+  reason: Review staged deployment evidence separately from behavioral acceptance.
+    Earth must provide secure local paths for an approved staging test account/token
+    and rejected-slip image. Then capture a real top-up 422, request-ID join and counter
+    delta on stable tasks. No scheduled CI polling remains, and production is not
+    authorized under the staging grant.
+  at: '2026-11-10T02:36:19Z'
+  operator: codex
 completion_gates:
   implementation_verification:
     status: pass
@@ -126,15 +163,27 @@ completion_gates:
       ref: 0c5b3476e3958fe7b6356f4ec6ccd684834b7aff
       url: https://github.com/SparqLab/slip-api/pull/131
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-09T07:29:20Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: Deploy STAGING 42583903596 succeeded for 913bdfd2; ECS slip-api-staging:188
+      runs staging-sha-913bdfd at 1/1 COMPLETED, public health/ready/metrics 200 and
+      boot log verification passes. Behavioral 422 acceptance remains separate and
+      pending.
+    updated_at: '2026-11-10T02:33:20Z'
+    evidence_refs:
+    - ev-030
+    - ev-032
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: GitHub-Actions
+      ref: 913bdfd2a3500fff90802ee09e7aa80b6d087d78
+      url: https://github.com/SparqLab/slip-api/actions/runs/42583903596
   staging_acceptance:
     status: pending
     actor: pm
@@ -166,8 +215,8 @@ completion_gates:
   knowledge_closeout:
     status: pass
     actor: devops
-    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261109T081355Z-spar63-topup-rejection-observability.yaml'
-    updated_at: '2026-11-09T08:13:56Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261110T023449Z-spar63-topup-rejection-observability.yaml'
+    updated_at: '2026-11-10T02:34:49Z'
     evidence_refs: []
 handoff:
   from: devops
@@ -175,9 +224,5 @@ handoff:
   artifact: runs/TASK-VS-067/devops-output.yaml
 last_synced_output:
   file: devops-output.yaml
-  digest: 2da347848d647c4f2d5a877d156350e613352648f64f61b26f19e1770828d488
+  digest: 07e54e0566ea9223ae0d66f0e0bbe58cb6b0b3244f05a9e4dc4ed8faaf08fce0
   next: reviewer
-check_after:
-  at: '2026-11-09T08:22:56Z'
-  what: Verify Deploy STAGING 42583903596, ECS staging-sha-913bdfd, boot logs, and
-    authenticated 422/request_id/counter when fixture is available

@@ -2,8 +2,11 @@ summary: >-
   Reviewed source head 0c5b3476 was unchanged. Merged implementation PR 131 to
   main 7954612 and promoted main to staging through PR 132 at 913bdfd2. Actual
   main/staging tree equals reviewed dry-run T1 c29f2776112f5b2add93b335f9c121336dc75044.
-  Deploy STAGING run 42583903596 was in progress when handed off; runtime
-  deployment and staging acceptance are pending. Production was not changed.
+  Deploy STAGING run 42583903596 succeeded; slip-api-staging:188 runs the
+  expected staging-sha-913bdfd image at 1/1 COMPLETED. Public health, ready
+  and metrics return 200; boot-window logs pass. deploy_staging is passed,
+  while authenticated 422/request_id/counter staging acceptance remains pending.
+  No production operation was performed.
 artifacts:
   - path: https://github.com/SparqLab/slip-api/pull/131
     action: modified
@@ -16,8 +19,8 @@ artifacts:
     description: Local-only source scope, dry-run tree, image and rollback evidence.
   - path: runs/TASK-VS-067/evidence/staging-rollout-check.py
     action: created
-    description: Prepared and syntax-checked one-shot runtime/boot/metrics checker; not yet executed.
-evidence_refs: [ev-020, ev-021, ev-022, ev-024, ev-025, ev-026, ev-027, ev-028]
+    description: Executed checker; resumed after AWS read timeout and replaced failing urllib probe with curl. Final verification ev-032 passes.
+evidence_refs: [ev-020, ev-021, ev-022, ev-024, ev-025, ev-026, ev-027, ev-028, ev-029, ev-030, ev-031, ev-032]
 infra_checks:
   - check: reviewed_source_and_scope
     result: pass
@@ -35,13 +38,33 @@ infra_checks:
   - check: production_exclusion
     result: pass
     details: >-
-      No production merge or deploy. Prod ref remains d8e1542; preflight observed
+      No production merge or deploy was performed by this work. The preflight on
+      2026-11-09 recorded prod ref d8e1542 and observed
       slip-api-production:142 running production-sha-d8e1542 at 3/3. Only the
       staging authorization authz-001 was recorded.
+  - check: staging_deployment
+    result: pass
+    details: >-
+      Workflow 42583903596 completed successfully for 913bdfd2 (ev-030).
+      ECS slip-api-staging:188 serves staging-sha-913bdfd at running/desired 1/1,
+      one PRIMARY deployment with rolloutState COMPLETED. Curl health/ready/metrics
+      each return 200 (ev-032; observed 2026-11-10 02:32:15 UTC / 09:32:15 ICT).
+  - check: staging_boot_window
+    result: pass
+    details: >-
+      Fixed 2026-11-09 08:09:21..08:30:00 UTC / 15:09:21..15:30:00 ICT window
+      covers promotion and rollout, not exclusively steady-state traffic.
+      Two pages, 100 JSON events, zero non-JSON lines, one positive HTTP boot line,
+      94 access requests: 91x200, 1x409, 1x422, 1x400. Zero 5xx, ERROR or fatal
+      lines. The lone 422 is POST /v1/slips/verify/qr-code, outside the top-up
+      acceptance path. No top-up 422 join was observed (ev-032).
 blockers:
-  - Deploy STAGING run 42583903596 is external CI; its observed state is in_progress, not a verified deployment.
-  - Authenticated staging 422 and counter delta need a known staging test account/token and rejected-slip fixture; secure local paths requested from Earth.
-  - No real post-deploy 422, request ID or counter delta is claimed yet. All production gates remain pending until Earth's decision and real production acceptance.
+  - Authenticated staging 422 and counter delta still need a known staging test account/token and rejected-slip fixture; no paths supplied in issue comments through this follow-up.
+  - Metrics scrape returned no payment-rejection series. This is a snapshot without a test request, not measured rejection-counter delta or passing behavioral acceptance.
+  - No real post-deploy top-up 422 or joined request ID is claimed. All production gates remain pending until Earth's decision and real production acceptance.
+probe_limitations:
+  - ev-030 confirmed CI success but the subsequent task-definition read timed out; the independent continuation succeeded.
+  - ev-031 confirmed ECS image/count but Python urllib received public HTTP 403. Normal curl returned 200; no application/config change or impersonation was made, and the exact cause of the client difference was not established.
 metric_alert_observations:
   - The counter includes user_lookup_error, platform_account_error, duplicate_lookup_error, verify_error and verify_unavailable alongside business rejection reasons; alert decisions must filter reason rather than sum blindly.
   - Confirm rejects some users before entering inspect; those initial rejections are outside this counter and Warn path.
@@ -50,6 +73,10 @@ metric_alert_observations:
 followup:
   wakeup_id: 01a1bf5e-1439-7cdd-8d5a-964877533f0e
   at_utc: '2026-11-09T08:22:56Z'
+  state: fired_once_and_disabled
+  completed: staging deployment and boot check; behavioral acceptance awaits input
+  fixture_reply_wakeup: 01a1c34f-8d32-706d-9ed4-a7aecefabbdb
+  fixture_reply_expires_utc: "2026-11-13T02:35:33Z"
   original_comment: 01a1bf55-cfe6-7684-ab0b-7d037f9a08df
   workflow: https://github.com/SparqLab/slip-api/actions/runs/42583903596
   expected_staging_commit: 913bdfd2a3500fff90802ee09e7aa80b6d087d78
@@ -57,7 +84,8 @@ followup:
 next_action:
   agent: reviewer
   reason: >-
-    Durable one-time Multica wakeup will verify the workflow and ECS/boot state
-    once, then run Reviewer smoke with approved staging fixture/auth if supplied.
-    Keep staging_acceptance pending if any 422/request_id/counter evidence is
-    missing. Do not promote or deploy production.
+    Review staged deployment evidence separately from behavioral acceptance.
+    Earth must provide secure local paths for an approved staging test account/token
+    and rejected-slip image. Then capture a real top-up 422, request-ID join and
+    counter delta on stable tasks. No scheduled CI polling remains, and production
+    is not authorized under the staging grant.
