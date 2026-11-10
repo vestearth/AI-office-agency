@@ -1,12 +1,13 @@
 summary: >-
-  Reviewed source head 0c5b3476 was unchanged. Merged implementation PR 131 to
-  main 7954612 and promoted main to staging through PR 132 at 913bdfd2. Actual
-  main/staging tree equals reviewed dry-run T1 c29f2776112f5b2add93b335f9c121336dc75044.
-  Deploy STAGING run 42583903596 succeeded; slip-api-staging:188 runs the
-  expected staging-sha-913bdfd image at 1/1 COMPLETED. Public health, ready
-  and metrics return 200; boot-window logs pass. deploy_staging is passed,
-  while authenticated 422/request_id/counter staging acceptance remains pending.
-  No production operation was performed.
+  Runtime reconciled on 2026-11-10 09:09 UTC / 16:09 ICT (ev-033).
+  The SPAR-63 logging implementation is included in both current deployment sources:
+  staging:194 / staging-sha-fc67804 and production:148 / production-sha-d567be9.
+  At that snapshot both PRIMARY rollouts were IN_PROGRESS, with previous revisions
+  draining; running/desired counts were 1/1 and 3/3. The logging helper, ErrorReason
+  source and inspect function match reviewed head 0c5b3476. Original PR 131/132 and
+  staging:188 evidence below remain historical evidence. Staging and production
+  behavioral acceptance remain pending; no real top-up 422/request-ID join or
+  controlled counter delta has been obtained. This reconciliation performs no deploy.
 artifacts:
   - path: https://github.com/SparqLab/slip-api/pull/131
     action: modified
@@ -20,7 +21,7 @@ artifacts:
   - path: runs/TASK-VS-067/evidence/staging-rollout-check.py
     action: created
     description: Executed checker; resumed after AWS read timeout and replaced failing urllib probe with curl. Final verification ev-032 passes.
-evidence_refs: [ev-020, ev-021, ev-022, ev-024, ev-025, ev-026, ev-027, ev-028, ev-029, ev-030, ev-031, ev-032]
+evidence_refs: [ev-020, ev-021, ev-022, ev-024, ev-025, ev-026, ev-027, ev-028, ev-029, ev-030, ev-031, ev-032, ev-033, ev-034]
 infra_checks:
   - check: reviewed_source_and_scope
     result: pass
@@ -35,13 +36,15 @@ infra_checks:
       PR 131 main merge 7954612, PR 132 staging merge 913bdfd2. Both match
       reviewed tree c29f2776112f5b2add93b335f9c121336dc75044. Staging previous
       commit de07f6b; staging rollback slip-api-staging:187 / staging-sha-de07f6b.
-  - check: production_exclusion
+  - check: original_staging_grant_scope
     result: pass
     details: >-
-      No production merge or deploy was performed by this work. The preflight on
+      The original staging lane performed no production merge or deploy. Its preflight on
       2026-11-09 recorded prod ref d8e1542 and observed
-      slip-api-production:142 running production-sha-d8e1542 at 3/3. Only the
-      staging authorization authz-001 was recorded.
+      slip-api-production:142 running production-sha-d8e1542 at 3/3. That is a dated
+      observation, not current production state. Later runtime sources include SPAR-63
+      (ev-033). This task still records only staging authorization authz-001;
+      runtime observation does not create a retrospective production grant.
   - check: staging_deployment
     result: pass
     details: >-
@@ -61,7 +64,8 @@ infra_checks:
 blockers:
   - Authenticated staging 422 and counter delta still need a known staging test account/token and rejected-slip fixture; no paths supplied in issue comments through this follow-up.
   - Metrics scrape returned no payment-rejection series. This is a snapshot without a test request, not measured rejection-counter delta or passing behavioral acceptance.
-  - No real post-deploy top-up 422 or joined request ID is claimed. All production gates remain pending until Earth's decision and real production acceptance.
+  - No real post-deploy top-up 422 or joined request ID is claimed. Staging and production acceptance remain pending at Earth's explicit instruction.
+  - The code is already included in production. The ordered deploy_production gate remains pending because staging_acceptance is unresolved and the task ledger has no production grant; observed deployment is recorded separately without bypassing the gate contract.
 probe_limitations:
   - ev-030 confirmed CI success but the subsequent task-definition read timed out; the independent continuation succeeded.
   - ev-031 confirmed ECS image/count but Python urllib received public HTTP 403. Normal curl returned 200; no application/config change or impersonation was made, and the exact cause of the client difference was not established.
@@ -84,8 +88,28 @@ followup:
 next_action:
   agent: reviewer
   reason: >-
-    Review staged deployment evidence separately from behavioral acceptance.
-    Earth must provide secure local paths for an approved staging test account/token
-    and rejected-slip image. Then capture a real top-up 422, request-ID join and
-    counter delta on stable tasks. No scheduled CI polling remains, and production
-    is not authorized under the staging grant.
+    Runtime reconciliation ev-033 confirms SPAR-63 in staging:194/fc67804 and
+    production:148/d567be9; both PRIMARY rollouts were IN_PROGRESS at 09:09 UTC.
+    Keep staging_acceptance and production_acceptance pending. Obtain approved staging
+    account/token and rejected-slip fixture, capture a real 422/request-ID join and
+    controlled counter delta on stable tasks, then collect real production 422 evidence.
+    Reconcile ordered release gates through the governed writer after their requirements
+    are met. Current task phase remains in_review; this update authorizes no deployment.
+runtime_reconciliation:
+  observed_at_utc: '2026-11-10T09:09:14Z'
+  evidence_refs: [ev-033, ev-034]
+  source_match_scope: logging helper and reports.go exact files; payment.inspect exact function at reviewed head 0c5b3476
+  staging:
+    task_definition: slip-api-staging:194
+    image: staging-sha-fc67804
+    running_desired: '1/1'
+    primary_rollout: IN_PROGRESS
+    previous_revision: slip-api-staging:193
+  production:
+    task_definition: slip-api-production:148
+    image: production-sha-d567be9
+    running_desired: '3/3'
+    primary_rollout: IN_PROGRESS
+    previous_revision: slip-api-production:147
+  behavioral_acceptance: pending in both environments
+  authorization_scope: operator requested records and issue update only; no new deployment or retrospective production grant
