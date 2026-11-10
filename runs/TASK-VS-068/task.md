@@ -3,6 +3,9 @@
 Opened 2026-11-10 by the Claude conductor from Earth's chat decisions. Implementation goes to
 another lane; the conductor does not implement this run.
 
+Scope widened the same day (decision D2): a post-bank duplicate, which was sent to the bank, is
+charged like any bank-checked slip. Only duplicates answered without asking the bank stay free.
+
 ## Why
 
 - **KBank bills only `statusCode=0000`** (KBank, 2026-11-04; `runs/TASK-VS-059/task.md` ~:101).
@@ -41,17 +44,51 @@ another lane; the conductor does not implement this run.
    attempt budget, bulkhead; KBank never saw it), for `test=true`, for bypass, and for top-up
    (`Bypass: true`, no quota at all).
 4. **Merchant notice before charging:** the merchant is told the rule before the slip-api production
-   deploy that starts charging it (gate `merchant_notice`).
+   deploy that starts charging it (gate `merchant_notice`), including the post-bank duplicate charge
+   (D2) and the meaning of "duplicates are not charged".
 
-### Open decisions for pm (ask Earth, AskUserQuestion batch)
+### Locked edge decisions (Earth, decision-grilling, 2026-11-10)
 
-- **D1:** a retried 0000 inside a charged 8404's 24 h free window (TASK-VS-063 rule: base charge 0).
-  Recommended: still +1 (KBank billed two 0000s; the slip was charged once, at its free-for-us 8404).
-- **D2:** a retried call that ends as a post-bank duplicate (409, base charge 0). Recommended: no
-  charge, same as TASK-VS-063 decision 9 (post-bank duplicates out of scope).
-- **D3:** how the extra charge shows in quota history: a second `quota_history` row with its own
-  reference type (recommended, e.g. `verification_bank_retry`, so the merchant can see why) or a
-  single row with amount 2.
+Facts found first: slip-landing prod promises "duplicate slips are not charged" in four places
+(`manual/Results.vue`, `manual/Roles.vue`, `package/Compare.vue`, `package/MoneyFaq.vue`); the
+merchant-visible history label is the free-text `quota_history.description`
+(`QuotaHistory.HistoryItem`); `reference_type` has no CHECK constraint, `action` does
+(migrations 021/025); `remaining_quota >= 0` is a CHECK.
+
+- **D1 — no surcharge inside a charged 8404's 24 h free window.** A retried 0000 that the
+  TASK-VS-063 rule makes free (base 0) stays free. About 5 a day (0.26 % retry rate × about 1,757
+  "8404 then verified" slips a day), and the VS-063 merchant notice says a resend within 24 h is not
+  charged again. Earth chose the recommended answer.
+- **D2 — "a duplicate is not charged" means a duplicate our system answers without asking the bank**
+  (Earth, 2026-11-10). Two kinds of 409 exist:
+  - **Pre-bank duplicate** (`rejectDuplicateBeforeBank`: a verified row already exists, answered from
+    the DB, no bank call): **free**, unchanged. 9,545 on 2026-11-08 ICT (409 under 100 ms).
+  - **Post-bank duplicate** (passed the pre-bank check, the bank was called, then `rejectIfDuplicate`
+    after the bank call, or the insert hit the unique index → `finishDuplicate`; caused by concurrent
+    requests for one slip or a response `transRef` spelled differently from the request): it was
+    sent to the bank, so it is **charged like any bank-checked slip: base 1, plus the retry surcharge
+    when the call was retried (1 + 1 = 2)**. Today it is free. About 14 a day (409 at 100–999 ms on
+    2026-11-08 ICT); retried ones: 0 on 2026-11-08 and 2 on 2026-11-09 (ev-001).
+  - The base follows the normal rule for the bank's answer (0000 → 1, a TASK-VS-063 8404 → its
+    per-slip rule, 404/4040 not_found → 0); in practice a post-bank duplicate is a 0000. D1 still
+    applies to the surcharge.
+  - This widens the task beyond timeouts (TASK-VS-063 decision 9 had left post-bank duplicates out)
+    and changes every channel that uses `VerifyBank` (API, LINE, queue, batch). The FAQ's existing
+    principle ("quota is used only for slips sent to the bank for checking") already covers it; the
+    "duplicate" texts are clarified, not given an exception (slip-landing scope below).
+  - Earth first chose "surcharge only" (0 + 1), then, after the two kinds were laid out, chose
+    "charge the base too" (the recommended answer).
+- **D3 — a separate `quota_history` row** for the surcharge (`quota_delta` -1), same `action` as the
+  base charge (no migration), its own `reference_type` (e.g. `verification_bank_retry`,
+  `reference_id` = the verification id) and its own `description` as the merchant-visible label
+  (wording approved by Earth with the landing text, e.g. "ธนาคารตอบช้า ระบบส่งตรวจซ้ำ"). Not a single
+  -2 row: the fast path needs quota for both, so a branch with 1 quota left would lose a verified
+  result that KBank already billed. Earth chose the recommended answer.
+- **D4 — not enough quota for the surcharge: skip it and log.** Save the result and the base charge
+  as usual, write no surcharge row, and log one line (`request_id`, `branch_id`, reason) for counting.
+  Never fail or roll back a verified result for the surcharge. The surcharge uses the normal
+  consumption path, so a package with auto-renew on exhaustion renews as for any other charge.
+  Earth chose the recommended answer.
 
 ## Scope
 
@@ -85,7 +122,15 @@ another lane; the conductor does not implement this run.
 1. In `Verification.VerifyBank` (`internal/core/service/verification.go`), read the retry signal from
    `slipsystemadt` (`internal/adapters/slipsystemadt/adapter.go`) and charge the extra quota in the
    same transaction as the base rule (`saveBankRecord` → `SaveWithQuota` / `SaveBankNotFound`,
-   `internal/repositories/verification.go`). The extra charge applies only per decisions 2–3 and D1–D3.
+   `internal/repositories/verification.go`). The extra charge applies only per decisions 2–3 and D1–D4.
+   For D2, the post-bank duplicate paths (`rejectIfDuplicate` after the bank call, and
+   `ErrDuplicateSlip` from the save → `finishDuplicate` → `persistDuplicateAttempt`, which saves with
+   `Save` and no quota today) charge the base row by the normal rule for the bank's answer, plus the
+   surcharge row when the call was retried. The pre-bank path (`rejectDuplicateBeforeBank` →
+   `duplicateResponse`) stays free. Keep the duplicate status and `duplicate_slip` reason on the row.
+   Fix the comment "No quota: the slip was not sent to the bank again" so it applies to the pre-bank
+   path only. `batchOutcomeFromVerify` already reports `quotaUsed=true` for duplicates; make it true
+   only for post-bank ones.
 2. Paths covered: HTTP verify (`internal/handler/http/bank.go` `verifyOne`), queue and batch
    (`internal/core/service/queue.go`), LINE (`internal/core/service/line_webhook.go`). Not charged:
    top-up (`internal/core/service/payment.go`, `Bypass: true`), `test=true`. The legacy gRPC
@@ -97,14 +142,17 @@ another lane; the conductor does not implement this run.
 ### slip-landing
 
 - State the rule where quota charges are explained (`app/components/manual/Results.vue`,
-  `package/MoneyFaq.vue`, `package/Compare.vue`): a slip whose bank answer was slow and had to be
-  resent costs 2 quota when the bank verified it. Text approved by Earth.
+  `manual/Roles.vue`, `package/MoneyFaq.vue`, `package/Compare.vue`): a slip whose bank answer was
+  slow and had to be resent costs one extra quota when the bank verified it.
+- D2: clarify each "duplicates are not charged" text in those four files with the reason: the result
+  comes from the earlier check without asking the bank again. Add a short note that sending the same
+  slip several times at once can make the system ask the bank, and that check is charged like any
+  other. Thai and English. Text approved by Earth.
 
 ### Out of scope
 
 - Changing the 3.05 s timeout or waiting past the merchant's 8 s (VS-059 / VS-061).
-- Post-bank duplicates (D2 recommended no), save failures and receiver-lookup failures (no charge
-  today, unchanged).
+- Save failures and receiver-lookup failures (no charge today, unchanged).
 - Charging the merchant's own resends after a 502 (they are separate verifies and already charged
   normally when they return 0000).
 
@@ -147,13 +195,19 @@ the design is fixed, so the two do not collide. Ask watcharapol-spl why 3.05 s w
   timeout after the body is written, then answers 0000: it fails today (proxy-only retry, no signal)
   and passes after. A pre-write failure (refused dial) is not retried in-app and stays `Unavailable`.
   A second timeout returns `BANK_UNAVAILABLE`, not `Unavailable`.
-- slip-api table tests: retried + 0000 → base + 1; retried + receiver mismatch → base + 1; retried +
-  8404 → base rule only; retried + 0000 inside a charged 8404 window → per D1; not retried →
-  unchanged; `test=true`, bypass, top-up → no charge.
+- slip-api table tests: retried + 0000 → base + 1 (two rows, surcharge row with its own
+  `reference_type` and label); retried + receiver mismatch → base + 1; retried + 8404 → base rule
+  only; retried + 0000 inside a charged 8404 window → 0 (D1); post-bank duplicate → 1 (D2);
+  retried + post-bank duplicate → 2 (base row + surcharge row); pre-bank duplicate → 0, with no bank
+  call (the stub sees none); retried + 0000 with quota for the base only →
+  base saved, no surcharge row, one log line (D4); not retried → unchanged; `test=true`, bypass,
+  top-up → no charge.
 - **Staging:** one forced slow-then-0000 verify shows the retry line and two quota deductions.
 - **Production (same 24 h ICT windows before and after, method of ev-001):**
   - first-attempt timeouts stay in the 1,200–1,900/day range;
   - extra charges ≈ retried calls that ended 0000;
+  - post-bank duplicate charges ≈ 409s at 100 ms or more (about 14/day), and pre-bank 409s still
+    charge 0;
   - merchant 408s stay near 4–8/day and 502s stay equal to the 8500 count (no new 502 source);
   - p95 of retried 200s stays near 3.7 s.
 - **Month end:** the KBank invoice gap is covered by extra charges (reconciliation worksheet in KB).
