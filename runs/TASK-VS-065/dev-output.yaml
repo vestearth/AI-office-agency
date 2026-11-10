@@ -1,0 +1,111 @@
+summary: >-
+  Implemented slip-api blog creator/editor attribution and best-effort activity
+  history on f31fd458bdfe5b8fad33b5617e6ba2963a6903ae. PR 133 targets main.
+  Admin-only actors, secondary-write attribution, compact snapshots and
+  actor_name are covered by PostgreSQL integration and full race tests.
+artifacts:
+  - path: slip-api/migrations/082_blog_actor.sql
+    action: created
+    description: Four nullable actor FKs, widened NOT VALID activity CHECK, bounded DDL lock wait; Down retains history.
+  - path: slip-api/internal/blog/activity.go
+    action: created
+    description: Explicit admin post shape, actor context and compact committed activity snapshots.
+  - path: slip-api/internal/blog/repository.go
+    action: modified
+    description: Actor reads/writes and locked snapshots including unfeature, cover and delete.
+  - path: slip-api/internal/blog/category_repository.go
+    action: modified
+    description: Category actors and activity, rename count and per-post delete-with-move history.
+  - path: slip-api/internal/blog/handler.go
+    action: modified
+    description: Supply the activity logger to writes; serialize actors only on admin post routes.
+  - path: slip-api/internal/blog/category_handler.go
+    action: modified
+    description: Carry the activity logger through every category write.
+  - path: slip-api/internal/models/admin.go
+    action: modified
+    description: Blog entity types and additive actor_name field.
+  - path: slip-api/internal/repositories/activity_log.go
+    action: modified
+    description: Current actor name joined from users without changing history pagination/filter shape.
+  - path: slip-api/internal/core/service/admin.go
+    action: modified
+    description: Allow both blog entity filters on the existing history endpoint.
+  - path: slip-api/internal/blog/activity_test.go
+    action: created
+    description: Compact snapshot privacy, explicit admin serialization and empty changed lists.
+  - path: slip-api/internal/blog/actor_integration_test.go
+    action: created
+    description: Two editors, write coverage, null/deleted users, history HTTP/paging, public keys and migration lifecycle.
+  - path: slip-api/internal/handler/router/router_test.go
+    action: modified
+    description: Real AdminAuth rejects unauthenticated blog and history requests with 401.
+  - path: slip-api/migrations/run_test.go
+    action: modified
+    description: Inventory assertion expects all 82 SQL files; main already had 081 while its old count was 79.
+  - path: slip-api/README.md
+    action: modified
+    description: Frontend handoff contract, deployment order, best-effort limit and rollback behavior.
+evidence_refs: [ev-001, ev-002, ev-009, ev-013, ev-014, ev-015, ev-016, ev-017]
+context_sources:
+  github:
+    branch: task/TASK-VS-065-blog-actors
+    pr: https://github.com/SparqLab/slip-api/pull/133
+  socraticode:
+    status: used
+    queries:
+      - slip-api blog repository Create Update SetCover activity_logs AdminAuth actionEntityTypes
+    relevant_symbols: [blog.Repository, blog.Handler, activityLogger.Log, ActivityLogRepository.List]
+    notes: >-
+      Specific slip-api path had no index. Workspace index was available in manual
+      watcher mode; its results were treated as leads and checked against actual files.
+claims:
+  - claim: Initial attribution test fails on the unimplemented behavior and passes with the change.
+    evidence_refs: [ev-002, ev-017]
+    result: Missing created_by on original admin create; final commit passes.
+  - claim: The final commit passes the full race suite with local PostgreSQL integration enabled.
+    evidence_refs: [ev-017]
+    result: >-
+      go test -race -json ./... -count=1 passed on clean f31fd458;
+      585 test/subtest pass events, zero skipped or failed tests. Blog,
+      repository and migration test DSN environments were all enabled on
+      disposable localhost PostgreSQL 16 databases.
+  - claim: The final commit passes vet and a readonly standalone build.
+    evidence_refs: [ev-015, ev-016]
+    result: go vet ./... and GOWORK=off go build -mod=readonly ./... both exit 0.
+  - claim: Migration 082 passes Up/Down/Up, direct replay, FK enforcement and retention checks.
+    evidence_refs: [ev-009, ev-013, ev-017]
+    result: >-
+      Focused goose lifecycle starts with legacy blog rows on a fresh isolated
+      schema; Down drops only actor columns and preserves blog history and the
+      widened CHECK. Full repository integration also uses the real boot runner
+      in a disposable public-schema database. NOT VALID still rejects unknown
+      new entity types; no existing rows are attributed by backfill.
+  - claim: Public blog keys and article content privacy remain covered.
+    evidence_refs: [ev-013, ev-017]
+    result: >-
+      All three public blog list/detail/category responses retain exact keys
+      with populated admin actors; no actor fields/emails are serialized.
+      Activity records contain compact snapshots and changed field names,
+      excluding long article content. Every admin blog route and activity
+      endpoint rejects missing authorization with 401.
+  - claim: Independent review and environment acceptance have not occurred.
+    result: >-
+      Implementation PR only. No merge, staging/prod deploy, live acceptance,
+      production activity row-count preflight, or rollout log observation was performed.
+blockers:
+  - Independent review of PR 133 is pending; implementation_verification remains pending until the reviewed commit is accepted.
+  - Each staging/production promotion still requires Earth's approval; all environment gates remain pending.
+next_action:
+  agent: reviewer
+  reason: >-
+    Independently review PR 133 on f31fd458 against TASK-VS-065 and evidence.
+    Inspect migration 082, admin-only serialization, all updated_at write paths,
+    secondary activity and the best-effort post-commit logging choice. Leave
+    release gates pending and do not merge or deploy. Earth relays README's
+    frontend contract to viewsupat; slip-admin is outside this implementation.
+worktree: /Users/earth/Documents/GitHub/slip-api-TASK-VS-065
+multica_issue: SPAR-68
+multica_issue_id: 01a1c4c7-d2ee-7a82-a07d-21280310f5f8
+multica_run_id: 01a1c4c8-b1e8-7cda-8ed2-010b4260a05a
+source_task_blob_at_dispatch: b3b4f92ca30ad45ebf8e3d155d586d173d292b65
