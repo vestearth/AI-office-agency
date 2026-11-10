@@ -2,18 +2,18 @@
 task_id: TASK-VS-064
 task_label: 'slip-api: receiver-check lookup errors must not save a charged verified
   row'
-phase: pending
-state: pending
+phase: done
+state: done
 iteration: 0
-current_agent: pm
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-08'
-updated_at: '2026-11-08'
+updated_at: '2026-11-10'
 history:
 - phase: created -> pending
   agent: pm
@@ -52,56 +52,161 @@ history:
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-08T14:51:56Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'On d8e1542, which first carried VS-064 to prod: vet, build -mod=readonly
+    and go test ./... -count=1 exit 0, and the 6 VS-064 regression tests pass (ev-002).
+    On 164df8c, prod since 2026-11-10: the 6 tests pass but TestGooseSQLFiles fails
+    (80 sql files, want 79), because watcharapol-spl 059ddf3 added migration 080 without
+    updating the count (ev-001); not a VS-064 change'
+  at: '2026-11-10T05:34:39Z'
+  operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'PR #130 main -> staging merged by Earth 2026-11-09T04:48:10Z (3b33b8e contains
+    e7da8d3, the PR #127 merge); Deploy STAGING run 42563785540 success 04:48-04:59Z;
+    slip-api-staging:186 staging-sha-3b33b8e (ev-003). First recorded in TASK-VS-066'
+  at: '2026-11-10T05:34:39Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: devops
+  reason: 'staging proves boot: goose applied 079, HTTP and gRPC listeners up, 0 ERROR
+    / panic 04:45-05:20Z (ev-003). The lookup-failure paths are proven by the regression
+    tests (ev-002); staging traffic does not exercise them'
+  at: '2026-11-10T05:34:39Z'
+  operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: watcharapol-spl merged main -> staging (de07f6b) and staging -> prod (d8e1542)
+    directly, no PR; Deploy PRODUCTION run 42575072475 success; slip-api-production:142
+    registered 06:48:27Z (ev-003). Not through the office lane or an Earth approval
+    (authz-002). Prod moved on to :143 (164df8c) on 2026-11-10 03:40Z, which keeps
+    the VS-064 guards
+  at: '2026-11-10T05:34:39Z'
+  operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: devops
+  reason: 'First 20 min on :142 (06:50-07:10Z): 7,809 200, 0 502/504, one 500 = admin
+    bank-flows report 15 s timeout (pre-existing class). Fail-closed path seen live:
+    "receiver check lookup failed; verified result not saved" logged twice on prod,
+    both inside the 2026-11-09 14:59-15:05Z database stall (handed to DevOps, cause
+    unknown, not attributed to VS-064: the stalled calls were the quota-lock path,
+    which VS-064 did not change)'
+  at: '2026-11-10T05:34:39Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261110T053533Z-verifyslip-receiver-check.yaml'
+  at: '2026-11-10T05:35:33Z'
+  operator: claude
+- phase: pending -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-10T06:44:08Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-08T14:51:56Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'On d8e1542, which first carried VS-064 to prod: vet, build -mod=readonly
+      and go test ./... -count=1 exit 0, and the 6 VS-064 regression tests pass (ev-002).
+      On 164df8c, prod since 2026-11-10: the 6 tests pass but TestGooseSQLFiles fails
+      (80 sql files, want 79), because watcharapol-spl 059ddf3 added migration 080
+      without updating the count (ev-001); not a VS-064 change'
+    updated_at: '2026-11-10T05:34:39Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api d8e1542 (first prod commit with VS-064) and 164df8c (prod now)
+      url: https://github.com/SparqLab/slip-api/pull/127
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-08T14:51:56Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'PR #130 main -> staging merged by Earth 2026-11-09T04:48:10Z (3b33b8e
+      contains e7da8d3, the PR #127 merge); Deploy STAGING run 42563785540 success
+      04:48-04:59Z; slip-api-staging:186 staging-sha-3b33b8e (ev-003). First recorded
+      in TASK-VS-066'
+    updated_at: '2026-11-10T05:34:39Z'
+    evidence_refs:
+    - ev-003
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-002
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api staging 3b33b8e (slip-api-staging:186, staging-sha-3b33b8e)
+      url: https://github.com/SparqLab/slip-api/pull/130
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-08T14:51:56Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'staging proves boot: goose applied 079, HTTP and gRPC listeners up, 0
+      ERROR / panic 04:45-05:20Z (ev-003). The lookup-failure paths are proven by
+      the regression tests (ev-002); staging traffic does not exercise them'
+    updated_at: '2026-11-10T05:34:39Z'
+    evidence_refs:
+    - ev-002
+    - ev-003
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api staging 3b33b8e
+      url: https://github.com/SparqLab/slip-api/pull/130
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-08T14:51:56Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: watcharapol-spl merged main -> staging (de07f6b) and staging -> prod (d8e1542)
+      directly, no PR; Deploy PRODUCTION run 42575072475 success; slip-api-production:142
+      registered 06:48:27Z (ev-003). Not through the office lane or an Earth approval
+      (authz-002). Prod moved on to :143 (164df8c) on 2026-11-10 03:40Z, which keeps
+      the VS-064 guards
+    updated_at: '2026-11-10T05:34:39Z'
+    evidence_refs:
+    - ev-003
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api prod d8e1542 (slip-api-production:142, production-sha-d8e1542)
+      url: https://github.com/SparqLab/slip-api/actions/runs/42575072475
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-08T14:51:56Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'First 20 min on :142 (06:50-07:10Z): 7,809 200, 0 502/504, one 500 =
+      admin bank-flows report 15 s timeout (pre-existing class). Fail-closed path
+      seen live: "receiver check lookup failed; verified result not saved" logged
+      twice on prod, both inside the 2026-11-09 14:59-15:05Z database stall (handed
+      to DevOps, cause unknown, not attributed to VS-064: the stalled calls were the
+      quota-lock path, which VS-064 did not change)'
+    updated_at: '2026-11-10T05:34:39Z'
+    evidence_refs:
+    - ev-003
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api prod d8e1542 -> 164df8c
+      url: https://github.com/SparqLab/slip-api/actions/runs/42575072475
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-08T14:51:56Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261110T053533Z-verifyslip-receiver-check.yaml'
+    updated_at: '2026-11-10T05:35:33Z'
     evidence_refs: []
+decision_applied_at: '2026-11-10T06:44:00Z'

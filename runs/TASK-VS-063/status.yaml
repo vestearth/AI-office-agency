@@ -12,7 +12,7 @@ assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-08'
-updated_at: '2026-11-09'
+updated_at: '2026-11-10'
 history:
 - phase: created -> pending
   agent: pm
@@ -125,6 +125,20 @@ history:
     ''แจ้งร้านค้าเรียบร้อยครับ''): rule C effective 2026-11-09 09:19 ICT, 422/8404
     response unchanged, advice to wait 60 s and resend once'
   at: '2026-11-09T03:07:43Z'
+  operator: claude
+- phase: rollback revision superseded
+  agent: devops
+  reason: 'Prod moved on after deploy_production, each time by watcharapol-spl merging
+    main -> staging -> prod directly (no PR): :141 2abb1d9 (2026-11-09 03:54Z), :142
+    d8e1542 (06:46Z, adds TASK-VS-064 and TASK-VS-066), :143 164df8c (2026-11-10 03:40Z,
+    adds TASK-VS-067 and 059ddf3 PromptPay receiver matching with migration 080). All
+    contain d486b25 (TASK-VS-064 ev-003). The gate''s "rollback slip-api-production:139"
+    is no longer a VS-063-only rollback: :139 still boots (goose v3.24.3 applies nothing
+    when the DB is ahead of the binary) but drops everything after it, including de5c571
+    KYC upload that slip-front-end already calls. Roll back VS-063 alone by reverting it
+    on main and promoting. Separately, 164df8c fails TestGooseSQLFiles (80 sql files,
+    want 79) because 059ddf3 did not update the count (TASK-VS-064 ev-001).'
+  at: '2026-11-10T05:40:00Z'
   operator: claude
 completion_gates:
   implementation_verification:

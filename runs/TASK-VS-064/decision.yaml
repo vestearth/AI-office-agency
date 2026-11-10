@@ -1,0 +1,8 @@
+---
+task_id: TASK-VS-064
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-10T06:44:00Z'
+  against_phase: pending
+  note: 'recorded from chat by the Claude conductor: operator said "Yes, close and commit" (2026-11-10). Closes the run with all six gates passed on fresh evidence (ev-001..003). The production deploy was watcharapol-spl''s direct merge to prod (authz-002), not an operator approval; the operator approved staging only (authz-001).'

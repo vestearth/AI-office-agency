@@ -12,3 +12,16 @@ authorizations:
   scope: 'slip-api main 2b2d30e -> staging 10d0870 through a PR (merge commit), dry-run
     tree fe4dcd3c; carries TASK-VS-064 (#127: e19a09c, 038fd73, 802dc14, 2826114)
     and TASK-VS-066 (#129: a763481, migration 079 at boot); staging only, not production'
+- id: authz-002
+  type: grant
+  actor: watcharapol-spl
+  via: direct git merges main -> staging de07f6b and staging -> prod d8e1542, 2026-11-09T06:44:57Z-06:45:51Z,
+    no PR (ev-003)
+  reason: 'recorded after the fact by the Claude conductor so the run matches prod:
+    the teammate promoted prod himself; Earth approved staging only (authz-001) and
+    gave no prod approval for this run in chat'
+  at: '2026-11-10T05:34:26Z'
+  action: deploy_production
+  scope: slip-api prod 2abb1d9 -> d8e1542 (slip-api-production:142), carrying TASK-VS-064
+    e19a09c 038fd73 802dc14 2826114, TASK-VS-066 a763481, watcharapol-spl bb1f8dd
+    5a8eb87

@@ -108,3 +108,27 @@ TASK-VS-055 `prod-readonly-psql.py` (5 s statement timeout).
   this run's lane to record (the deploy evidence above lives in TASK-VS-066). Staging boot and
   smoke do not exercise the lookup-failure paths. Production is not promoted and needs its own
   approval.
+
+## On prod (recorded 2026-11-10 by the Claude conductor)
+
+- **Prod promotion was not through this lane.** watcharapol-spl merged `main` into `staging`
+  (`de07f6b`) and `staging` into `prod` (`d8e1542`) directly on 2026-11-09 06:44–06:45 UTC, with
+  no PR. Deploy PRODUCTION run 42575072475 succeeded, and `slip-api-production:142`
+  (`production-sha-d8e1542`) carried VS-064 from about 06:48 UTC.
+- **Authorization:** `authz-002` records the teammate's own merge. It is not an Earth approval:
+  Earth approved staging only (`authz-001`).
+- **Prod has moved on since then.** It now runs `:143` (`164df8c`), deployed 2026-11-10 03:40 UTC
+  by the same direct flow. That commit adds TASK-VS-067 and 059ddf3 (PromptPay receiver matching,
+  migration 080). The VS-064 guards and tests are unchanged there.
+- **Tests:**
+  - `d8e1542`: vet, build and `go test ./...` all exit 0, and the 6 VS-064 regression tests
+    pass (`ev-002`).
+  - `164df8c`: the 6 tests pass, but `migrations` `TestGooseSQLFiles` fails (80 sql files,
+    want 79), because 059ddf3 added migration 080 without updating the count (`ev-001`). That
+    failure belongs to 059ddf3, not to VS-064.
+- **Seen on prod:** `receiver check lookup failed; verified result not saved` fired twice, both
+  inside the 2026-11-09 14:59–15:05 UTC database stall. That stall is handed to DevOps with its
+  cause unknown, and it is not attributed to VS-064: the calls that stalled were the quota-lock
+  path, which VS-064 did not change. The first 20 minutes on `:142` had no 502 or 504, and one
+  500 from the admin bank-flows report hitting its 15 s timeout (`ev-003`).
+- **Gates:** all six pass (2026-11-10). The run stays open until Earth decides to close it.
