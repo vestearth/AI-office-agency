@@ -109,3 +109,44 @@ Sender and receiver names, the sender account number, the raw provider/response 
 - Top-up rejections are a small share of traffic (the high-volume `/v1/slips/verify` path is not
   touched), so one Warn line per rejection is acceptable; check the actual top-up 422 rate in
   CloudWatch before adding any sampling.
+
+## Runtime reconciliation — 2026-11-10
+
+Earth requested updating this run and SPAR-63 to the observed runtime while keeping
+unproven acceptance pending. Snapshot: **09:09 UTC / 16:09 ICT**, TASK-VS-067 `ev-033`.
+
+| Environment | Current task definition | Image | Running / desired | PRIMARY rollout at snapshot |
+| --- | --- | --- | --- | --- |
+| staging | `slip-api-staging:194` | `staging-sha-fc67804` | 1 / 1 | `IN_PROGRESS`; revision 193 draining |
+| production | `slip-api-production:148` | `production-sha-d567be9` | 3 / 3 | `IN_PROGRESS`; revision 147 draining |
+
+Both deployment sources contain SPAR-63. The logging helper and `reports.go` are identical
+to reviewed head `0c5b3476`; the `inspect` function is identical as well. This source check
+does not re-review unrelated changes in the newer images. Original implementation PR
+[#131](https://github.com/SparqLab/slip-api/pull/131) and staging promotion PR
+[#132](https://github.com/SparqLab/slip-api/pull/132) are merged. Earlier staging:188 and
+production:142 statements are dated observations, superseded for current-runtime purposes.
+
+The independent code audit found no new blocking issue. Race tests (`GOWORK=off go test
+-race ./... -count=1`), readonly build and `go vet ./...` were rerun successfully on reviewed
+head `0c5b3476`. The two regression checks were rerun on baseline `5a8eb87` and failed for
+the real missing reason/log behavior. Original recorded evidence `ev-018` through `ev-022`
+was also hash-checked. Infrastructure-dependent tests retain their existing environment
+gates; this is not an end-to-end acceptance claim for the newer deployment images.
+
+The fully paginated log audit covers **2026-11-09 08:30 through 2026-11-10 08:55 UTC**
+(15:30 through 15:55 ICT). Staging Warn/access reads consumed 4/4 pages, production 10/11
+pages; no top-up 422/request-ID join was found. Public metric snapshots had no payment
+rejection series. This window spans rollouts; a zero without top-up traffic is not an
+acceptance pass. The audit remains **PARTIAL**, with no controlled counter delta (`ev-034`).
+
+`staging_acceptance` and `production_acceptance` remain **pending**. Next evidence needed:
+an approved staging account/token and rejected-slip fixture for a real authenticated
+422, a request-ID join to Warn/access reason and receiver shape, a counter delta on stable
+tasks, and a real post-deploy production 422. The run remains `in_review`.
+
+The existing `deploy_production` gate remains pending under its ordering and authorization
+contract: `staging_acceptance` is unresolved and only the original staging grant is recorded.
+Production inclusion is observed separately; this record update neither performs a deploy
+nor invents a retrospective production grant. Preserve the acceptance gates and reconcile
+release records through the governed writer once the requirements are met.
