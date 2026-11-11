@@ -1,3 +1,94 @@
+# TASK-VS-065 verification and frontend handoff
+
+## Current status — 12 November 2026 (Bangkok)
+
+Implementation PR [#133](https://github.com/SparqLab/slip-api/pull/133) merged
+into main as `615df268`. Earth then explicitly approved staging in the Codex
+chat: “แจงรายการที่ผมต้องบอก viewsupat และ promote ขึ้น staging ต่อได้เลย”.
+Authorization `authz-001` covers TASK-VS-065 and migration 082 on staging only.
+
+Promotion PR [#134](https://github.com/SparqLab/slip-api/pull/134) merged
+`main` into `staging` as `dd79bcf563d127480e43be262643c1cb76969fe9`.
+The only new non-merge commit was `f31fd458` by Sichol-Earth. Dry-run T1 and T2
+were both `f645cbb11de9aabcab9db087d495892d0d649f77`, byte-identical to the
+reviewed implementation tree; T2 was inspection only. The staging merged tree
+matches T1. No production promotion was performed.
+
+[Deploy STAGING 43089142512](https://github.com/SparqLab/slip-api/actions/runs/43089142512)
+succeeded. ECS runs `slip-api-staging:195`, image `staging-sha-dd79bcf`,
+PRIMARY COMPLETED, RUNNING/desired 1/1, task HEALTHY. Deployment started at
+19:41:19.972 UTC on 11 November and reached COMPLETED at 19:49:57.857 UTC
+(12 November 02:41:19–02:49:57 ICT). Environment and secret entries are unchanged
+from `:194` (compared in memory without printing values). Rollback is
+`slip-api-staging:194`, keeping the expanded schema and history. Production was
+observed unchanged at `slip-api-production:148`, 3/3.
+
+Boot logged `goose: OK up 082_blog_actor.sql (50ms)`, version 82, and HTTP
+listener startup on the new task. The closed mixed-rollout window
+19:38:50–19:52:00 UTC (12 November 02:38:50–02:52:00 ICT), covering merge
+through two minutes after COMPLETED, was read in full: 2 pages, 15 events,
+8 logged HTTP requests, all on the new task (200=4, 404=1, 401=3),
+0 5xx, 0 ERROR, 0 panic/fatal, 0 activity-save errors, 0 non-JSON lines.
+These observations prove boot and traffic; authenticated history writes were
+not exercised, so the zero activity-save count is not feature acceptance.
+
+| Evidence | Scope | Result |
+| --- | --- | --- |
+| ev-027 | Exact scope, merge trees, reviewed-tree equality, original ev-017 output hash, rollback baseline | PASS |
+| ev-028 | Staging health/ready, exact public blog keys, packages, 404, unauthenticated admin/history 401 | PASS: 9 public posts, 5 categories |
+| ev-029 | Exact expected-image ECS rollout waiter | COMPLETED `:195`, 1/1 |
+| ev-030 | Successful workflow SHA, expected tree/image, HEALTHY task, unchanged env/secrets | PASS |
+| ev-031 | Complete closed-window CloudWatch pagination, new task boot and traffic | PASS; coverage and counts above |
+
+`implementation_verification` and `deploy_staging` are passed through the
+governed gate writer. `staging_acceptance`, `deploy_production`, and
+`production_acceptance` remain pending. SPAR-68 remains in review; production
+requires a separate approval and migration preflight.
+
+## Checklist for Earth to relay to viewsupat
+
+The API is available on `https://api-staging.up-slip.com`. Implement the
+following in `slip-admin`; this backend promotion does not implement the UI.
+
+1. Show “แก้ไขล่าสุดโดย {name or email} · {updated_at}” in the post list and
+   category list/modal. Actors are `{id,name,email}` or `null`; prefer `name`,
+   fall back to `email`, show the email on hover, and show `—` for null.
+   `created_by` can supply creator information in the detail view. Existing
+   rows have no backfill and a deleted user becomes null. Keep the article
+   `author` byline separate from editor identity.
+2. Treat `created_by` and `updated_by` as read-only response fields. Preserve
+   the existing create/update request body; the API resolves identity from
+   the logged-in admin and clients should not send actor objects in writes.
+3. Add a history panel from the post edit form and each category row:
+   `GET /v1/admin/activity-logs?entity_type=blog_post&entity_id=<post UUID>&limit=20&offset=0`
+   or `entity_type=blog_category&entity_id=<category slug>`. Use the post UUID,
+   which remains stable when a draft slug changes, and the immutable category slug.
+4. Display newest first, with action (`created`, `updated`, `deleted`), time,
+   and `actor_name` falling back to historical `actor_email`. Show changed
+   fields from `new_value.changed`; snapshots omit article bodies and long
+   content, so this is a field-change history rather than a full-text diff.
+   Category rename includes `new_value.post_count`; deletion includes
+   `old_value.post_count` and `old_value.moved_to`. Moved posts each receive
+   a category-change entry.
+5. Handle `{items,total,has_more,limit,offset}` pagination, loading, empty,
+   and error states. Refetch actor/history data after successful writes and
+   refresh other affected rows after changing featured or deleting a category
+   with a move. A category rename intentionally preserves post editor/timestamps.
+6. On staging, verify with two admin users: create/edit and editor switch,
+   cover upload/removal, featured toggles including the previously featured
+   post, and category rename/reorder/delete-with-move. Verify history and
+   pagination and the null/email fallback states. This authenticated acceptance
+   is still pending; provide the observed results before production promotion.
+7. Deploy the UI to staging against this API. On production, deploy slip-api
+   first and wait for the separate API production acceptance before enabling
+   the UI feature there. History remains best effort; monitor
+   `save activity log` during authenticated acceptance and rollout.
+
+The canonical contract is the README section
+[`Blog editor attribution and history`](https://github.com/SparqLab/slip-api/blob/615df268d32f0973448695308f73febb0c1a0aaa/README.md#blog-editor-attribution-and-history-task-vs-065).
+
+## Original implementation handoff (historical)
+
 Implementation PR: https://github.com/SparqLab/slip-api/pull/133
 
 Commit: `f31fd458bdfe5b8fad33b5617e6ba2963a6903ae`, branch

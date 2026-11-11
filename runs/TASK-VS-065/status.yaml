@@ -12,7 +12,7 @@ assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-09'
-updated_at: '2026-11-10'
+updated_at: '2026-11-12'
 history:
 - phase: created -> assigned
   agent: pm
@@ -65,24 +65,76 @@ history:
   reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261110T094540Z-spar-68-upslip-blog-attribution.yaml'
   at: '2026-11-10T09:45:40Z'
   operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: Codex independently reviewed f31fd458, reran race suite with PostgreSQL
+    16 (585 test/subtest pass events, no test skip/fail), vet and readonly build.
+    Promotion preflight ev-027 verifies the ev-017 output hash and that reviewed code,
+    merged main and dry-run staging share tree f645cbb11de9aabcab9db087d495892d0d649f77.
+  at: '2026-11-11T19:38:30Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Earth approved staging in chat (authz-001). PR 134 promoted slip-api main
+    615df268 to staging fc678046..dd79bcf5; tree T1/T2 f645cbb11de9aabcab9db087d495892d0d649f77
+    (T2 dry run only). Deploy STAGING 43089142512 success; slip-api-staging:195, staging-sha-dd79bcf,
+    PRIMARY COMPLETED 1/1 HEALTHY. Environment/secrets unchanged from :194; rollback
+    :194 while retaining schema/history. Migration 082 applied in 50ms. UTC 2026-11-11
+    19:38:50..19:52:00 (ICT Nov12 02:38:50..02:52:00), 2 pages/15 events, 8 HTTP requests
+    on new task, 0 5xx/ERROR/panic/activity-save errors. Public/privacy/auth-boundary
+    smoke passed. Authenticated feature acceptance and all production gates remain
+    pending.
+  at: '2026-11-11T19:53:14Z'
+  operator: codex
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-09T03:10:03Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: Codex independently reviewed f31fd458, reran race suite with PostgreSQL
+      16 (585 test/subtest pass events, no test skip/fail), vet and readonly build.
+      Promotion preflight ev-027 verifies the ev-017 output hash and that reviewed
+      code, merged main and dry-run staging share tree f645cbb11de9aabcab9db087d495892d0d649f77.
+    updated_at: '2026-11-11T19:38:30Z'
+    evidence_refs:
+    - ev-015
+    - ev-016
+    - ev-017
+    - ev-027
     requires_record: true
+    ran:
+      by: Codex
+      ref: f31fd458bdfe5b8fad33b5617e6ba2963a6903ae
+      url: https://github.com/SparqLab/slip-api/pull/133
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-09T03:10:03Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: Earth approved staging in chat (authz-001). PR 134 promoted slip-api main
+      615df268 to staging fc678046..dd79bcf5; tree T1/T2 f645cbb11de9aabcab9db087d495892d0d649f77
+      (T2 dry run only). Deploy STAGING 43089142512 success; slip-api-staging:195,
+      staging-sha-dd79bcf, PRIMARY COMPLETED 1/1 HEALTHY. Environment/secrets unchanged
+      from :194; rollback :194 while retaining schema/history. Migration 082 applied
+      in 50ms. UTC 2026-11-11 19:38:50..19:52:00 (ICT Nov12 02:38:50..02:52:00), 2
+      pages/15 events, 8 HTTP requests on new task, 0 5xx/ERROR/panic/activity-save
+      errors. Public/privacy/auth-boundary smoke passed. Authenticated feature acceptance
+      and all production gates remain pending.
+    updated_at: '2026-11-11T19:53:14Z'
+    evidence_refs:
+    - ev-027
+    - ev-028
+    - ev-029
+    - ev-030
+    - ev-031
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: GitHub Actions and Codex
+      ref: dd79bcf563d127480e43be262643c1cb76969fe9
+      url: https://github.com/SparqLab/slip-api/actions/runs/43089142512
   staging_acceptance:
     status: pending
     actor: pm
