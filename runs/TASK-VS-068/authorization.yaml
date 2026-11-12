@@ -12,3 +12,15 @@ authorizations:
   action: deploy_staging
   scope: 'slip-system PR #26: main 09b8554 -> staging 15c61c4 (tree 27ea32b == dry
     run T1; scope 67ac92c by Sichol-Earth only); staging only; rollback slip-system-staging:34'
+- id: authz-002
+  type: grant
+  actor: earth
+  via: chat with the Claude conductor, 2026-11-13 ('ขึ้น prod', answering 'take slip-system
+    to prod?' after the prod scope 67ac92c by Sichol-Earth and dry run T2 f45042a
+    were shown)
+  reason: Earth approved the slip-system prod promotion; slip-api#141 (charging) is
+    not included and stays behind merchant_notice
+  at: '2026-11-12T19:38:43Z'
+  action: deploy_production
+  scope: 'slip-system PR #27: release/TASK-VS-068-production 9cfb1bb (origin/prod
+    171baeb + origin/staging 15c61c4, tree f45042a) -> prod 2dfc116; rollback slip-system-production:29'

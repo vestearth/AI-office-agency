@@ -133,6 +133,29 @@ history:
     slip-api not promoted (#141 open).'
   at: '2026-11-12T19:15:07Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'Earth approved staging and prod for slip-system (authz-001, authz-002).
+    Promoted slip-system main 09b8554: staging 35c5942..15c61c4 (PR #26, Deploy STAGING
+    success, slip-system-staging:35, clean boot ev-022), then prod 171baeb..2dfc116
+    (PR #27 from release/TASK-VS-068-production, tree == dry run T2 f45042a; Deploy
+    PRODUCTION run 43288679614 success; slip-system-production:30, image production-sha-2dfc116,
+    3/3; rollout 19:19:39Z..19:24:14Z). Env and secrets unchanged from :29 (18 entries,
+    hash compare). Boot: 3 gRPC starts, 3 old tasks stopped, 0 panic/fatal. Windows
+    (ev-023, every page): before 19:07:39-19:19:39Z 2,815 verifies 0 5xx 0 ERROR p95
+    437 ms; after 19:24:14-19:36:14Z 2,467 verifies 0 5xx 0 ERROR p95 442 ms. First
+    live in-app retries: 2 first-attempt timeouts at 19:35Z, both ''kbank verify retry
+    succeeded'' (3.2-3.3 s) and joined by request_id to slip-api 200s. slip-api not
+    promoted: the header is ignored, nobody is charged extra yet. Gates deploy_production/production_acceptance
+    stay pending: they cover slip-api#141 too and deploy_production waits on staging_acceptance.
+    Rollback: slip-system-production back to :29.'
+  at: '2026-11-12T19:38:43Z'
+  operator: claude
+- phase: 'check_after: 2026-11-13T17:30:00Z'
+  agent: devops
+  reason: slip-system promoted to prod 2026-11-12T19:24:14Z
+  at: '2026-11-12T19:38:43Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -241,6 +264,13 @@ completion_gates:
     updated_at: '2026-11-10T08:09:35Z'
     evidence_refs: []
 handoff:
-  from: pm
+  from: devops
   to: reviewer
   artifact: forced-route
+check_after:
+  at: '2026-11-13T17:30:00Z'
+  what: 'ICT 2026-11-13 full day on prod slip-system 2dfc116 (method of ev-001, every
+    page): count ''kbank verify unavailable'', ''kbank verify retry succeeded'' and
+    ''retry failed''; merchant 408s (expect ~4-8/day) and 502s == slip-system 8500
+    count (no new 502 source); p95 of retried 200s near 3.7 s; compare with 11/08-09
+    (1,186 / 1,920 timeouts)'
