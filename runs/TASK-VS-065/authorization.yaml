@@ -10,3 +10,14 @@ authorizations:
   action: deploy_staging
   scope: slip-api main 615df268d32f0973448695308f73febb0c1a0aaa into staging fc67804693182381d3b3c852e2b3f6a742bfdbcf;
     TASK-VS-065 only, including migration 082; no production
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: Codex chat 01a1cc11-33e4-7c53-ab43-5bb279f59085, 2026-11-12 Asia/Bangkok
+  reason: 'Earth: Promote ขึ้น prod ได้เลยครับ. Staging deployment and public/auth-boundary
+    smoke passed; authenticated admin acceptance was explicitly reported pending in
+    the preceding response.'
+  at: '2026-11-12T03:24:51Z'
+  action: deploy_production
+  scope: slip-api staging dd79bcf563d127480e43be262643c1cb76969fe9 into prod d567be900e5394828e4359f6c2231764186dee0b;
+    TASK-VS-065 migration 082 only; authenticated acceptance not claimed

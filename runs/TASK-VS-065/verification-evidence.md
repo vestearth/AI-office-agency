@@ -1,6 +1,90 @@
 # TASK-VS-065 verification and frontend handoff
 
-## Current status — 12 November 2026 (Bangkok)
+## Production promotion — 12 November 2026 (Bangkok)
+
+Earth explicitly requested “Promote ขึ้น prod ได้เลยครับ” after the preceding
+staging report had identified authenticated admin acceptance as pending.
+`authz-002` records production authorization for this feature; it does not
+claim that the missing authenticated acceptance happened.
+
+Production promotion PR [#136](https://github.com/SparqLab/slip-api/pull/136)
+merged release branch `release/TASK-VS-065-production` (head `22258d90`) into
+`prod` as `146d702a7a62a3e974f7547bfe85f2afa2fb9d7f`. Production range:
+`d567be900e5394828e4359f6c2231764186dee0b..146d702a7a62a3e974f7547bfe85f2afa2fb9d7f`;
+the staging range previously shipped was `fc678046..dd79bcf5`. The only new
+non-merge feature commit is `f31fd458` by Sichol-Earth. Dry-run and final
+production tree `f645cbb11de9aabcab9db087d495892d0d649f77` equals tested staging.
+No unrelated commit, environment or configuration file is in the promotion.
+
+The read-only production DB row-count/lock preflight could not run:
+`GetSecretValue` was denied to profile `vestearth` (`ev-032`); DBeaver UI access
+also failed before any action. No secret was exposed, persisted or changed,
+and no IAM change was attempted. This limitation was disclosed in the chat
+before merging. The migration plan remained the reviewed nullable-FK and
+NOT VALID CHECK expansion, no backfill or index, with a five-second lock timeout.
+Production subsequently logged migration 082 successfully applied in **56 ms**
+and database version 82 at 03:29:07 UTC (10:29:07 ICT).
+
+[Deploy PRODUCTION 43148184577](https://github.com/SparqLab/slip-api/actions/runs/43148184577)
+succeeded. ECS reached PRIMARY COMPLETED at 03:36:58.490 UTC (10:36:58 ICT),
+with all three desired tasks RUNNING/HEALTHY on `slip-api-production:149`,
+image `production-sha-146d702` (`ev-038`, `ev-039`). Deployment started at
+03:28:27.165 UTC (10:28:27 ICT).
+Rollback baseline is `slip-api-production:148`, `production-sha-d567be9`, 3/3;
+rollback keeps schema/history. The new task definition is `:149`, image
+`production-sha-146d702`, with environment and secret entries compared equal
+to `:148` without exposing values; CPU and memory are unchanged too. All three
+new tasks started their HTTP listeners.
+
+The final closed window 03:28:27–03:40:27 UTC (10:28:27–10:40:27 ICT),
+12 minutes from rollout start, was read completely: 4 pages, 8,451 events,
+4,164 HTTP requests, 0 5xx, 0 ERROR/panic/activity-save errors, and 0 non-JSON
+lines. Histogram: 200=3,935, 422=96, 400=24, 409=82, 404=2, 401=3, **408=22**.
+The pure post-COMPLETED subset contained 1,286 requests including 16 of the
+408s. Before-window and rollout counts are separate, equal-duration samples;
+overlapping early/mid/final windows must not be added together.
+
+The 22 HTTP 408s require an explicit caveat despite passing the 5xx/ERROR
+checks. All were `/v1/slips/verify`, `context canceled`, duration 7,941–8,003 ms,
+at 03:36:07–03:38:00 UTC (10:36:07–10:38:00 ICT), distributed across the three
+new tasks. All 22 request IDs joined to the unchanged `slip-system-production:29`
+image `production-sha-171baeb`; matching logs report class `bank_network`
+(44 matching log lines, not a count of billable attempts). The unchanged
+`internal/handler/http/bank.go` maps context/gRPC cancellation to 408.
+These facts do not establish who canceled or prove the network's underlying
+failure or a deployment regression. No verify/bank path changed in this PR.
+
+A follow-up closed window 03:38:30–03:42:00 UTC (10:38:30–10:42:00 ICT)
+contained 1,302 requests, with no 408, 5xx or ERROR. No rollback was performed:
+the symptom was absent in that subsequent sample, all desired tasks stayed
+healthy, and there is no established causal link to the blog change. Do not
+describe the release as having no failed requests; cancellation origin remains
+unresolved and should be investigated if it recurs.
+
+| Evidence | Scope | Result |
+| --- | --- | --- |
+| ev-032 | Bounded read-only DB preflight attempt | UNAVAILABLE: GetSecretValue denied; row counts/locks unverified |
+| ev-033 | Production scope, tested tree and rollback baseline | PASS |
+| ev-034 | Pre-deploy 03:14–03:26 UTC, every log page | 4 pages, 8,165 events, 4,066 requests, 0 5xx/ERROR |
+| ev-035 | Production read-only smoke after new tasks were serving | PASS: 5 public posts, 4 categories, exact public keys and 401 auth boundaries |
+| ev-036 | Early rollout 03:26:07–03:30 UTC | 2 pages, 3,003 events, 1,436 requests, 0 5xx/ERROR; migration and 3 HTTP listeners observed |
+| ev-037 | Mid-rollout 03:30–03:34 UTC | 2 pages, 2,682 events, 1,336 requests, 0 5xx/ERROR |
+| ev-038 | Exact expected-image ECS rollout waiter | COMPLETED `:149`, 3/3 |
+| ev-039 | Workflow SHA, tree/image, all desired tasks healthy, config comparison | PASS: 3/3, environment/secret entries and CPU/memory unchanged |
+| ev-040 | Complete 12-minute rollout window and pure post-COMPLETED subset | 4 pages / 8,451 events / 4,164 requests; 0 5xx/ERROR, but 22 HTTP 408s |
+| ev-041 | All 408s joined by request ID to slip-system logs; safe aggregates only | 22/22 matched, class bank_network; cancellation origin/causality unproven |
+| ev-042 | Subsequent 03:38:30–03:42 window | 2 pages / 2,637 events / 1,302 requests; 0 408/5xx/ERROR |
+
+Authenticated `staging_acceptance` and `production_acceptance` remain pending.
+`deploy_production` also remains pending in the Office gate graph because it
+depends on the unresolved staging acceptance; actual authorized deployment is
+recorded here separately rather than fabricating acceptance or weakening the
+gate dependency. Keep the task in review. A native `check_after` marker at
+2026-11-13 03:45 UTC (10:45 ICT) names two-admin actor/history acceptance and
+the activity-save error check after viewsupat integration; no acceptance pass
+or recurring automation is implied.
+
+## Staging promotion — 12 November 2026 (Bangkok)
 
 Implementation PR [#133](https://github.com/SparqLab/slip-api/pull/133) merged
 into main as `615df268`. Earth then explicitly approved staging in the Codex
@@ -12,7 +96,8 @@ Promotion PR [#134](https://github.com/SparqLab/slip-api/pull/134) merged
 The only new non-merge commit was `f31fd458` by Sichol-Earth. Dry-run T1 and T2
 were both `f645cbb11de9aabcab9db087d495892d0d649f77`, byte-identical to the
 reviewed implementation tree; T2 was inspection only. The staging merged tree
-matches T1. No production promotion was performed.
+matches T1. At the staging closeout, no production promotion had been performed;
+the later authorized production rollout is recorded above.
 
 [Deploy STAGING 43089142512](https://github.com/SparqLab/slip-api/actions/runs/43089142512)
 succeeded. ECS runs `slip-api-staging:195`, image `staging-sha-dd79bcf`,

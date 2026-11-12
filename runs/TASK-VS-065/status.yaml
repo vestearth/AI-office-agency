@@ -86,6 +86,28 @@ history:
     pending.
   at: '2026-11-11T19:53:14Z'
   operator: codex
+- phase: 'check_after: 2026-11-13T03:45:00Z'
+  agent: devops
+  reason: Production promotion approved and running; keep an explicit follow-up marker
+    for authenticated acceptance after viewsupat frontend integration.
+  at: '2026-11-12T03:31:29Z'
+  operator: codex
+- phase: production rollout observed; authenticated acceptance pending
+  agent: devops
+  operator: codex
+  at: '2026-11-12T03:43:36Z'
+  reason: Earth authorized production (authz-002). PR 136 promoted slip-api staging
+    dd79bcf5 to prod d567be90..146d702a; prior staging range fc678046..dd79bcf5. Tree
+    T1/T2 f645cbb11de9aabcab9db087d495892d0d649f77. Deploy PRODUCTION 43148184577
+    success, slip-api-production:149 production-sha-146d702 PRIMARY COMPLETED 3/3
+    HEALTHY; environment/secret entries and resources unchanged from :148. Rollback
+    :148, retain schema/history. Migration 082 passed in 56ms. ev-032 DB preflight
+    unavailable (GetSecretValue denied); ev-033 scope, ev-034 baseline, ev-035 smoke,
+    ev-038/039 rollout/config, ev-040 full 12min window 4164 requests, 0 5xx/ERROR
+    but 22 verify 408 context canceled; ev-041 joins all 22 to slip-system bank_network
+    logs, source of cancellation unproven; ev-042 subsequent 1302 requests, 0 408/5xx/ERROR,
+    no rollback. Authenticated staging/production acceptance unverified; completion-gate
+    dependencies remain unchanged and task stays in review.
 completion_gates:
   implementation_verification:
     status: pass
@@ -177,3 +199,8 @@ last_synced_output:
   file: dev-output.yaml
   digest: 7e69ffa52d8b63c52398484da7d1eecf97e5844b658fd96527d5cfd901cf6bb3
   next: reviewer
+check_after:
+  at: '2026-11-13T03:45:00Z'
+  what: After frontend handoff, verify authenticated two-admin post/category actor
+    and history behavior on production; inspect save activity log errors and confirm
+    actual admin writes occurred. This is pending acceptance, not an automatic pass.
