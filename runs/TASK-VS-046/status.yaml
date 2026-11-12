@@ -100,6 +100,15 @@ history:
     The humanizer copy suggestions are declined for now (Earth, 2026-11-13).
   at: '2026-11-12T17:29:37Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'slip-api 3324e14 (expired top-up reason without the contact line, #142)
+    reached staging with TASK-VS-068''s slip-api promotion: PR #143, staging ae31e94..7f3a0dc,
+    slip-api-staging:198, clean boot and HEALTHY (TASK-VS-068 ev-026/ev-027); Earth
+    approved that staging scope in chat 2026-11-13. Not on prod. slip-front-end VS-046
+    screens (#17, #18) are on main only, not on staging (3dc735b) or prod (a43861f).'
+  at: '2026-11-12T20:15:02Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -126,6 +135,6 @@ completion_gates:
     updated_at: '2026-10-25T05:43:16Z'
     evidence_refs: []
 handoff:
-  from: reviewer
+  from: devops
   to: reviewer
   artifact: forced-route
