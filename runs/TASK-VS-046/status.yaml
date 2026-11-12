@@ -17,7 +17,7 @@ next_action: Not closable. slip-front-end 8b9906f (prod td 70) added an expired 
   the backend strings (task.md 2026-10-28 re-check), with a committed RED regression
   test.
 created_at: '2026-10-25'
-updated_at: '2026-11-12'
+updated_at: '2026-11-13'
 history:
 - phase: created -> assigned
   agent: pm
@@ -78,6 +78,18 @@ history:
     Next: confirm the deploy reaches prod, then knowledge closeout.'
   at: '2026-11-12T16:49:46Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: dev
+  reason: 'Earth copy edits (chat 2026-11-13), two PRs into main, not merged: SparqLab/slip-api#142
+    (3324e14) drops "โปรดติดต่อแอดมิน" from the >24h reason, now "เกิดข้อผิดพลาด เนื่องจากสลิปเกินเวลา";
+    TestPaymentSlipAgeReasonText RED ev-010 (old text), GREEN + full suite + build
+    + vet ev-011. SparqLab/slip-front-end#18 (093cba0) drops the question mark from
+    the expired contact title and matches the new reason exactly while keeping the
+    old one for stored rows; test 36/36, lint, typecheck ev-012. Either repo can deploy
+    first (keyword fallback). The humanizer copy suggestions wait for Earth to see
+    where each text sits on the page.'
+  at: '2026-11-12T17:14:11Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -104,6 +116,6 @@ completion_gates:
     updated_at: '2026-10-25T05:43:16Z'
     evidence_refs: []
 handoff:
-  from: reviewer
+  from: dev
   to: reviewer
   artifact: forced-route
