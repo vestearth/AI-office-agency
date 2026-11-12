@@ -12,7 +12,7 @@ assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-10'
-updated_at: '2026-11-12'
+updated_at: '2026-11-13'
 history:
 - phase: created -> pending
   agent: pm
@@ -91,6 +91,15 @@ history:
     devops_coordination (needs a message to the devops lane, not sent), merchant_notice,
     staging/prod promotion approvals.'
   at: '2026-11-12T16:46:08Z'
+  operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'Earth cancelled the slip-landing copy for now (chat 2026-11-13: too many
+    changes). SparqLab/slip-landing#18 closed unmerged; branch task/TASK-VS-068-quota-copy
+    b79fe69 kept so it can be reopened. The landing-page wording for the retry surcharge
+    and duplicate charging is open again and still needed before charging starts (merchant_notice).
+    slip-system#25 and slip-api#141 unchanged, both open, not merged.'
+  at: '2026-11-12T17:24:26Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -187,6 +196,6 @@ completion_gates:
     updated_at: '2026-11-10T08:09:35Z'
     evidence_refs: []
 handoff:
-  from: dev
+  from: pm
   to: reviewer
   artifact: forced-route
