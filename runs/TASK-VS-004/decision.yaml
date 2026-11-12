@@ -1,0 +1,7 @@
+task_id: TASK-VS-004
+decisions:
+  - decision: reject
+    actor: Earth
+    decided_at: '2026-11-12T16:13:10Z'
+    against_phase: in_review
+    note: 'recorded from chat by the Claude conductor: Earth parked the run (closed without activation; open a new run if merchant fairness becomes a problem). The prepared slip-api code survives only as origin/feat/TASK-VS-004-merchant-fairness d0c4585 (306 commits behind main on 2026-11-12). The slip-system connector part is gone: the /tmp worktree was purged and no branch, stash or commit holds it. Runtime fairness acceptance was never measured.'

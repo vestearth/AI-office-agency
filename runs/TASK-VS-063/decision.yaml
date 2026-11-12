@@ -1,0 +1,7 @@
+task_id: TASK-VS-063
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-11-12T15:38:12Z'
+    against_phase: blocked
+    note: 'recorded from chat by the Claude conductor: Earth chose no retrospective refund and close; every other gate had already passed (production acceptance, merchant notice, knowledge closeout)'

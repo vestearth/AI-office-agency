@@ -161,6 +161,14 @@ history:
   reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261110T091128Z-01a1bf24-65f1-71d2-9e15-8375a8a6ae93-verifyslip-topup-observability.yaml'
   at: '2026-11-10T09:11:28Z'
   operator: codex
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: 'Earth chose 2026-11-12 15:38Z: Claude drives one rejected top-up on api-staging.up-slip.com
+    with a staging merchant test account Earth provides outside the repo (not available
+    yet). ev-035: prod 2026-11-10 04:00Z..2026-11-12 14:30Z had 20 top-up requests,
+    all 200, 0 rejections, so no real prod 422 exists yet; staging had no top-up traffic.'
+  at: '2026-11-12T16:16:05Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -242,3 +250,5 @@ last_synced_output:
   file: devops-output.yaml
   digest: 0a1e518413393d0641b52a68ee9922a3a228e8893b840aec8b3a037eaa7afda0
   next: reviewer
+waits_on:
+- kind: qa

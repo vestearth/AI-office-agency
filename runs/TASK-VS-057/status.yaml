@@ -2,18 +2,18 @@
 task_id: TASK-VS-057
 task_label: Split KBank 8500 out of upslip-prod-api-target-5xx (our-5xx metric math
   + per-bank 8500 alarms)
-phase: assigned
-state: assigned
+phase: aborted
+state: aborted
 iteration: 0
-current_agent: devops
-ready: true
+current_agent: 
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: devops
   parallel: false
 created_at: '2026-10-31'
-updated_at: '2026-10-31'
+updated_at: '2026-11-12'
 history:
 - phase: created -> assigned
   agent: pm
@@ -45,6 +45,11 @@ history:
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-10-31T12:58:15Z'
   operator: claude
+- phase: assigned -> aborted
+  agent: orchestrator
+  reason: 'human decision: reject by Earth'
+  at: '2026-11-12T16:15:15Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
@@ -74,3 +79,7 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-10-31T12:58:15Z'
     evidence_refs: []
+next_action:
+  agent: done
+  description: Cancelled 2026-11-12 by Earth. upslip-prod-api-target-5xx still pages on KBank 8500 bursts.
+decision_applied_at: '2026-11-12T16:13:10Z'

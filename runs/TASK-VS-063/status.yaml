@@ -1,16 +1,13 @@
 ---
 task_id: TASK-VS-063
 task_label: '8404 not-found quota rule: 1 slip, 1 quota'
-phase: blocked
-state: blocked
+phase: done
+state: done
 iteration: 0
-current_agent: pm
+current_agent: done
 ready: false
 blocked_on: []
-waiting_for:
-- 'Earth decides refund_decision: no retrospective refund, or authorize a safe sizing
-  approach before any additional refund-count query. No refund or production-data
-  change is authorized.'
+waiting_for: []
 assignment:
   primary: pm
   parallel: false
@@ -178,6 +175,23 @@ history:
     query.
   at: '2026-11-11T20:31:11Z'
   operator: codex
+- phase: 'gate refund_decision: pending -> pass'
+  agent: pm
+  reason: 'Earth decided in chat 2026-11-12 15:38Z: no retrospective refund for repeat
+    8404 quota charged before rule C reached prod (slip-api-production:140, 2026-11-09).
+    No refund-count query was run and no production data was changed.'
+  at: '2026-11-12T16:14:46Z'
+  operator: claude
+- phase: 'waits_on: -operator_decision'
+  agent: pm
+  reason: refund_decision resolved by Earth 2026-11-12 15:38Z (no refund)
+  at: '2026-11-12T16:14:46Z'
+  operator: claude
+- phase: blocked -> done
+  agent: orchestrator
+  reason: 'human decision: approve by Earth'
+  at: '2026-11-12T16:14:46Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -287,11 +301,12 @@ completion_gates:
     updated_at: '2026-11-09T03:07:43Z'
     evidence_refs: []
   refund_decision:
-    status: pending
+    status: pass
     actor: pm
-    reason: Earth decides whether to credit back past 8404 charges that rule C would
-      not have made, using the count query in task.md
-    updated_at: '2026-11-08T05:59:59Z'
+    reason: 'Earth decided in chat 2026-11-12 15:38Z: no retrospective refund for
+      repeat 8404 quota charged before rule C reached prod (slip-api-production:140,
+      2026-11-09). No refund-count query was run and no production data was changed.'
+    updated_at: '2026-11-12T16:14:46Z'
     evidence_refs: []
   knowledge_closeout:
     status: pass
@@ -304,5 +319,7 @@ handoff:
   from: pm
   to: pm
   artifact: forced-route
-waits_on:
-- kind: operator_decision
+next_action:
+  agent: done
+  description: Closed 2026-11-12. Earth chose no retrospective refund for repeat 8404 quota charged before rule C.
+decision_applied_at: '2026-11-12T15:38:12Z'

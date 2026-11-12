@@ -64,6 +64,15 @@ history:
     PRIMARY COMPLETED 1/1 HEALTHY; migration 070 and public smoke passed'
   at: '2026-11-04T09:35:45Z'
   operator: codex
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: 'Earth chose 2026-11-12 15:38Z: Claude runs the staging_acceptance API checks
+    on api-staging.up-slip.com with a staging test admin account Earth provides outside
+    the repo (not available yet). Real use 2026-11-04..12 (vsblog read): prod admins
+    only read categories (no category write); staging saw 1 create and 1 rename on
+    2026-11-05.'
+  at: '2026-11-12T16:16:05Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -141,3 +150,5 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-11-04T08:23:17Z'
     evidence_refs: []
+waits_on:
+- kind: qa

@@ -69,6 +69,14 @@ history:
     slip-api-staging:185'
   at: '2026-11-09T05:02:59Z'
   operator: claude
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: 'Earth chose 2026-11-12 15:38Z: Claude runs the staging_acceptance API checks
+    on api-staging.up-slip.com with a staging test admin account Earth provides outside
+    the repo (not available yet). slip-admin prod already sends cover_alt, but on
+    2026-11-12 no public post on prod (5) or staging (7) had a non-empty cover_alt.'
+  at: '2026-11-12T16:16:05Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -150,3 +158,5 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-11-09T03:23:57Z'
     evidence_refs: []
+waits_on:
+- kind: qa
