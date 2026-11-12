@@ -24,3 +24,15 @@ authorizations:
   action: deploy_production
   scope: 'slip-system PR #27: release/TASK-VS-068-production 9cfb1bb (origin/prod
     171baeb + origin/staging 15c61c4, tree f45042a) -> prod 2dfc116; rollback slip-system-production:29'
+- id: authz-003
+  type: grant
+  actor: earth
+  via: chat with the Claude conductor, 2026-11-13 ('ขึ้น staging', answering 'take
+    slip-api (#141 + VS-046 3324e14) to staging?')
+  reason: Earth approved the slip-api staging promotion after merchant_notice passed;
+    production is a separate approval
+  at: '2026-11-12T20:14:45Z'
+  action: deploy_staging
+  scope: 'slip-api PR #143: main 683d7de -> staging 7f3a0dc (tree 604284b == dry run
+    T1; scope d6e6a40 TASK-VS-068 + 3324e14 TASK-VS-046, both Sichol-Earth); staging
+    only; rollback slip-api-staging:197'

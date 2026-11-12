@@ -181,6 +181,22 @@ history:
     (needs staging test accounts), slip-api promotions.'
   at: '2026-11-12T19:53:05Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'Earth approved the slip-api staging promotion (authz-003). slip-api staging
+    ae31e94..7f3a0dc via PR #143 (merge commit pinned to main 683d7de); merged tree
+    == dry run T1 604284b, the tree tested in ev-025; scope d6e6a40 (TASK-VS-068)
+    + 3324e14 (TASK-VS-046), no migrations. Deploy STAGING run 43295838221 success;
+    rollout COMPLETED 1/1 on slip-api-staging:198 (staging-sha-7f3a0dc) at 20:10:57Z.
+    Boot: gRPC :50051 and HTTP :8080 started, admin day caches warmed, old task drained,
+    0 ERROR/panic/fatal (ev-026, pages=2 events=5); ev-026 exits 1 only because staging
+    served 0 requests in the window (03:00 Bangkok, no traffic), so serving is shown
+    by the ECS /health check instead: task RUNNING and HEALTHY (ev-027). Rollback
+    slip-api-staging:197. staging_acceptance still pending: the forced slow-then-0000
+    verify with two quota deductions needs staging test accounts and a slow bank answer.
+    Prod not promoted.'
+  at: '2026-11-12T20:14:45Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -292,7 +308,7 @@ completion_gates:
     updated_at: '2026-11-10T08:09:35Z'
     evidence_refs: []
 handoff:
-  from: pm
+  from: devops
   to: reviewer
   artifact: forced-route
 check_after:
