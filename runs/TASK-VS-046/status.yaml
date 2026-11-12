@@ -68,6 +68,16 @@ history:
     reviews and merges; promotion needs its own approval.'
   at: '2026-11-12T16:38:24Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: reviewer
+  reason: 'Earth approved the merge in chat (2026-11-12, "Merge #17"). SparqLab/slip-front-end#17
+    merged into main as c3d452b (merge commit, pinned to tested head c7a44a17), CI
+    ci (ubuntu-latest, 22) green; main tree equals the tested head tree, so ev-007/008/009
+    apply. Not on staging or prod yet: slip-front-end promotes main -> staging ->
+    prod by merge pushes (teammate flow), which needs its own approval or the teammate.
+    Next: confirm the deploy reaches prod, then knowledge closeout.'
+  at: '2026-11-12T16:49:46Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -94,6 +104,6 @@ completion_gates:
     updated_at: '2026-10-25T05:43:16Z'
     evidence_refs: []
 handoff:
-  from: dev
+  from: reviewer
   to: reviewer
   artifact: forced-route
