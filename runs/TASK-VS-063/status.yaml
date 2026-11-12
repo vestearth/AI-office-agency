@@ -1,18 +1,21 @@
 ---
 task_id: TASK-VS-063
 task_label: '8404 not-found quota rule: 1 slip, 1 quota'
-phase: assigned
-state: assigned
+phase: blocked
+state: blocked
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: pm
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+- 'Earth decides refund_decision: no retrospective refund, or authorize a safe sizing
+  approach before any additional refund-count query. No refund or production-data
+  change is authorized.'
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-08'
-updated_at: '2026-11-10'
+updated_at: '2026-11-12'
 history:
 - phase: created -> pending
   agent: pm
@@ -131,15 +134,50 @@ history:
   reason: 'Prod moved on after deploy_production, each time by watcharapol-spl merging
     main -> staging -> prod directly (no PR): :141 2abb1d9 (2026-11-09 03:54Z), :142
     d8e1542 (06:46Z, adds TASK-VS-064 and TASK-VS-066), :143 164df8c (2026-11-10 03:40Z,
-    adds TASK-VS-067 and 059ddf3 PromptPay receiver matching with migration 080). All
-    contain d486b25 (TASK-VS-064 ev-003). The gate''s "rollback slip-api-production:139"
+    adds TASK-VS-067 and 059ddf3 PromptPay receiver matching with migration 080).
+    All contain d486b25 (TASK-VS-064 ev-003). The gate''s "rollback slip-api-production:139"
     is no longer a VS-063-only rollback: :139 still boots (goose v3.24.3 applies nothing
     when the DB is ahead of the binary) but drops everything after it, including de5c571
-    KYC upload that slip-front-end already calls. Roll back VS-063 alone by reverting it
-    on main and promoting. Separately, 164df8c fails TestGooseSQLFiles (80 sql files,
-    want 79) because 059ddf3 did not update the count (TASK-VS-064 ev-001).'
+    KYC upload that slip-front-end already calls. Roll back VS-063 alone by reverting
+    it on main and promoting. Separately, 164df8c fails TestGooseSQLFiles (80 sql
+    files, want 79) because 059ddf3 did not update the count (TASK-VS-064 ev-001).'
   at: '2026-11-10T05:40:00Z'
   operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: pm
+  reason: 'Accepted per Michael independent APPROVE 01a1cc49-edb4-717e-ba27-539d3cdf359e
+    and Jason authorization 01a1cc4a-22d6-7c67-ba8f-e73634b16270. Historical API traffic
+    2026-11-10 ICT [2026-11-09T17:00:00Z,2026-11-10T17:00:00Z): charged 8404 6824
+    debit=1, free 8404 248 debit=0, independently discovered verified after charged
+    8404 with 0<gap<24h 522 debit=0; all request/ledger joins matched. API duplicate
+    409 10775 debit=0 and rejected 6501 64 debit=1, unchanged vs 2026-11-03. Not established:
+    LINE (no samples), batch/public quota_used, other rejected codes without samples,
+    exactly-24h boundary, unmatched bank/ref spellings, other days or current deployment
+    inventory; historical window included revisions 143-148/d567be9. Refund decision
+    remains pending and no further refund-sizing query authorized.'
+  at: '2026-11-11T20:28:17Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261111T203042Z-spar-67-8404-quota.yaml'
+  at: '2026-11-11T20:30:42Z'
+  operator: codex
+- phase: 'waits_on: +operator_decision'
+  agent: pm
+  reason: 'Only refund_decision remains: Earth must choose no refund or authorize
+    a sizing approach before any additional refund-count query.'
+  at: '2026-11-11T20:31:11Z'
+  operator: codex
+- phase: assigned -> blocked
+  agent: pm
+  reason: Production acceptance passed with reviewed historical API evidence; KB note
+    applied in local main commit 89df307 and task-bound knowledge closeout passed.
+    Only refund_decision remains pending Earth. Handoff to PM, ready=false, waiting_for
+    Earth; completed acceptance check_after cleared. No refund or additional sizing
+    query.
+  at: '2026-11-11T20:31:11Z'
+  operator: codex
 completion_gates:
   implementation_verification:
     status: pass
@@ -214,14 +252,32 @@ completion_gates:
         (slip-landing-production:34)
       url: https://github.com/SparqLab/slip-api/pull/128
   production_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-08T05:59:59Z'
-    evidence_refs: []
+    reason: 'Accepted per Michael independent APPROVE 01a1cc49-edb4-717e-ba27-539d3cdf359e
+      and Jason authorization 01a1cc4a-22d6-7c67-ba8f-e73634b16270. Historical API
+      traffic 2026-11-10 ICT [2026-11-09T17:00:00Z,2026-11-10T17:00:00Z): charged
+      8404 6824 debit=1, free 8404 248 debit=0, independently discovered verified
+      after charged 8404 with 0<gap<24h 522 debit=0; all request/ledger joins matched.
+      API duplicate 409 10775 debit=0 and rejected 6501 64 debit=1, unchanged vs 2026-11-03.
+      Not established: LINE (no samples), batch/public quota_used, other rejected
+      codes without samples, exactly-24h boundary, unmatched bank/ref spellings, other
+      days or current deployment inventory; historical window included revisions 143-148/d567be9.
+      Refund decision remains pending and no further refund-sizing query authorized.'
+    updated_at: '2026-11-11T20:28:17Z'
+    evidence_refs:
+    - ev-005
+    - ev-014
+    - ev-017
+    - ev-018
+    - ev-020
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: codex
+      ref: TASK-VS-063 ev-020 live read-only ledger audit 2026-11-11T20:13:41Z; ev-014/017/018
+        HTTP and unchanged-quota audit; independently reviewed by Michael
   merchant_notice:
     status: pass
     actor: pm
@@ -238,20 +294,15 @@ completion_gates:
     updated_at: '2026-11-08T05:59:59Z'
     evidence_refs: []
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-08T05:59:59Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261111T203042Z-spar-67-8404-quota.yaml'
+    updated_at: '2026-11-11T20:30:42Z'
     evidence_refs: []
 handoff:
   from: pm
-  to: dev
+  to: pm
   artifact: forced-route
-check_after:
-  at: '2026-11-10T17:00:00Z'
-  what: 'production_acceptance: count 2026-11-10 ICT (17:00Z 11-09 to 17:00Z 11-10)
-    on /ecs/slip-api-production: msg ''bank 8404 quota decision'' charged true/false,
-    msg ''verified inside a charged 8404 window; not charged'', status 409/422 vs
-    the same weekday before deploy; plus the never-verified share by sending bank
-    (task.md, Measurement after deploy)'
+waits_on:
+- kind: operator_decision

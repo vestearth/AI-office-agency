@@ -1,0 +1,74 @@
+---
+task_id: TASK-VS-069
+task_label: Partner sub-branch API with pay-per-use credit - planning only
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-10'
+updated_at: '2026-11-10'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: partner_requirements, design_decision, implementation_split,
+    knowledge_closeout'
+  at: '2026-11-10T10:32:30Z'
+  operator: claude
+- phase: 'gate partner_requirements: absent -> pending'
+  agent: pm
+  reason: the partner's answers to the open questions in task.md are recorded in task.md
+  at: '2026-11-10T10:32:30Z'
+  operator: claude
+- phase: 'gate design_decision: absent -> pending'
+  agent: pm
+  reason: the operator picks the balance model, key model, callback trigger and phase
+    1 scope, recorded in decision-memo.md
+  at: '2026-11-10T10:32:30Z'
+  operator: claude
+- phase: 'gate implementation_split: absent -> pending'
+  agent: pm
+  reason: follow-up implementation tasks are opened, or this run is closed as not
+    pursued
+  at: '2026-11-10T10:32:30Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-10T10:32:30Z'
+  operator: claude
+completion_gates:
+  partner_requirements:
+    status: pending
+    actor: pm
+    reason: the partner's answers to the open questions in task.md are recorded in
+      task.md
+    updated_at: '2026-11-10T10:32:30Z'
+    evidence_refs: []
+  design_decision:
+    status: pending
+    actor: pm
+    reason: the operator picks the balance model, key model, callback trigger and
+      phase 1 scope, recorded in decision-memo.md
+    updated_at: '2026-11-10T10:32:30Z'
+    evidence_refs: []
+  implementation_split:
+    status: pending
+    actor: pm
+    reason: follow-up implementation tasks are opened, or this run is closed as not
+      pursued
+    updated_at: '2026-11-10T10:32:30Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-11-10T10:32:30Z'
+    evidence_refs: []
