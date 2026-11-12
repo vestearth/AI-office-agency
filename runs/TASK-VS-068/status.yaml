@@ -156,6 +156,15 @@ history:
   reason: slip-system promoted to prod 2026-11-12T19:24:14Z
   at: '2026-11-12T19:38:43Z'
   operator: claude
+- phase: 'gate merchant_notice: pending -> pass'
+  agent: pm
+  reason: Earth reports in chat 2026-11-13 ('แจ้ง merchant แล้ว ปิด merchant_notice')
+    that Earth notified the merchant out-of-band, before slip-api#141 (which starts
+    charging) is merged or deployed. Channel and wording were not shared with the
+    conductor and are not recorded here. The slip-landing copy was not part of the
+    notice (Earth's decision 2026-11-13).
+  at: '2026-11-12T19:42:10Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -250,11 +259,14 @@ completion_gates:
     updated_at: '2026-11-10T08:09:35Z'
     evidence_refs: []
   merchant_notice:
-    status: pending
+    status: pass
     actor: pm
-    reason: merchant 84006774... is told the +1 quota rule for a bank retry before
-      the production deploy starts charging it
-    updated_at: '2026-11-10T08:09:35Z'
+    reason: Earth reports in chat 2026-11-13 ('แจ้ง merchant แล้ว ปิด merchant_notice')
+      that Earth notified the merchant out-of-band, before slip-api#141 (which starts
+      charging) is merged or deployed. Channel and wording were not shared with the
+      conductor and are not recorded here. The slip-landing copy was not part of the
+      notice (Earth's decision 2026-11-13).
+    updated_at: '2026-11-12T19:42:10Z'
     evidence_refs: []
   knowledge_closeout:
     status: pending
