@@ -111,6 +111,18 @@ history:
     slip-system#25 and slip-api#141 unchanged, not merged.'
   at: '2026-11-12T18:58:11Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'Earth 2026-11-13 (chat: merge slip-system#25): merged into main as 09b8554
+    (merge commit, head 67ac92c). Before merge: no PR CI on slip-system, so build,
+    vet and go test ./... ran fresh at 67ac92c, all ok. Not on staging or prod (main
+    push deploys nothing; staging/prod deploy on push to those branches). Shipping
+    slip-system first is safe: slip-api main, staging and prod already map FailedPrecondition
+    BANK_UNAVAILABLE back to Unavailable (TASK-VS-028 adapter), and without slip-api#141
+    the x-bank-billed-attempts header is ignored, so no merchant is charged extra.
+    Branch kept. slip-api#141 still open, not merged.'
+  at: '2026-11-12T19:00:18Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
