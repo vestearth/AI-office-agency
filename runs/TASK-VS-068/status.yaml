@@ -123,6 +123,16 @@ history:
     Branch kept. slip-api#141 still open, not merged.'
   at: '2026-11-12T19:00:18Z'
   operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'slip-system staging 35c5942..15c61c4 via PR #26 (merge commit, pinned to
+    main 09b8554); merged tree == dry run T1 27ea32b; Deploy STAGING run 43286259839
+    success; rollout COMPLETED 1/1 on slip-system-staging:35 (staging-sha-15c61c4);
+    boot clean: gRPC and HTTP listeners up, live KBank repository, old task drained,
+    0 panic/fatal/ERROR (ev-022, pages=2 events=7). Rollback slip-system-staging:34.
+    slip-api not promoted (#141 open).'
+  at: '2026-11-12T19:15:07Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -158,15 +168,28 @@ completion_gates:
       ref: slip-system@67ac92c slip-api@d6e6a40 slip-landing@b79fe69
       url: https://github.com/SparqLab/slip-api/pull/141
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-10T08:09:35Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'slip-system staging 35c5942..15c61c4 via PR #26 (merge commit, pinned
+      to main 09b8554); merged tree == dry run T1 27ea32b; Deploy STAGING run 43286259839
+      success; rollout COMPLETED 1/1 on slip-system-staging:35 (staging-sha-15c61c4);
+      boot clean: gRPC and HTTP listeners up, live KBank repository, old task drained,
+      0 panic/fatal/ERROR (ev-022, pages=2 events=7). Rollback slip-system-staging:34.
+      slip-api not promoted (#141 open).'
+    updated_at: '2026-11-12T19:15:07Z'
+    evidence_refs:
+    - ev-022
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-system staging 15c61c4 (slip-system-staging:35, staging-sha-15c61c4)
+      url: https://github.com/SparqLab/slip-system/pull/26
   staging_acceptance:
     status: pending
     actor: pm
