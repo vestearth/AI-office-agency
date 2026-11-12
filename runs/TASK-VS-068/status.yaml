@@ -165,6 +165,22 @@ history:
     notice (Earth's decision 2026-11-13).
   at: '2026-11-12T19:42:10Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'Earth 2026-11-13 (chat: ''Merge #141'', after merchant_notice passed):
+    slip-api#141 merged into main as 683d7de (merge commit, head d6e6a40). Before
+    merge: no PR CI on slip-api, so origin/main ada9882 + d6e6a40 was merged locally
+    (tree 604284b, same as the GitHub merge result) and build -mod=readonly, vet and
+    go test ./... ran against a throwaway PostgreSQL: all ok, TestVerifyBankRetrySurcharge
+    19/19, 0 repository tests skipped (ev-025; ev-024 is the first attempt, which
+    failed only because the temp worktree had no ../slip-contracts for the go.mod
+    replace). Not on staging or prod. slip-api main now also carries TASK-VS-046 3324e14
+    (expired top-up reason text) ahead of staging/prod, and slip-front-end staging/prod
+    lack the VS-046 screens. Charging starts only when slip-api reaches prod; a teammate
+    has promoted slip-api main directly before. Still open: devops_coordination, staging_acceptance
+    (needs staging test accounts), slip-api promotions.'
+  at: '2026-11-12T19:53:05Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -276,7 +292,7 @@ completion_gates:
     updated_at: '2026-11-10T08:09:35Z'
     evidence_refs: []
 handoff:
-  from: devops
+  from: pm
   to: reviewer
   artifact: forced-route
 check_after:
