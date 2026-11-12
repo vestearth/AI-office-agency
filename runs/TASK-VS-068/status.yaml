@@ -101,6 +101,16 @@ history:
     slip-system#25 and slip-api#141 unchanged, both open, not merged.'
   at: '2026-11-12T17:24:26Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'Earth 2026-11-13: deploy without the slip-landing copy; Earth notifies
+    the merchant out-of-band and merchant_notice passes when Earth confirms. Landing
+    scope parked (b79fe69 kept). Known gap left as is: the LINE duplicate footer (line_flex.go:1835)
+    says not charged for a post-bank duplicate that slip-api#141 charges; frequency
+    on LINE not measured. Still open: devops_coordination, staging test, promotions.
+    slip-system#25 and slip-api#141 unchanged, not merged.'
+  at: '2026-11-12T18:58:11Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass

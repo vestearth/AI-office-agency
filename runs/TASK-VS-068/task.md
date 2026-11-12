@@ -90,6 +90,20 @@ merchant-visible history label is the free-text `quota_history.description`
   consumption path, so a package with auto-renew on exhaustion renews as for any other charge.
   Earth chose the recommended answer.
 
+### Deploy without the landing copy (Earth, chat, 2026-11-13)
+
+- **The slip-landing copy is not a deploy prerequisite.** Earth tells the merchant out-of-band;
+  `merchant_notice` passes when Earth confirms that notice was given. The slip-landing scope below
+  is parked (branch `task/TASK-VS-068-quota-copy` b79fe69 kept). Basis: on 2026-11-08/09 every
+  first-attempt timeout came from the one API merchant (0 from LINE), and the measured post-bank
+  duplicates are that merchant's too. Accepted gap: the four landing texts still say duplicates are
+  not charged, which is wrong only for concurrent sends of the same slip.
+- **Known gap left as is:** the LINE reply footer for a duplicate
+  (`internal/core/service/line_flex.go:1835`, "ซ้ำไม่หักโควตา") is shown for post-bank duplicates
+  too (`line_webhook.go` `slipResultKindOf` matches `ErrDuplicateSlip`, which wraps
+  `ErrDuplicateSlipAfterBank`), so a concurrent LINE duplicate reads "not charged" while quota
+  history shows -1. Frequency on LINE not measured. slip-api#141 is not changed for it.
+
 ## Scope
 
 ### slip-system (base `main`)
