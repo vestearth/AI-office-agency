@@ -1,22 +1,23 @@
 ---
 task_id: TASK-VS-046
 task_label: Show real topup slip rejection reason in slip-front-end
-phase: assigned
-state: assigned
+phase: in_review
+state: in_review
 iteration: 0
-current_agent: dev
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
-next_action: 'Not closable. slip-front-end 8b9906f (prod td 70) added an expired kind but mapPayment
-  still ignores rejection_reason, so every 422 rejection still shows destination mismatch
-  (ev-004). The developer must read rejection_reason and match the backend strings (task.md
-  2026-10-28 re-check), with a committed RED regression test.'
+next_action: Not closable. slip-front-end 8b9906f (prod td 70) added an expired kind
+  but mapPayment still ignores rejection_reason, so every 422 rejection still shows
+  destination mismatch (ev-004). The developer must read rejection_reason and match
+  the backend strings (task.md 2026-10-28 re-check), with a committed RED regression
+  test.
 created_at: '2026-10-25'
-updated_at: '2026-10-28'
+updated_at: '2026-11-12'
 history:
 - phase: created -> assigned
   agent: pm
@@ -37,21 +38,54 @@ history:
   operator: claude
 - phase: assigned -> assigned
   agent: reviewer
-  reason: 'Re-checked at operator request. Prod runs slip-api 1dd7ab3 (td 117) and slip-front-end
-    8b9906f (td 70) (ev-005). slip-api 20bbd6f changed the >24h reason to Thai text. Thanwa''s
-    slip-front-end 8b9906f added an expired reject kind, but paymentNote never reads rejection_reason,
-    so 5 of 6 rejection reasons still map to destination (ev-004 RED on the prod export). Gates
-    stay pending.'
+  reason: Re-checked at operator request. Prod runs slip-api 1dd7ab3 (td 117) and
+    slip-front-end 8b9906f (td 70) (ev-005). slip-api 20bbd6f changed the >24h reason
+    to Thai text. Thanwa's slip-front-end 8b9906f added an expired reject kind, but
+    paymentNote never reads rejection_reason, so 5 of 6 rejection reasons still map
+    to destination (ev-004 RED on the prod export). Gates stay pending.
   at: '2026-10-28T07:23:18Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'slip-front-end PR SparqLab/slip-front-end#17 (task/TASK-VS-046-topup-reject-reason,
+    from origin/main 914342a): RED ev-006 on 47bdb18 (behaviour-preserving extraction
+    + tests/topup-reject-reason.test.ts) 15 of 32 fail for the real current behaviour
+    (>24h Thai text, amount unavailable, legacy today -> not_found; transfer date
+    unavailable -> expired; unknown 422 without status -> destination); GREEN ev-007
+    33/33 on c7a44a1; eslint ev-008 and nuxt typecheck ev-009 pass. The conductor
+    re-ran RED (15 fail) and GREEN (33 pass) on 2026-11-12. Not merged, not deployed;
+    not checked in a browser.'
+  at: '2026-11-12T16:38:23Z'
+  operator: claude
+- phase: assigned -> in_review
+  agent: dev
+  reason: 'Claude implemented D1/D2 and the table-A mapping in SparqLab/slip-front-end#17
+    (47bdb18 RED + c7a44a1 fix): shared topupRejectForPayment/topupRejectForError,
+    unreadable sets the flag, transfer-date copy, expired chip says contact admin,
+    mailto:support@up-slip.com button with the payment reference. Left as is: contactSupport()
+    toast stub on other screens, table B file errors still not_found, pre-existing
+    credit-deduction free-trial test failure on origin/main. Next: Earth or a teammate
+    reviews and merges; promotion needs its own approval.'
+  at: '2026-11-12T16:38:24Z'
   operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: regression tests seen failing before the fix and passing after, plus typecheck/lint
-      on the PR commit
-    updated_at: '2026-10-25T05:43:16Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'slip-front-end PR SparqLab/slip-front-end#17 (task/TASK-VS-046-topup-reject-reason,
+      from origin/main 914342a): RED ev-006 on 47bdb18 (behaviour-preserving extraction
+      + tests/topup-reject-reason.test.ts) 15 of 32 fail for the real current behaviour
+      (>24h Thai text, amount unavailable, legacy today -> not_found; transfer date
+      unavailable -> expired; unknown 422 without status -> destination); GREEN ev-007
+      33/33 on c7a44a1; eslint ev-008 and nuxt typecheck ev-009 pass. The conductor
+      re-ran RED (15 fail) and GREEN (33 pass) on 2026-11-12. Not merged, not deployed;
+      not checked in a browser.'
+    updated_at: '2026-11-12T16:38:23Z'
+    evidence_refs:
+    - ev-006
+    - ev-007
+    - ev-008
+    - ev-009
   knowledge_closeout:
     status: pending
     actor: pm
@@ -59,3 +93,7 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-10-25T05:43:16Z'
     evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: forced-route

@@ -1,10 +1,10 @@
 ---
 task_id: TASK-VS-068
 task_label: Charge +1 quota for a KBank retry that returns 0000
-phase: pending
-state: pending
+phase: in_review
+state: in_review
 iteration: 0
-current_agent: pm
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -12,7 +12,7 @@ assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-10'
-updated_at: '2026-11-10'
+updated_at: '2026-11-12'
 history:
 - phase: created -> pending
   agent: pm
@@ -65,14 +65,67 @@ history:
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-10T08:09:35Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: 'slip-system SparqLab/slip-system#25 (67ac92c from main d5a8a5f): RED ev-004
+    (written-timeout retry and double timeout answer Unavailable on main), GREEN ev-007,
+    full suite ev-008, race ev-009, build ev-010, vet ev-011. slip-api SparqLab/slip-api#141
+    (d6e6a40 from main 0d64143): RED ev-006 10 of 19 surcharge/D1/D2/D4 cases fail
+    on main against real PostgreSQL, GREEN ev-015 19/19, full suite ev-016, race ev-017,
+    build ev-018, vet ev-019; no migration (reference_type has no CHECK). slip-landing
+    draft SparqLab/slip-landing#18 (b79fe69): build ev-002, wording awaits Earth.
+    The conductor re-ran on 2026-11-12: slip-system touched packages + build + vet
+    pass; slip-api surcharge table 19/19 on a throwaway PostgreSQL 16, touched packages
+    + build + vet pass. Not merged, not deployed.'
+  at: '2026-11-12T16:46:08Z'
+  operator: claude
+- phase: pending -> in_review
+  agent: dev
+  reason: 'Earth chose 2026-11-12 16:13Z: Claude implements. Signal = gRPC response
+    header x-bank-billed-attempts "2" from slip-system (no slip-contracts change).
+    PRs into main, none merged: slip-system #25 (in-app retry after a post-write timeout
+    on a fresh connection, second timeout -> FailedPrecondition BANK_UNAVAILABLE;
+    Service Connect has no configurable retry, fixed 2 per AWS docs, ev-014), slip-api
+    #141 (surcharge row verification_bank_retry, D1-D4, post-bank duplicates charged),
+    slip-landing draft #18 (copy; wording and the draft label need Earth). Still open:
+    devops_coordination (needs a message to the devops lane, not sent), merchant_notice,
+    staging/prod promotion approvals.'
+  at: '2026-11-12T16:46:08Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-10T08:09:35Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'slip-system SparqLab/slip-system#25 (67ac92c from main d5a8a5f): RED
+      ev-004 (written-timeout retry and double timeout answer Unavailable on main),
+      GREEN ev-007, full suite ev-008, race ev-009, build ev-010, vet ev-011. slip-api
+      SparqLab/slip-api#141 (d6e6a40 from main 0d64143): RED ev-006 10 of 19 surcharge/D1/D2/D4
+      cases fail on main against real PostgreSQL, GREEN ev-015 19/19, full suite ev-016,
+      race ev-017, build ev-018, vet ev-019; no migration (reference_type has no CHECK).
+      slip-landing draft SparqLab/slip-landing#18 (b79fe69): build ev-002, wording
+      awaits Earth. The conductor re-ran on 2026-11-12: slip-system touched packages
+      + build + vet pass; slip-api surcharge table 19/19 on a throwaway PostgreSQL
+      16, touched packages + build + vet pass. Not merged, not deployed.'
+    updated_at: '2026-11-12T16:46:08Z'
+    evidence_refs:
+    - ev-004
+    - ev-007
+    - ev-008
+    - ev-009
+    - ev-010
+    - ev-011
+    - ev-006
+    - ev-015
+    - ev-016
+    - ev-017
+    - ev-018
+    - ev-019
+    - ev-002
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-system@67ac92c slip-api@d6e6a40 slip-landing@b79fe69
+      url: https://github.com/SparqLab/slip-api/pull/141
   deploy_staging:
     status: pending
     actor: pm
@@ -133,3 +186,7 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-11-10T08:09:35Z'
     evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: forced-route
