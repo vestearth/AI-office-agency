@@ -2,18 +2,18 @@
 task_id: TASK-VS-044
 task_label: 'slip-api: find the cancellation source behind persistDuplicateAttempt
   context canceled'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: debugger
   parallel: false
 created_at: '2026-10-21'
-updated_at: '2026-10-31'
+updated_at: '2026-11-12'
 history:
 - phase: created -> assigned
   agent: pm
@@ -91,6 +91,25 @@ history:
   reason: promoted to prod 2026-10-30 22:16Z; the check now measures the effect
   at: '2026-10-30T22:28:14Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261112T141953Z-verifyslip-duplicate-attempt-audit-write.yaml'
+  at: '2026-11-12T14:19:53Z'
+  operator: claude
+- phase: 'check_after: cleared'
+  agent: pm
+  reason: 'Prod 2026-10-30 22:30Z..2026-11-12 13:00Z (ev-011): 0 ''persist duplicate
+    slip attempt failed'' (122 pages; before the fix 4 in 9 days, all context canceled).
+    Traffic proven: 120367 POST /v1/slips/verify 409 duplicate_slip and 703 verify
+    408 context canceled in the same window, so the duplicate path and client cancels
+    both kept happening.'
+  at: '2026-11-12T14:19:53Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by Earth'
+  at: '2026-11-12T14:19:53Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -109,25 +128,16 @@ completion_gates:
     - ev-008
     - ev-009
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-10-21T08:08:42Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261112T141953Z-verifyslip-duplicate-attempt-audit-write.yaml'
+    updated_at: '2026-11-12T14:19:53Z'
     evidence_refs: []
 next_action:
-  agent: pm
-  description: 'On prod since 2026-10-30 22:16Z (slip-api-production:126). On the
-    2026-11-04 check: count ''persist duplicate slip attempt failed'' since the deploy
-    (was 4 in 9 days, all context canceled on branch 816d9bc9); expect none from client
-    cancels. Then knowledge_closeout and close.'
+  agent: done
+  description: Closed 2026-11-12 on ev-011 (0 duplicate-attempt write failures on prod since the fix).
 handoff:
   from: dev
   to: reviewer
   artifact: forced-route
-check_after:
-  at: '2026-11-04T02:00:00Z'
-  what: 'Count ''persist duplicate slip attempt failed'' in /ecs/slip-api-production
-    since 2026-10-30 22:16Z (prod slip-api-production:126 has the fix; before: 4 in
-    9 days, all context canceled). Expect none from client cancels; then record knowledge_closeout
-    and close.'
+decision_applied_at: '2026-11-12T13:38:37Z'

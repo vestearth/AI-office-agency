@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-043
 task_label: 'slip-system: log cause class of silent bank-unavailable errors with request_id'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: debugger
   parallel: false
 created_at: '2026-10-21'
-updated_at: '2026-10-31'
+updated_at: '2026-11-12'
 history:
 - phase: created -> assigned
   agent: pm
@@ -77,6 +77,26 @@ history:
   reason: promoted to prod 2026-10-30 22:16Z; the check now measures the effect
   at: '2026-10-30T22:28:14Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261112T140641Z-verifyslip-bank-unavailable-cause-log.yaml'
+  at: '2026-11-12T14:06:41Z'
+  operator: claude
+- phase: 'check_after: cleared'
+  agent: pm
+  reason: 'Joined on request_id, prod 2026-10-30 22:30Z..2026-11-12 13:00Z (ev-006):
+    14436 slip-api 502 ''bank verifier unavailable'' on /v1/slips/verify (147 pages),
+    all with request_id; 14436 matched to a slip-system line, 0 unmatched. 14078 had
+    only KBank 8500, 355 had bank_network then 8500, 3 had cause=bank_http httpStatus=500.
+    Every slip-system revision since (27, 28, 29 = e87a03e, 82fb802, 171baeb) carries
+    logUnavailableCause.'
+  at: '2026-11-12T14:06:41Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by Earth'
+  at: '2026-11-12T14:06:41Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -93,25 +113,16 @@ completion_gates:
     - ev-002
     - ev-003
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-10-21T08:08:00Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261112T140641Z-verifyslip-bank-unavailable-cause-log.yaml'
+    updated_at: '2026-11-12T14:06:41Z'
     evidence_refs: []
 handoff:
   from: dev
   to: reviewer
   artifact: forced-route
 next_action:
-  agent: pm
-  description: 'On prod since 2026-10-30 22:16Z (slip-system-production:27). On the
-    2026-11-04 check: join every slip-api 502 bank-unavailable since then to slip-system
-    lines by request_id; each needs an 8500 or ''kbank verify unavailable: cause=...''
-    line. Then knowledge_closeout and close.'
-check_after:
-  at: '2026-11-04T02:00:00Z'
-  what: 'Join every slip-api 502 ''bank verifier unavailable'' since 2026-10-30 22:16Z
-    (prod slip-system-production:27 has the change) to /ecs/slip-system-production
-    lines by request_id: each needs an 8500 or ''kbank verify unavailable: cause=...''
-    line. Then record knowledge_closeout and close.'
+  agent: done
+  description: Closed 2026-11-12 on ev-006 (14436 of 14436 prod 502s joined by request_id).
+decision_applied_at: '2026-11-12T13:38:37Z'

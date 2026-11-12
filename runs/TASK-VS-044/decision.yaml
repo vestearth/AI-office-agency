@@ -1,0 +1,7 @@
+task_id: TASK-VS-044
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-11-12T13:38:37Z'
+    against_phase: in_review
+    note: 'recorded from chat by the Claude conductor: Earth said check then close; 0 duplicate-attempt write failures on prod in 12.5 days against 120367 duplicates and 703 client cancels (ev-011)'

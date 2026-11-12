@@ -2,18 +2,18 @@
 task_id: TASK-VS-055
 task_label: 'Bank-flow transfers: bound computed-filter pagination work and diagnose
   recurring list timeout'
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-10-28'
-updated_at: '2026-10-31'
+updated_at: '2026-11-12'
 history:
 - phase: created -> assigned
   agent: pm
@@ -129,6 +129,27 @@ history:
     (none by 2026-10-31, ev-023)
   at: '2026-10-30T20:44:02Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: devops
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261112T140526Z-verifyslip-bank-flow-transfers.yaml'
+  at: '2026-11-12T14:05:26Z'
+  operator: claude
+- phase: 'check_after: cleared'
+  agent: devops
+  reason: 'Watched prod 2026-10-28 14:30Z..2026-11-12 13:00Z (ev-024): 151 GET transfers,
+    150x200 + 1x408 (client cancel), 0 5xx, p95 2.3 s, max 4.3 s. 81 ''admin bank
+    flow transfers'' lines, all cached_summary, 0 with search=true, 1 ERROR canceled
+    (the 408). The slow log fires only at >=1 s or on error, so no search request
+    was slow or failed in 15 days; search use itself is not observable. No timeout
+    recurred since the deploy.'
+  at: '2026-11-12T14:05:36Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by Earth'
+  at: '2026-11-12T14:05:36Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -151,22 +172,15 @@ completion_gates:
     - ev-013
     - ev-014
   knowledge_closeout:
-    status: pending
-    actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-10-28T07:28:17Z'
+    status: pass
+    actor: devops
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261112T140526Z-verifyslip-bank-flow-transfers.yaml'
+    updated_at: '2026-11-12T14:05:26Z'
     evidence_refs: []
 next_action:
-  agent: devops
-  description: 'Keep watching transfers: search (count timeouts) stays open until
-    an ''admin bank flow transfers'' line with search=true shows how often it happens;
-    then record knowledge_closeout (Knowledge Base/10 Projects/VerifySlip/Admin Bank
-    Flow Summary and Transfers.md does not yet describe the cached_summary/range_count
-    paths or the slow log). Earth may still want to tell the affected merchant about
-    the 12 verify 504s at 17:56 Bangkok on 2026-10-28 (decision-memo.md section 8).'
-check_after:
-  at: '2026-11-03T02:00:00Z'
-  what: 'Read ''admin bank flow transfers'' in /ecs/slip-api-production since 2026-10-28
-    14:30Z: any search=true lines, and how many of them timed out (error_kind). If
-    there are none yet, set a new check; if there are, record knowledge_closeout.'
+  agent: done
+  description: 'Closed 2026-11-12 on ev-024. Optional and not a gate: Earth may still
+    tell the affected merchant about the 12 verify 504s at 17:56 Bangkok on 2026-10-28
+    (decision-memo.md section 8).'
+decision_applied_at: '2026-11-12T13:38:37Z'

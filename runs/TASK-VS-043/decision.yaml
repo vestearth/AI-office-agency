@@ -1,0 +1,7 @@
+task_id: TASK-VS-043
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-11-12T13:38:37Z'
+    against_phase: in_review
+    note: 'recorded from chat by the Claude conductor: Earth said check then close; every prod 502 bank-unavailable since the deploy joins to a slip-system 8500 or cause line by request_id (ev-006, 14436/14436)'
