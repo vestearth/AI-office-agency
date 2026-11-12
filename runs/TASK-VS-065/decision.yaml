@@ -1,0 +1,7 @@
+task_id: TASK-VS-065
+decisions:
+  - decision: approve
+    actor: Earth
+    decided_at: '2026-11-12T10:45:09Z'
+    against_phase: review
+    note: 'recorded from chat by the Claude conductor: close without authenticated acceptance (staging_acceptance and production_acceptance resolved na); handed to viewsupat for frontend integration'
