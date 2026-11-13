@@ -415,3 +415,43 @@ mechanism as Deploy PROD. All eight passed. Raw logs are in local
   items in `security-gaps.local.md` are closed.
 
 If `origin/staging` moves again before the merge, refresh again first.
+
+## TASK-EAR-391 admin-side refusal: confirmed on the release tip (2026-11-13)
+
+The KB Review Queue asked whether the Missions release branch refuses
+CATEGORY_TURNOVER / ANY_GAME_TURNOVER events on the admin side, not only at
+claim time. It does. Evidence `ev-004` (script
+`evidence/refresh-20261113/ear391-admin-guard.sh`, local):
+
+- All five TASK-EAR-391 family commits (`e946115`, `d276dbb`, `9bb81d5`,
+  `c64ce19`, `06edeaf`) are in release tip `224246e`. None is on `origin/prod`
+  (`9dcd5fb`).
+- Admin create and update (`validateEventRequest`) and activation
+  (`SetEventActiveAdmin(true)`, which loads the stored conditions) call
+  `refusedEventConditions`, which returns `ErrInvalidInput`. The handler maps
+  that to 400 `validation_failed`. Deactivate and delete stay allowed.
+- Only these three service methods and delete write event rows. The six admin
+  event routes and the admin gRPC bridge all go through the HTTP handlers and
+  then these methods. No other code writes `mission_events` or
+  `mission_event_conditions`.
+- The claim-time guard (`buildCard`) is also present. Any config that is
+  neither SPEND_PROP nor game-driven, unknown types included, is listed but
+  never claimable.
+- The four TASK-EAR-391 guard tests pass on `224246e`. The same test file
+  copied onto `origin/prod` fails all four:
+  - admin create and activate return `nil`;
+  - cards are `Claimable:true` at progress 0.
+
+  So the tests distinguish the release tip from prod.
+
+Not closed by this check:
+
+- **TASK-EAR-391 `prod_claim_census`.** Claims already made on prod in its
+  09-30 boot window still need prod running or a prod DB read. Stored events
+  stay in the DB; after the train they are unclaimable, but they are not
+  deactivated.
+- **Backoffice prod (`241bb6e`, not in this train).** It lacks TASK-EAR-396
+  (`9cd0ae4`, on Backoffice `main` only), so its event create form still offers
+  all four condition types. After this train, saving a CATEGORY_TURNOVER or
+  ANY_GAME_TURNOVER event on prod gets a 400. That is UX only; no money moves.
+  Promote Backoffice `main` to prod with or after the train.
