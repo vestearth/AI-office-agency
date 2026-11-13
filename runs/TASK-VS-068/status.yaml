@@ -297,6 +297,18 @@ history:
     rollout. The script and cwf.sh live in the gitignored evidence directory.'
   at: '2026-11-13T05:40:00Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'Raised to Earth: in the trial window (02:24-12:30 ICT 11/13) 22 of 294 first-attempt
+    timeouts also failed the in-app retry (cause bank_network; 8 of 16 at 05:00, 8 of 54 at
+    09:00, 4 at 10:00, 2 at 04:00 ICT) and answered the merchant 502, while in the proxy-retry
+    era no timeout ended in 502 (ev-001, 11/08-09). Hypothesis, unconfirmed: the Service Connect
+    retry may have tried more than once (policy undocumented, devops not yet answered). The
+    full-day script reports these counts but does not fail on them. Earth decided in chat
+    2026-11-13 (''ปิด gate ได้ถ้า PASS''): the scheduled task keeps passing production_acceptance
+    on verdict PASS.'
+  at: '2026-11-13T05:55:00Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
