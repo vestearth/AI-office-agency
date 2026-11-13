@@ -11,3 +11,16 @@ authorizations:
   action: deploy_staging
   scope: slip-api PR 131 reviewed head 0c5b3476; merge to main and promote main to
     staging only
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: Claude chat session ff5491bc, 2026-11-13 Asia/Bangkok
+  reason: 'Earth: อนุมัติ deploy_production ของ SPAR-63. Retroactive: the production
+    deploy happened on 2026-11-10 (teammate direct merge staging->prod, no PR) before
+    this grant; this grant does not claim it was authorized at the time and authorizes
+    no new deployment.'
+  at: '2026-11-13T06:27:47Z'
+  action: deploy_production
+  scope: slip-api SPAR-63 head 0c5b3476 as already deployed to prod by merge 164df8c9
+    (Deploy PRODUCTION 42750998419, 2026-11-10) and carried through current prod daa6dbe;
+    record-only, no new deploy

@@ -183,6 +183,16 @@ history:
     is no longer needed
   at: '2026-11-13T05:05:51Z'
   operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: 'Earth authorized production retroactively (authz-002, 2026-11-13). SPAR-63
+    head 0c5b3476 first reached prod in merge 164df8c9 (watcharapol-spl, staging->prod,
+    2026-11-10); Deploy PRODUCTION 42750998419 success. Re-checked 2026-11-13 (ev-036):
+    0c5b3476 is an ancestor of origin/prod daa6dbe; prod runs slip-api-production:152
+    production-sha-daa6dbe, 3 running, rollout COMPLETED. staging_acceptance is na
+    by operator decision, not an acceptance claim.'
+  at: '2026-11-13T06:27:47Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -235,15 +245,28 @@ completion_gates:
     - deploy_staging
     requires_record: true
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-09T07:29:20Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'Earth authorized production retroactively (authz-002, 2026-11-13). SPAR-63
+      head 0c5b3476 first reached prod in merge 164df8c9 (watcharapol-spl, staging->prod,
+      2026-11-10); Deploy PRODUCTION 42750998419 success. Re-checked 2026-11-13 (ev-036):
+      0c5b3476 is an ancestor of origin/prod daa6dbe; prod runs slip-api-production:152
+      production-sha-daa6dbe, 3 running, rollout COMPLETED. staging_acceptance is
+      na by operator decision, not an acceptance claim.'
+    updated_at: '2026-11-13T06:27:47Z'
+    evidence_refs:
+    - ev-036
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: GitHub Actions
+      ref: 164df8c9a4df21290aa636a84ce0c04fd9e5ea04
+      url: https://github.com/SparqLab/slip-api/actions/runs/42750998419
   production_acceptance:
     status: pending
     actor: pm
