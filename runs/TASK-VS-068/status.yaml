@@ -283,6 +283,20 @@ history:
     Remaining: production_acceptance after the full-day check (check_after 2026-11-13T17:30Z).'
   at: '2026-11-13T05:25:00Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'Earth asked (chat 2026-11-13) to schedule the production_acceptance check. Desktop
+    scheduled task vs068-production-acceptance-fullday fires once at 2026-11-13T17:40:00Z
+    (00:40 ICT 11/14, Auto mode). It runs runs/TASK-VS-068/evidence/vs068-fullday-check.sh
+    through record-evidence.sh (slip-system 19:24:14Z..17:00Z, slip-api 04:07:58Z..17:00Z,
+    every page; joins each retry to surcharge/skip/D1 and each 502 to its slip-system cause),
+    and only on verdict PASS passes production_acceptance, clears check_after and commits
+    status.yaml. Trial run on 04:07:58Z..05:30Z (not recorded): 77 retries after the slip-api
+    rollout, 76 charged at http 200, 1 http 422 not charged as designed, 0 unexplained, 0
+    orphan surcharge, ERROR 0, no 5xx/408; 22 retry failures happened before the slip-api
+    rollout. The script and cwf.sh live in the gitignored evidence directory.'
+  at: '2026-11-13T05:40:00Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
