@@ -36,3 +36,18 @@ authorizations:
   scope: 'slip-api PR #143: main 683d7de -> staging 7f3a0dc (tree 604284b == dry run
     T1; scope d6e6a40 TASK-VS-068 + 3324e14 TASK-VS-046, both Sichol-Earth); staging
     only; rollback slip-api-staging:197'
+- id: authz-004
+  type: grant
+  actor: earth
+  via: chat with the Claude conductor, 2026-11-13T03:55:29Z ('ขึ้น prod', answering
+    'take slip-api to prod? quota surcharge starts at once' after the scope, the open
+    staging_acceptance and the VS-046 front-end gap were shown)
+  reason: Earth approved the slip-api prod promotion, which starts the retry surcharge
+    and post-bank duplicate charge; staging_acceptance was still open and Earth accepted
+    that
+  at: '2026-11-13T04:09:30Z'
+  action: deploy_production
+  scope: 'slip-api PR #144: release/TASK-VS-068-production e55f3b7 (origin/prod 47e4245
+    + origin/staging 7f3a0dc, tree 604284b == dry run T2 == staging tree) -> prod
+    daa6dbe; scope d6e6a40 TASK-VS-068 + 3324e14 TASK-VS-046, both Sichol-Earth; rollback
+    slip-api-production:151'

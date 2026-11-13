@@ -197,6 +197,35 @@ history:
     Prod not promoted.'
   at: '2026-11-12T20:14:45Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'Earth approved the slip-api prod promotion (authz-004, chat 2026-11-13T03:55:29Z
+    ''ขึ้น prod''). slip-api prod 47e4245..daa6dbe via PR #144 (release/TASK-VS-068-production
+    e55f3b7 = origin/prod + origin/staging 7f3a0dc, merge commit pinned to that head);
+    merged tree == dry run T2 604284b == the staging tree; scope d6e6a40 (TASK-VS-068)
+    + 3324e14 (TASK-VS-046), both Sichol-Earth, no migrations, no ecs/ or .github/
+    changes. Deploy PRODUCTION run 43362259629 success; rollout started 03:59:15Z,
+    COMPLETED 3/3 on slip-api-production:152 (production-sha-daa6dbe) at 04:07:58Z.
+    Env and secrets unchanged from :151 (27 entries, sha256 prefixes). Boot: 3 new
+    tasks started gRPC + HTTP and warmed caches, 3 old tasks stopped cleanly, 0 panic/fatal.
+    Windows (every page): before 03:47:15-03:59:15 verify n=3955, 5xx 0, ERROR 0,
+    15 slip-system retries all 200 and none surcharged (old code); mixed 03:59:15-04:07:58
+    n=3078, 5xx 0, ERROR 0, 14 retries, 13 surcharged, the 1 not surcharged was served
+    by old task d6d725b1 (stopped 04:05:56); after 04:07:58-04:19:58 n=4244, 5xx 0,
+    ERROR 0, 11 retries all 200 and all 11 ''bank retry surcharge charged'', 0 skipped,
+    0 surcharge lines without a slip-system retry (join on request_id 11/11) (ev-028).
+    Charging is live from about 04:00Z. Rollback: service back to slip-api-production:151
+    (production-sha-47e4245). Gates staging_acceptance / deploy_production / production_acceptance
+    left pending: staging still has no forced slow-bank test, and the gate order needs
+    it first; prod ev-028 is the first observed behavior.'
+  at: '2026-11-13T04:27:00Z'
+  operator: claude
+- phase: 'check_after: 2026-11-13T17:30:00Z'
+  agent: devops
+  reason: slip-api promoted to prod 2026-11-13T04:07:58Z (charging live); slip-system
+    since 2026-11-12T19:24:14Z
+  at: '2026-11-13T04:22:14Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -313,8 +342,11 @@ handoff:
   artifact: forced-route
 check_after:
   at: '2026-11-13T17:30:00Z'
-  what: 'ICT 2026-11-13 full day on prod slip-system 2dfc116 (method of ev-001, every
-    page): count ''kbank verify unavailable'', ''kbank verify retry succeeded'' and
-    ''retry failed''; merchant 408s (expect ~4-8/day) and 502s == slip-system 8500
-    count (no new 502 source); p95 of retried 200s near 3.7 s; compare with 11/08-09
-    (1,186 / 1,920 timeouts)'
+  what: 'ICT 2026-11-13 full day on prod (method of ev-001 and ev-028, every page):
+    slip-system 2dfc116 ''kbank verify unavailable'', ''kbank verify retry succeeded''
+    and ''retry failed'' (compare 11/08-09: 1,186 / 1,920 timeouts); merchant 408s
+    (~4-8/day) and 502s == slip-system 8500 count; p95 of retried 200s near 3.7 s.
+    slip-api daa6dbe from 04:07:58Z: every retry_succeeded request_id joined to ''bank
+    retry surcharge charged'' / ''skipped'' / none, with the http status of each unsurcharged
+    one (expect only non-0000, D1-free or duplicate answers); 0 surcharge lines without
+    a retry; skipped count and reasons; ERROR 0, 5xx only 502'

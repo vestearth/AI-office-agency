@@ -109,6 +109,17 @@ history:
     screens (#17, #18) are on main only, not on staging (3dc735b) or prod (a43861f).'
   at: '2026-11-12T20:15:02Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'slip-api 3324e14 reached prod with TASK-VS-068''s slip-api prod promotion:
+    PR #144, prod 47e4245..daa6dbe, slip-api-production:152 COMPLETED 3/3 at 2026-11-13T04:07:58Z,
+    5xx 0 and ERROR 0 in the 12 min after (TASK-VS-068 ev-028); Earth approved that
+    prod scope in chat 2026-11-13 (TASK-VS-068 authz-004), after being told this commit
+    rides along. The expired-slip reason prod now returns has no contact line, while
+    slip-front-end prod (a43861f) still lacks the VS-046 screens and the contact box
+    (#17, #18 on main only); how slip-front-end prod shows the new text is not traced.'
+  at: '2026-11-13T04:28:00Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
