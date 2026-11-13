@@ -335,7 +335,11 @@ record and history row is byte-identical to `update-completion-gate.rb declare`.
 - `--agent` is the role taking the task (default `pm`, phase `pending`; any
   other of `dev dev-2 reviewer debugger devops free-roam` gives `assigned`).
 - The id must pass the same namespace rules as intake and the PM creation gate
-  (`scripts/task-namespace.rb`); `PKG` and `GW` are reserved.
+  (`scripts/task-namespace.rb`); `PKG` and `GW` are reserved. With a registry,
+  the id's prefix is `office.task_prefix` or a registered prefix listed in
+  `office.extra_task_prefixes` (both local config; `OFFICE_TASK_PREFIX`
+  replaces them with exactly one prefix), so `open TASK-VS-063` needs no env
+  on a machine that lists `VS`.
 
 Exit codes: `0` opened; `1` namespace refused; `2` usage error; `3` the presets
 file is unreadable or malformed; `4` the task already exists; `5` a write failed

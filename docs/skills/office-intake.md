@@ -35,4 +35,5 @@ Intake never creates `runs/<TASK-ID>`. In single-user mode it is non-mutating �
 
 **Multi-user mode caveats** (see [../multi-user-git.md](../multi-user-git.md)):
 - With `git_sync.enabled`, intake first `git pull --rebase`es the office repo to see the latest team state (soft-fail; it does touch repo state).
-- Once `office.team.yaml` has any entry under `prefixes:`, intake requires a registered prefix (env `OFFICE_TASK_PREFIX` or `office.task_prefix` in `office.config.local.yaml`) and exits non-zero with guidance otherwise — so the preview is produced only for registered users.
+- Once `office.team.yaml` has any entry under `prefixes:`, intake requires a registered prefix (`office.task_prefix` in `office.config.local.yaml`, or env `OFFICE_TASK_PREFIX`) and exits non-zero with guidance otherwise — so the preview is produced only for registered users.
+- For another namespace this machine owns (a per-project code such as `VS`), pass `--prefix`: `./ai-dev-office/run-agent.sh intake --prefix VS "Fix the slip quota rule"`. The prefix must be registered and listed under `office.extra_task_prefixes` in `office.config.local.yaml`; intake refuses one this machine does not list, and `PKG`/`GW` always. Do not set `OFFICE_TASK_PREFIX` for this: it names exactly one namespace for that command, and intake refuses a `--prefix` that differs from it.

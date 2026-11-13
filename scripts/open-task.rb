@@ -109,13 +109,18 @@ rescue GatePresets::Error => e
   exit 3
 end
 
+# OFFICE_TASK_PREFIX names exactly one namespace; without it, this machine's
+# config gives office.task_prefix plus office.extra_task_prefixes.
 prefix = ENV["OFFICE_TASK_PREFIX"].to_s
+extra_prefixes = []
 if prefix.empty?
   profile = ENV["OFFICE_PROFILE"].to_s.strip
-  prefix = OfficeConfigResolver.new(OFFICE_DIR, profile: profile.empty? ? nil : profile).get("office.task_prefix", "").to_s
+  resolver = OfficeConfigResolver.new(OFFICE_DIR, profile: profile.empty? ? nil : profile)
+  prefix = resolver.get("office.task_prefix", "").to_s
+  extra_prefixes = resolver.list_values("office.extra_task_prefixes")
 end
 begin
-  TaskNamespace.check_new_task!(task_id, prefix, File.join(OFFICE_DIR, "office.team.yaml"))
+  TaskNamespace.check_new_task!(task_id, prefix, File.join(OFFICE_DIR, "office.team.yaml"), extra_prefixes: extra_prefixes)
 rescue TaskNamespace::Refused => e
   warn e.message
   exit 1

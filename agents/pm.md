@@ -150,7 +150,7 @@ Keep `context_sources` concise. Do not paste large search results.
 9. If the request changes contracts or naming, call that out explicitly in the plan so downstream agents update proto, generated code, gateway mappings, and docs together.
 10. Never write implementation code -- only create the task blueprint.
 11. Create the `runs/<task-id>/` directory, `task.md`, and `status.yaml` as part of your output.
-12. For a new task, run `./ai-dev-office/run-agent.sh intake "<request>"` and use the exact namespaced id it returns (for example `TASK-<PREFIX>-NNN`). Never invent a plain TASK-NNN; that form is legacy-only when a team registry is active.
+12. For a new task, run `./ai-dev-office/run-agent.sh intake "<request>"` and use the exact namespaced id it returns (for example `TASK-<PREFIX>-NNN`). For another namespace this machine owns (listed in `office.extra_task_prefixes`, such as a per-project code), add `--prefix <PREFIX>`. Never invent a plain TASK-NNN; that form is legacy-only when a team registry is active.
 
 ### Completion gates
 

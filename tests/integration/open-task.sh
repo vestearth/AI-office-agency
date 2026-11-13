@@ -72,12 +72,12 @@ assert_eq "$(AI_OFFICE_RUNS_DIR="$ROOT/runs" AI_OFFICE_GATE_PRESETS="$RUNS/strip
 
 # --- N: namespace rules (scripts/task-namespace.rb) ---
 REG="$RUNS/office.team.yaml"
-# ns <task_id> <prefix> [registry] — prints the refusal message, or "ok".
+# ns <task_id> <prefix> [registry] [extra prefixes] — prints the refusal message, or "ok".
 ns() {
-  ruby - "$ROOT" "$1" "$2" "${3:-$REG}" <<'RUBY'
+  ruby - "$ROOT" "$1" "$2" "${3:-$REG}" "${4:-}" <<'RUBY'
 require File.join(ARGV[0], "scripts", "task-namespace")
 begin
-  TaskNamespace.check_new_task!(ARGV[1], ARGV[2], ARGV[3])
+  TaskNamespace.check_new_task!(ARGV[1], ARGV[2], ARGV[3], extra_prefixes: [ARGV[4]])
   puts "ok"
 rescue TaskNamespace::Refused => e
   puts e.message
@@ -88,7 +88,7 @@ printf 'prefixes:\n  EA: Earth\n  BOB: Bob\n  GW: "Event gateway (reserved)"\n' 
 assert_eq "$(ns TASK-EA-001 EA)" "ok" "N own namespace"
 assert_eq "$(ns TASK-EA-001 ea)" "ok" "N prefix is case-insensitive"
 assert_eq "$(ns TASK-001 EA)" "[ERROR] new task id must use active namespace TASK-EA-NNN; run intake and use its returned id" "N unprefixed id"
-assert_eq "$(ns TASK-BOB-001 EA)" "[ERROR] new task id must use active namespace TASK-EA-NNN; run intake and use its returned id" "N another user's namespace"
+assert_eq "$(ns TASK-BOB-001 EA)" "[ERROR] TASK-BOB-001 is in the registered BOB namespace (Bob), which this machine does not mint in; if this machine owns BOB, add it to office.extra_task_prefixes in office.config.local.yaml" "N another user's namespace"
 assert_eq "$(ns TASK-EA-001 '')" "[ERROR] set your Dashboard name before creating a task" "N no prefix while the registry is active"
 assert_eq "$(ns TASK-ZZ-001 ZZ)" "[ERROR] prefix ZZ is not registered" "N unregistered prefix"
 assert_eq "$(ns TASK-GW-001 GW)" "[ERROR] task prefix GW is reserved for the event gateway's minted TASK-GW-N ids - pick a personal prefix" "N GW prefix"
@@ -105,6 +105,23 @@ printf 'prefixes: [\n' > "$RUNS/broken.yaml"
 [[ "$(ns TASK-001 '' "$RUNS/broken.yaml")" == "[ERROR] office.team.yaml exists but cannot be parsed"* ]] || fail "N a broken registry fails closed: $(ns TASK-001 '' "$RUNS/broken.yaml")"
 printf -- '- EA\n' > "$RUNS/list.yaml"
 assert_eq "$(ns TASK-001 '' "$RUNS/list.yaml")" "[ERROR] office.team.yaml must be a map with a 'prefixes:' entry (got Array)" "N a registry that is not a map"
+# Extra prefixes (office.extra_task_prefixes, per machine): other registered
+# namespaces this machine also mints in, such as a solo operator's project
+# codes. Registration alone grants nothing: the namespace must also be listed
+# on this machine, so a real team member still cannot open someone else's ids.
+PRJ="$RUNS/projects.yaml"
+printf 'prefixes:\n  EA: Earth\n  BOB: Bob\n  KAS: "Casper (project)"\n  VS: "VerifySlip (project)"\n  GW: "Event gateway (reserved)"\n' > "$PRJ"
+assert_eq "$(ns TASK-VS-063 EA "$PRJ" "KAS,VS")" "ok" "N an extra prefix"
+assert_eq "$(ns TASK-KAS-001 EA "$PRJ" " kas , vs ")" "ok" "N extra prefixes are trimmed and case-insensitive"
+assert_eq "$(ns TASK-EA-001 EA "$PRJ" "KAS,VS")" "ok" "N the active prefix still opens beside extras"
+assert_eq "$(ns TASK-VS-001 '' "$PRJ" "VS")" "ok" "N an extra prefix without an active prefix"
+assert_eq "$(ns TASK-VS-063 EA "$PRJ")" "[ERROR] TASK-VS-063 is in the registered VS namespace (VerifySlip (project)), which this machine does not mint in; if this machine owns VS, add it to office.extra_task_prefixes in office.config.local.yaml" "N a registered namespace this machine does not list"
+assert_eq "$(ns TASK-BOB-001 EA "$PRJ" "KAS,VS")" "[ERROR] TASK-BOB-001 is in the registered BOB namespace (Bob), which this machine does not mint in; if this machine owns BOB, add it to office.extra_task_prefixes in office.config.local.yaml" "N another user's namespace stays refused beside extras"
+assert_eq "$(ns TASK-ZZ-001 EA "$PRJ" "ZZ")" "[ERROR] prefix ZZ is not registered" "N an unregistered extra prefix"
+assert_eq "$(ns TASK-ZZ-001 EA "$PRJ" "KAS,VS")" "[ERROR] new task id must use active namespace TASK-EA-NNN; run intake and use its returned id" "N an unregistered, unlisted namespace"
+assert_eq "$(ns TASK-GW-001 EA "$PRJ" "GW")" "[ERROR] TASK-GW-001 is in the reserved GW namespace (reserved for the event gateway's minted TASK-GW-N ids); open a task in your own namespace" "N an extra prefix never grants GW"
+assert_eq "$(ns TASK-PKG-001 EA "$PRJ" "PKG")" "[ERROR] TASK-PKG-001 is in the reserved PKG namespace (reserved for package tasks); open a task in your own namespace" "N an extra prefix never grants PKG"
+assert_eq "$(ns TASK-ZZ-001 '' "$RUNS/empty.yaml" "VS")" "ok" "N extras change nothing in solo mode"
 # Parity: the PM creation gate and intake in a sandboxed office give the same messages.
 OFFICE="$RUNS/office"
 mkdir -p "$OFFICE/runs" "$OFFICE/tasks" "$OFFICE/agents"
@@ -126,6 +143,25 @@ parity_intake() { # <prefix> — intake's first [ERROR] line must equal the modu
 parity_intake GW
 parity_intake PKG
 parity_intake "e a"
+# Parity with extra prefixes: without OFFICE_TASK_PREFIX the PM gate reads
+# office.task_prefix and office.extra_task_prefixes from this machine's config.
+cp "$PRJ" "$OFFICE/office.team.yaml"
+printf 'office:\n  task_prefix: EA\n  extra_task_prefixes: [KAS, VS, ZZ, GW]\n' > "$OFFICE/office.config.local.yaml"
+pm_cfg() { (cd "$OFFICE" && env -u OFFICE_TASK_PREFIX AI_OFFICE_RUNS_DIR="$OFFICE/runs" ./run-agent.sh "$1" pm cursor 2>&1 || true); }
+for id in TASK-BOB-001 TASK-ZZ-001 TASK-001; do
+  assert_eq "$(grep -m1 '^\[ERROR\]' <<<"$(pm_cfg "$id")")" "$(ns "$id" EA "$OFFICE/office.team.yaml" "KAS,VS,ZZ,GW")" "N parity with the PM gate for $id / extras"
+  [[ ! -e "$OFFICE/runs/$id" ]] || fail "N the PM gate created refused $id"
+done
+grep -qF "Creating task directory" <<<"$(pm_cfg TASK-VS-001)" || fail "N the PM gate refuses an extra prefix: $(pm_cfg TASK-VS-002)"
+[[ -d "$OFFICE/runs/TASK-VS-001" ]] || fail "N the PM gate did not create TASK-VS-001"
+# GW stays the gateway's: listing it grants nothing (the gateway passes with OFFICE_TASK_PREFIX=GW).
+out="$(pm_cfg TASK-GW-001)"
+grep -qF "[ERROR] new task id must use active namespace TASK-EA-NNN" <<<"$out" || fail "N the PM gate let an extra GW through: $out"
+[[ ! -e "$OFFICE/runs/TASK-GW-001" ]] || fail "N the PM gate created TASK-GW-001"
+# OFFICE_TASK_PREFIX names exactly one namespace: config extras do not apply.
+parity_pm TASK-VS-002 EA
+[[ ! -e "$OFFICE/runs/TASK-VS-002" ]] || fail "N OFFICE_TASK_PREFIX=EA still let TASK-VS-002 through"
+rm "$OFFICE/office.config.local.yaml"
 
 # --- O: open ---
 GATE="$ROOT/scripts/update-completion-gate.rb"
@@ -231,6 +267,29 @@ printf 'prefixes: {}\n' > "$SOLO/office.team.yaml"
 rc=0; OFFICE_TASK_PREFIX= ruby "$SOLO/scripts/open-task.rb" TASK-001 --title x --no-gates y >"$RUNS/open.log" 2>&1 || rc=$?
 assert_eq "$rc" "0" "O6 solo mode opens any valid id ($(cat "$RUNS/open.log"))"
 [[ -f "$RUNS/TASK-001/status.yaml" ]] || fail "O6 solo task not written"
+# O6b: this machine's other namespaces (office.extra_task_prefixes), with no
+# OFFICE_TASK_PREFIX, in a sandboxed office: open-task.rb reads the config and
+# registry beside its own scripts/.
+MULTI="$RUNS/multi"
+mkdir -p "$MULTI/runs"
+cp -R "$ROOT/scripts" "$ROOT/tasks" "$MULTI/"
+printf 'office:\n  name: Sandbox\n' > "$MULTI/office.config.yaml"
+printf 'prefixes:\n  EAR: Earth\n  BOB: Bob\n  KAS: "Casper (project)"\n  VS: "VerifySlip (project)"\n  GW: "Event gateway (reserved)"\n' > "$MULTI/office.team.yaml"
+printf 'office:\n  task_prefix: EAR\n  extra_task_prefixes: [KAS, VS]\n' > "$MULTI/office.config.local.yaml"
+mopn() { local rc=0; env -u OFFICE_TASK_PREFIX AI_OFFICE_RUNS_DIR="$MULTI/runs" ruby "$MULTI/scripts/open-task.rb" "$@" >"$RUNS/open.log" 2>&1 || rc=$?; echo "$rc"; }
+for id in TASK-VS-063 TASK-KAS-001 TASK-EAR-001; do
+  assert_eq "$(mopn "$id" --title x --no-gates y)" "0" "O6b opens $id ($(cat "$RUNS/open.log"))"
+  [[ -f "$MULTI/runs/$id/status.yaml" ]] || fail "O6b $id not written"
+done
+assert_eq "$(mopn TASK-BOB-001 --title x --no-gates y)" "1" "O6b a registered namespace this machine does not list"
+grep -qF "registered BOB namespace (Bob), which this machine does not mint in" "$RUNS/open.log" || fail "O6b BOB message: $(cat "$RUNS/open.log")"
+assert_eq "$(mopn TASK-ZZ-001 --title x --no-gates y)" "1" "O6b an unregistered namespace"
+assert_eq "$(mopn TASK-GW-2 --title x --no-gates y)" "1" "O6b the reserved GW namespace"
+rc=0; OFFICE_TASK_PREFIX=EAR AI_OFFICE_RUNS_DIR="$MULTI/runs" ruby "$MULTI/scripts/open-task.rb" TASK-VS-064 --title x --no-gates y >"$RUNS/open.log" 2>&1 || rc=$?
+assert_eq "$rc" "1" "O6b OFFICE_TASK_PREFIX names exactly one namespace ($(cat "$RUNS/open.log"))"
+for id in TASK-BOB-001 TASK-ZZ-001 TASK-GW-2 TASK-VS-064; do
+  [[ ! -e "$MULTI/runs/$id" ]] || fail "O6b a refused open wrote $id"
+done
 
 # O7: an existing task is never touched.
 before="$(find "$RUNS/TASK-EAR-901" -type f -exec shasum {} + | sort)"

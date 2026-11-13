@@ -171,6 +171,11 @@ office:
 `prefixes:` + commit+push — เมื่อ registry มีรายการแล้ว intake จะบังคับให้
 ทุกคนใช้ prefix ที่ลงทะเบียน
 
+เครื่องที่เป็นเจ้าของหลาย prefix (เช่น prefix เป็นรหัสโปรเจกต์) ใส่
+`extra_task_prefixes: [KAS, VS]` ใต้ `office:` ในไฟล์เดียวกัน แล้วใช้
+`./run-agent.sh intake --prefix VS "..."` — ดู
+[docs/multi-user-git.md](docs/multi-user-git.md)
+
 เปิด auto pull/push ให้ run-agent.sh จัดการ sync เองทุก step:
 
 ```yaml

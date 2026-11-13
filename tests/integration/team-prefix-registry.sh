@@ -165,5 +165,52 @@ fi
 grep -q "reserved for the event gateway" <<<"$out" || fail "missing GW reservation guidance (solo): $out"
 echo "[OK] GW reserved for the event gateway"
 
+echo "== Scenario 12: intake --prefix picks another namespace this machine mints in =="
+# office.extra_task_prefixes (per machine) lists the other registered prefixes
+# this machine owns, e.g. a solo operator's project codes. Registration alone
+# grants nothing, so a team member still cannot allocate in someone else's.
+printf 'prefixes:\n  EAR: Earth\n  BOB: Bob\n  KAS: "Casper (project)"\n  VS: "VerifySlip (project)"\n  GW: "Event gateway (reserved)"\n' > "$OFFICE/office.team.yaml"
+printf 'office:\n  task_prefix: EAR\n  extra_task_prefixes: [KAS, VS]\n' > "$OFFICE/office.config.local.yaml"
+mkdir -p "$OFFICE/runs/TASK-EAR-341" "$OFFICE/runs/TASK-VS-062"
+intake_with() { (cd "$OFFICE" && env -u OFFICE_TASK_PREFIX ./run-agent.sh intake "$@" 2>&1); }
+out="$(intake_with "test request")" || fail "default intake must pass: $out"
+grep -q "Task ID: TASK-EAR-342" <<<"$out" || fail "without --prefix intake must keep office.task_prefix: $out"
+out="$(intake_with --prefix VS "test request")" || fail "--prefix VS must pass: $out"
+grep -q "Task ID: TASK-VS-063" <<<"$out" || fail "expected TASK-VS-063, got: $out"
+grep -q "Prefix owner: VerifySlip (project)" <<<"$out" || fail "expected the VS owner line, got: $out"
+grep -qF "./run-agent.sh open TASK-VS-063 " <<<"$out" || fail "the open hint must carry the VS id: $out"
+out="$(intake_with "test request" --prefix kas)" || fail "--prefix after the request, lower case, must pass: $out"
+grep -q "Task ID: TASK-KAS-001" <<<"$out" || fail "expected TASK-KAS-001, got: $out"
+if out="$(intake_with --prefix BOB "test request")"; then
+  fail "a registered prefix this machine does not list must be refused: $out"
+fi
+grep -qF "[ERROR] prefix BOB is registered to Bob, but this machine does not mint in it; if this machine owns BOB, add it to office.extra_task_prefixes in office.config.local.yaml" <<<"$out" \
+  || fail "missing extra_task_prefixes guidance: $out"
+if out="$(intake_with --prefix ZZ "test request")"; then
+  fail "an unregistered --prefix must be refused: $out"
+fi
+grep -q "ZZ: <Your Name>" <<<"$out" || fail "missing claim guidance for --prefix ZZ: $out"
+if out="$(intake_with --prefix GW "test request")"; then
+  fail "--prefix GW must be refused: $out"
+fi
+grep -q "reserved for the event gateway" <<<"$out" || fail "missing GW reservation for --prefix: $out"
+if out="$(intake_with --prefix PKG "test request")"; then
+  fail "--prefix PKG must be refused: $out"
+fi
+grep -q "reserved for package tasks" <<<"$out" || fail "missing PKG reservation for --prefix: $out"
+if out="$(intake_with "test request" --prefix)"; then
+  fail "--prefix without a value must be a usage error: $out"
+fi
+grep -q "Usage:" <<<"$out" || fail "missing usage for --prefix without a value: $out"
+if out="$(cd "$OFFICE" && OFFICE_TASK_PREFIX=EAR ./run-agent.sh intake --prefix VS "test request" 2>&1)"; then
+  fail "OFFICE_TASK_PREFIX names exactly one namespace; --prefix VS must be refused under it: $out"
+fi
+grep -qF "[ERROR] --prefix VS is not OFFICE_TASK_PREFIX=EAR" <<<"$out" || fail "missing env/--prefix guidance: $out"
+printf 'prefixes: {}\n' > "$OFFICE/office.team.yaml"
+out="$(intake_with --prefix zz "test request")" || fail "solo mode must take any valid --prefix: $out"
+grep -q "Task ID: TASK-ZZ-001" <<<"$out" || fail "expected solo TASK-ZZ-001, got: $out"
+rm "$OFFICE/office.config.local.yaml"
+echo "[OK] intake --prefix allocates only in this machine's registered namespaces"
+
 SUITE_DONE=1
 echo "[PASS] team prefix registry scenarios passed"
