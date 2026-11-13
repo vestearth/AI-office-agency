@@ -250,6 +250,20 @@ history:
     (2026-11-13).'
   at: '2026-11-13T04:26:40Z'
   operator: claude
+- phase: 'gate devops_coordination: pending -> pass'
+  agent: pm
+  reason: 'Earth relayed the devops answers in chat 2026-11-13 (task.md ''Answers''):
+    viewsupat told the merchant to resend on 408/502 and that a resend without the
+    Idempotency-Key is charged extra. Checked against slip-api prod daa6dbe: a same-key
+    resend waits on the idempotency lock and replays the stored answer (no bank call,
+    no quota); a keyless resend is a free pre-bank duplicate once the first is saved,
+    and a charged post-bank duplicate (D2) only when it reaches the bank while the
+    first is in flight. The guidance matches D2 (stricter, never over-charges), so
+    the designs do not collide. watcharapol-spl: 3.05 s was the timeout at which the
+    load test reached the attempt limit (relayed as ''1200/s or 1300/s''; the configured
+    budget is 1,200 per minute).'
+  at: '2026-11-13T04:44:25Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -361,12 +375,19 @@ completion_gates:
     - deploy_production
     requires_record: true
   devops_coordination:
-    status: pending
+    status: pass
     actor: pm
-    reason: the devops lane item 'verify retry/idempotency handling with the affected
-      merchant' (jaview weekly 2026-11-06 and 2026-11-13) is checked so the two designs
-      do not collide
-    updated_at: '2026-11-10T08:09:35Z'
+    reason: 'Earth relayed the devops answers in chat 2026-11-13 (task.md ''Answers''):
+      viewsupat told the merchant to resend on 408/502 and that a resend without the
+      Idempotency-Key is charged extra. Checked against slip-api prod daa6dbe: a same-key
+      resend waits on the idempotency lock and replays the stored answer (no bank
+      call, no quota); a keyless resend is a free pre-bank duplicate once the first
+      is saved, and a charged post-bank duplicate (D2) only when it reaches the bank
+      while the first is in flight. The guidance matches D2 (stricter, never over-charges),
+      so the designs do not collide. watcharapol-spl: 3.05 s was the timeout at which
+      the load test reached the attempt limit (relayed as ''1200/s or 1300/s''; the
+      configured budget is 1,200 per minute).'
+    updated_at: '2026-11-13T04:44:25Z'
     evidence_refs: []
   merchant_notice:
     status: pass

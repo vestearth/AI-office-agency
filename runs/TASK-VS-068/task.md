@@ -176,6 +176,28 @@ jaview weekly notes for 2026-11-06 and 2026-11-13 list a devops item: "Improve v
 handling with the affected merchant". Ask that lane what was done or agreed with the merchant before
 the design is fixed, so the two do not collide. Ask watcharapol-spl why 3.05 s was chosen.
 
+### Answers (relayed by Earth in chat, 2026-11-13, after both prod deploys)
+
+Earth sent the questions on its own channel; the conductor drafted them. Answers as relayed:
+
+- **viewsupat (devops):** the merchant has been told to resend on its own when it gets 408 or 502,
+  and that a resend without retry/idempotency (the `Idempotency-Key`) is charged extra.
+- **watcharapol-spl:** 3.05 s lets verify take calls up to the limit, "1200/s or 1300/s"; with other
+  timeouts the load test did not reach it. The load-test report and slip-system config give the bank
+  budget as 1,200 per **minute** (`BANK_ATTEMPT_LIMIT_PER_MINUTE`); "/s" is as relayed and was not
+  checked back.
+
+Check against slip-api prod `daa6dbe` (`internal/core/service/verification.go`, `VerifyBank`):
+
+- Same `Idempotency-Key`: the resend takes the idempotency lock, so it waits for a first request still
+  in flight, then `replayBankVerification` returns the stored answer with no bank call and no quota.
+  A 502 stores nothing, so a same-key resend after a 502 reaches the bank and is charged normally.
+- No key: a resend after the first answer is saved is a pre-bank duplicate (`rejectDuplicateBeforeBank`
+  → `duplicateResponse`, 409, no quota). A resend that reaches the bank while the first is still in
+  flight becomes a post-bank duplicate and is charged (D2, `finishPostBankDuplicate`).
+- So the merchant guidance matches D2. It is stricter than the code (some keyless resends stay free),
+  which cannot over-charge anyone. No collision; gate `devops_coordination` passes on this.
+
 ## Deploy order and rollback
 
 1. slip-contracts (only if the field option is chosen).
