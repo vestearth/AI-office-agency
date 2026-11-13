@@ -1,0 +1,416 @@
+---
+task_id: TASK-VS-068
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Verification Results Retry Timeout
+  And Quota — UX Reference.md
+summary: 'Applied on knowledge-base main at Earth''s request (chat 2026-11-13, "ทำ
+  knowledge_closeout ต่อเลย"), local commits, not pushed. 1761bc3 commits as-is the
+  2026-11-12 UX reference and three note edits that another session wrote at Earth''s
+  request (librarian KLR-20261112T084542Z-01a1cebd-slip-timeout-retry) and left uncommitted;
+  Earth chose two commits. 6527f78 records that TASK-VS-068 is live: slip-system 2dfc116
+  (slip-system-production:30) retries a written-request timeout once in the app; slip-api
+  daa6dbe (slip-api-production:152) adds a verification_bank_retry quota row for a
+  retried charged 0000 (D1 free window and D4 low-quota skip excepted) and charges
+  post-bank duplicates by the bank answer (D2). It also records the reason for 3.05
+  s from watcharapol-spl (the load test reached the 1,200-per-minute attempt limit),
+  the devops merchant guidance (resend on 408/502 with the Idempotency-Key), the LINE
+  footer and slip-landing gap Earth accepted, and how to count the surcharge in the
+  monthly reconciliation. Five notes touched; vault link findings unchanged from baseline,
+  provenance errors only the pre-existing 40 Lessons one. production_acceptance (full
+  ICT day 2026-11-13) is still pending, so daily rates are not claimed.'
+sources:
+- ai-dev-office/runs/TASK-VS-068/evidence/ev-023.log
+- ai-dev-office/runs/TASK-VS-068/evidence/ev-028.log
+- ai-dev-office/runs/TASK-VS-068/task.md (Decisions, Answers)
+- ai-dev-office/runs/TASK-VS-068/status.yaml
+- ai-dev-office/runs/TASK-VS-068/authorization.yaml (authz-002, authz-004)
+- ai-dev-office/knowledge-reviews/20261112T084542Z-01a1cebd-slip-timeout-retry.yaml
+- slip-api origin/prod daa6dbe9f0cfca621029dd40a0822b170f85a35b
+- slip-system origin/prod 2dfc1163232d9c3bf3a8e9f82612417fb03a6008
+- https://github.com/SparqLab/slip-api/pull/144
+- knowledge-base commit 1761bc3
+- knowledge-base commit 6527f78
+recommended_action: update_note
+requires_human_review: true
+note_patch: "diff --git \"a/Knowledge Base/10 Projects/VerifySlip/KBank 8404 Not-Found
+  Quota Rule \\342\\200\\224 2026-11-09.md\" \"b/Knowledge Base/10 Projects/VerifySlip/KBank
+  8404 Not-Found Quota Rule \\342\\200\\224 2026-11-09.md\"\nindex 167ff76..9cb4f90
+  100644\n--- \"a/Knowledge Base/10 Projects/VerifySlip/KBank 8404 Not-Found Quota
+  Rule \\342\\200\\224 2026-11-09.md\"\t\n+++ \"b/Knowledge Base/10 Projects/VerifySlip/KBank
+  8404 Not-Found Quota Rule \\342\\200\\224 2026-11-09.md\"\t\n@@ -61,8 +61,12 @@
+  Slip key = branch + channel + `lower(sending_bank)` + `lower(trans_ref)`, the sa\n
+  \  `statusCode: 422`, `statusMessage: rejected`; 8404 is not the public `statusCode`.\n
+  \  See [[10 Projects/VerifySlip/Verification Results Retry Timeout And Quota — UX
+  Reference|ผลตรวจสลิปและ Quota — UX Reference]]\n   for public envelopes, per-outcome
+  charges and timeout uncertainty.\n-- 404 / 4040 `not_found`, other `rejected` codes
+  (charged 1) and duplicates (free in every\n-  case, as slip-landing promises) are
+  unchanged.\n+- 404 / 4040 `not_found` and other `rejected` codes (charged 1) are
+  unchanged. Duplicates were\n+  free in every case when this rule shipped. Since
+  TASK-VS-068 (slip-api `daa6dbe`,\n+  `slip-api-production:152`, 2026-11-13) only
+  a duplicate found before the bank call stays free:\n+  one found after the bank
+  call is charged by the rule for the bank's answer (D2). A retried\n+  verified answer
+  inside this rule's 24 h free window also stays free, with no retry surcharge (D1).\n+
+  \ slip-landing still says duplicates are free.\n - The rule never charges more than
+  the old rule, so it shipped first and the merchant is\n   told afterwards (gate
+  `merchant_notice`).\n - Refunding past 8404 charges is deferred (gate `refund_decision`).
+  The count query is in\ndiff --git \"a/Knowledge Base/10 Projects/VerifySlip/KBank
+  Client Timeout 3.05 s \\342\\200\\224 Origin And Why It Stays.md\" \"b/Knowledge
+  Base/10 Projects/VerifySlip/KBank Client Timeout 3.05 s \\342\\200\\224 Origin And
+  Why It Stays.md\"\nindex 3c780f1..f015a0b 100644\n--- \"a/Knowledge Base/10 Projects/VerifySlip/KBank
+  Client Timeout 3.05 s \\342\\200\\224 Origin And Why It Stays.md\"\t\n+++ \"b/Knowledge
+  Base/10 Projects/VerifySlip/KBank Client Timeout 3.05 s \\342\\200\\224 Origin And
+  Why It Stays.md\"\t\n@@ -1,39 +1,46 @@\n ---\n freshness: current\n-verified_at:
+  2026-11-10\n+verified_at: 2026-11-13\n task_id: TASK-VS-068\n-evidence_refs: [ev-001]\n+evidence_refs:
+  [ev-001, ev-023, ev-028]\n repo_origin: SparqLab/slip-system\n-repo_sha: 171baeb20e1438883ec0e366fe48bdf0b554c569\n-confidence:
+  medium\n+repo_sha: 2dfc1163232d9c3bf3a8e9f82612417fb03a6008\n+confidence: high\n
+  ---\n \n # VerifySlip — KBank Client Timeout 3.05 s: Origin And Why It Stays\n \n
+  slip-system stops waiting for KBank after **3.05 s** (`TIMEOUT` and `RESPONSE_HEADER_TIMEOUT`,\n-`MAX_RETRIES=0`).
+  Read this before you answer \"why 3.05 s?\", propose a longer or shorter KBank\n-timeout,
+  change the retry, or explain the KBank invoice gap.\n+`MAX_RETRIES=0`). Since 2026-11-12
+  it retries once inside the app, on a new connection, when the\n+call timed out after
+  the request was written (TASK-VS-068). Read this before you answer \"why\n+3.05
+  s?\", propose a longer or shorter KBank timeout, change the retry, or explain the
+  KBank invoice\n+gap.\n \n - Facts below were re-read on 2026-11-10: slip-system
+  `origin/prod` `171baeb` = the running image\n   `slip-system-production:29`, the
+  prod task definition env, git history, jaview `origin/main`, and\n   prod CloudWatch
+  logs (TASK-VS-068 ev-001).\n-- `confidence: medium` because the **reason** for 3.05
+  s was never written down. The reason given\n-  below is an inference and is marked
+  as one. Ask watcharapol-spl to confirm it.\n+- Re-checked on 2026-11-13 after TASK-VS-068
+  shipped: slip-system `origin/prod` `2dfc116` runs on\n+  `slip-system-production:30`
+  with env unchanged from `:29` (ev-023), and slip-api `origin/prod`\n+  `daa6dbe`
+  runs on `slip-api-production:152` (ev-028).\n+- The **reason** for 3.05 s comes
+  from watcharapol-spl, relayed by Earth on 2026-11-13 (see\n+  \"Reason\" below).
+  It was never written in a commit.\n \n ## Short answer\n \n-- **Origin:** tuned
+  by hand during the 2026-09-24 production load test (TASK-VS-003), with no\n-  written
+  reason. The ~3 s 504s it was chasing most likely came from slip-api's 3 s DB\n-
+  \ `queryTimeout`, not from KBank.\n-- **Why it stays:** the only API merchant gives
+  up at about **8 s**. 3.05 s leaves room for the\n-  ECS Service Connect proxy to
+  retry a stuck call on another task, so the merchant still gets an\n-  answer (p95
+  about 3.7 s for retried calls). Longer timeouts were tried and rolled back.\n+-
+  **Origin:** tuned by hand during the 2026-09-24 production load test (TASK-VS-003).
+  No commit\n+  gives a reason. watcharapol-spl's answer, relayed by Earth on 2026-11-13:
+  with 3.05 s the load\n+  test reached the verify limit, and with other timeouts
+  it did not. The ~3 s 504s it was chasing\n+  most likely came from slip-api's 3
+  s DB `queryTimeout`, not from KBank.\n+- **Why it stays:** the only API merchant
+  gives up at about **8 s**. 3.05 s leaves room for one\n+  retry, so the merchant
+  still gets an answer (p95 about 3.7 s for retried calls). Until\n+  2026-11-12 the
+  ECS Service Connect proxy made that retry on another task. Since then slip-system\n+
+  \ makes it in the app (TASK-VS-068). Longer timeouts were tried and rolled back.\n
+  - **What it costs:** a call we abandon at 3.05 s is often answered `0000` by KBank
+  later and billed,\n-  and the proxy retry is billed again. About 0.26 % of verifies
+  (1,186 on 2026-11-08 ICT and 1,920 on\n-  2026-11-09 ICT). This is roughly the whole
+  monthly invoice gap. TASK-VS-068 records the decision\n-  to charge +1 quota under
+  its retry conditions rather than changing the timeout. It remains\n-  pending in
+  the status read on 2026-11-12; slip-api prod source `47e4245` still has no retry\n-
+  \ surcharge. Do not describe this decision as already deployed.\n+  and the retry
+  is billed again. About 0.26 % of verifies (1,186 on 2026-11-08 ICT and 1,920 on\n+
+  \ 2026-11-09 ICT). This is roughly the whole monthly invoice gap. TASK-VS-068 kept
+  the timeout and\n+  passes that cost on: since slip-api `daa6dbe` (`slip-api-production:152`,
+  rollout completed\n+  2026-11-13 04:07:58Z) a retried answer that is a charged `0000`
+  costs the merchant one more\n+  quota. In the 12 minutes after the rollout, 11 of
+  11 retries were charged (ev-028).\n   For public outcomes, customer quota by case
+  and the distinction between client timeout and a\n   completed charge, see\n   [[10
+  Projects/VerifySlip/Verification Results Retry Timeout And Quota — UX Reference|ผลตรวจสลิปและ
+  Quota — UX Reference]].\n@@ -52,12 +59,15 @@ timeout, change the retry, or explain
+  the KBank invoice gap.\n | 2026-11-05 | TASK-VS-059 deploys 12 s and no proxy retry.
+  16 merchant 408s at 7.65–8.02 s in 13 minutes (none the day before), so it is rolled
+  back to 3.05 s: first to `:27` at 12:33Z, then `slip-system-production:29` at 17:28Z
+  from the revert merge (same tree) | `ai-dev-office/runs/TASK-VS-059/task.md` \"Outcome\"
+  |\n | 2026-11-06 | TASK-VS-061 (capped retry inside 8 s) closed unshipped: the saving
+  did not justify the 408 risk | `ai-dev-office/runs/TASK-VS-061/task.md` |\n | 2026-11-10
+  | Measured: every timeout comes from one merchant. TASK-VS-068 opened: keep 3.05
+  s, charge +1 quota for a billed retry | TASK-VS-068 ev-001 |\n+| 2026-11-12 19:24Z
+  | slip-system `2dfc116` (`67ac92c`, slip-system#25) on `slip-system-production:30`:
+  one in-app retry on a new connection after a written-request timeout; a second timeout
+  is sent as `FailedPrecondition` + `BANK_UNAVAILABLE` so the proxy does not retry
+  a third time; a retried answer carries `x-bank-billed-attempts: 2` | TASK-VS-068
+  ev-023 |\n+| 2026-11-13 04:07Z | slip-api `daa6dbe` (slip-api#141) on `slip-api-production:152`:
+  a retried charged `0000` adds a `verification_bank_retry` quota row; 11/11 retries
+  charged in the first 12 minutes | TASK-VS-068 ev-028 |\n+| 2026-11-13 | watcharapol-spl
+  gives the reason for 3.05 s (relayed by Earth) | TASK-VS-068 `task.md` \"Answers\"
+  |\n \n-**Inference, not confirmed:** 3.05 s was chosen so that two attempts (first
+  call plus the proxy\n-retry, 2 × 3.05 = 6.1 s) fit inside a client budget of about
+  8 s, and to sit just above a 3 s line\n-(the `Upslip 1M Architecture` note in jaview
+  sets a p99 budget of under 3 s to the client). The load\n-test itself does not show
+  that the KBank timeout needed to be 3.05 s: its ceiling was the 1,200/min\n-attempt
+  budget, and its 504s were slip-api's DB layer.\n+**Reason (watcharapol-spl, relayed
+  by Earth on 2026-11-13):** with 3.05 s the load test could push\n+verify up to the
+  limit of 1,200 per minute, the attempt budget `BANK_ATTEMPT_LIMIT_PER_MINUTE`.\n+With
+  other timeouts it did not reach that limit. (The first relay said \"1200/s\"; watcharapol-spl\n+corrected
+  it to per minute the same day.) The earlier inference in this note (two 3.05 s attempts\n+fit
+  inside the merchant's 8 s) is not the reason given, although it is still why one
+  retry fits.\n \n ## Why not longer\n \n@@ -103,19 +113,27 @@ answers `0000` is billed
+  and then retried, so a shorter timeout raises double bi\n   `MAX_RETRIES` default
+  0).\n - The chain above it caps at 15 s: slip-api `SLIP_SYSTEM_REQUEST_TIMEOUT`
+  default 15 s (unset on\n   prod), Service Connect default per-request timeout 15
+  s, slip-api HTTP `WriteTimeout` 20 s.\n-- Retry behaviour: slip-system sends a timeout
+  as gRPC `Unavailable`, and Service Connect retries\n-  `Unavailable` on another
+  task. That proxy retry is what rescues the merchant today.\n+- Retry behaviour since
+  2026-11-12 (`slip-system-production:30`): a timeout after the request was\n+  written
+  is retried once in the app (`verifyWithBilledRetry`, `internal/core/services/bank.go`)
+  on\n+  a single-use connection, and a success logs `kbank verify retry succeeded`.
+  A second timeout goes\n+  out as `FailedPrecondition` + `ErrorInfo{Reason: BANK_UNAVAILABLE}`,
+  which slip-api answers as 502\n+  with `Retry-After: 30`, so the proxy does not
+  retry it. Failures before the request was written\n+  stay `Unavailable`, and Service
+  Connect may still retry those on another task.\n+- Before 2026-11-12, slip-system
+  sent every timeout as `Unavailable`, and the Service Connect retry\n+  on another
+  task rescued the merchant.\n - `MAX_RETRIES` above 0 would retry inside the app
+  on any retryable network error, billing timeouts\n-  again. Keep it 0 unless the
+  retry is redesigned (TASK-VS-068 moves one retry into the app for the\n-  after-write
+  timeout only).\n+  again. Keep it 0: the TASK-VS-068 retry covers the after-write
+  timeout only.\n \n ## Open questions\n \n-- Confirm the reason for 3.05 s with watcharapol-spl.\n--
+  The Service Connect retry policy and retry count are not documented anywhere checked.\n--
+  jaview weekly notes for 2026-11-06 and 2026-11-13 list a devops item \"Improve verify\n-
+  \ retry/idempotency handling with the affected merchant\". It overlaps TASK-VS-068\n-
+  \ (`devops_coordination` gate).\n+- The Service Connect retry policy and retry count
+  are not documented anywhere checked. Asked of\n+  devops on 2026-11-13 with no answer
+  yet. The in-app retry design depends on the proxy not retrying\n+  `FailedPrecondition`.\n+-
+  Closed 2026-11-13: the jaview devops item \"Improve verify retry/idempotency handling
+  with the\n+  affected merchant\" does not collide with TASK-VS-068. viewsupat told
+  the merchant to resend on\n+  408/502 and that a resend without the `Idempotency-Key`
+  is charged extra. A same-key resend\n+  replays free on slip-api, and a keyless
+  resend is charged only as a post-bank duplicate\n+  (TASK-VS-068 `task.md` \"Answers\").\n
+  \n ## Sources\n \n@@ -135,6 +153,11 @@ Sources:\n - ai-dev-office/runs/TASK-VS-059/task.md
+  (KBank billing rules, 12 s outcome, load-test impact)\n - ai-dev-office/runs/TASK-VS-061/task.md
+  (closure)\n - ai-dev-office/runs/TASK-VS-068/task.md and evidence ev-001 (timeouts
+  by merchant, 2026-11-08/09 ICT)\n+- slip-system origin/prod 2dfc116 (67ac92c): internal/core/services/bank.go,
+  internal/handler/grpc/bank.go,\n+  internal/repositories/kbank.go (singleUseTransport)\n+-
+  slip-api origin/prod daa6dbe: internal/core/service/verification.go, internal/models/bank_retry.go\n+-
+  ai-dev-office/runs/TASK-VS-068 ev-023 (slip-system prod check), ev-028 (slip-api
+  prod check),\n+  task.md \"Answers\" (watcharapol-spl and viewsupat, relayed by
+  Earth 2026-11-13)\n ```\n \n ## Related\ndiff --git a/Knowledge Base/10 Projects/VerifySlip/KBank
+  Monthly Reconciliation.md b/Knowledge Base/10 Projects/VerifySlip/KBank Monthly
+  Reconciliation.md\nindex 2af593d..2c890ad 100644\n--- a/Knowledge Base/10 Projects/VerifySlip/KBank
+  Monthly Reconciliation.md\t\n+++ b/Knowledge Base/10 Projects/VerifySlip/KBank Monthly
+  Reconciliation.md\t\n@@ -45,8 +45,8 @@ holds the answers we kept.\n \n | Source
+  | Billed | In our `verified` | Size (2026-11-08) |\n |---|---|---|---:|\n-| slip-system
+  cuts the KBank call at 3.05 s, KBank answers 0000 later; the proxy retry then succeeds
+  and is billed again | yes | only the retry | 1,186 timeouts |\n-| Duplicate found
+  after the bank answered (409 at 100 ms or more) | yes | no (`duplicate`) | 14 |\n+|
+  slip-system cuts the KBank call at 3.05 s, KBank answers 0000 later; the retry (the
+  proxy until 2026-11-12, in the app since) then succeeds and is billed again | yes
+  | only the retry | 1,186 timeouts |\n+| Duplicate found after the bank answered
+  (409 at 100 ms or more) | yes | no (`duplicate`); charged to the merchant since
+  2026-11-13 | 14 |\n | Merchant cancels mid-call (408) | if 0000 | no | 4 |\n | Receiver
+  lookup fails, verified result not saved (since VS-064, `slip-api-production:142`)
+  | yes | no | 2 in the first 20 h |\n | Top-up slips (`payment_transactions`) | yes
+  | no | 36 in all of October |\n@@ -61,10 +61,19 @@ holds the answers we kept.\n
+  - **Why it is not fixed:** a 12 s timeout cut the double billing but broke the merchant,\n
+  \  which gives up at about 8 s (TASK-VS-059, rolled back 2026-11-05). TASK-VS-061,
+  a capped\n   retry, was aborted because the money at stake is small. Measured 2026-11-10:
+  every timeout\n-  comes from the one API merchant, so TASK-VS-068 decided to charge
+  +1 quota for a billed\n-  retry instead. That is a decision only: VS-068 is `pending`
+  and slip-api `origin/prod`\n-  `47e4245` has no retry surcharge (checked 2026-11-12),
+  so merchants are not charged for\n-  retries today.\n+  comes from the one API merchant,
+  so TASK-VS-068 charges +1 quota for a billed retry\n+  instead. It is live since
+  slip-api `daa6dbe` (`slip-api-production:152`, rollout completed\n+  2026-11-13
+  04:07:58Z; 11 of 11 retries charged in the first 12 minutes, TASK-VS-068\n+  ev-028).
+  The gap itself stays: KBank still bills both calls and `verified` still holds one\n+
+  \ row. What changes is that the merchant now pays for the second call.\n+- **Counting
+  the surcharge.** From about 11:00 Bangkok on 2026-11-13 (the first new task\n+  started
+  at 03:59:58Z; the rollout completed at 04:07:58Z), each charged retry adds one\n+
+  \ `quota_history` row with `reference_type = 'verification_bank_retry'` (`reference_id`
+  = the\n+  verification id). Its monthly count should track the timeout-driven part
+  of the gap, minus\n+  retries whose answer was free (8404, D1) or skipped for low
+  quota (D4, logged as\n+  `bank retry surcharge skipped`). slip-system logs every
+  in-app retry that succeeds as\n+  `kbank verify retry succeeded`, which is a direct
+  count of the second billed calls since\n+  2026-11-12 19:24Z. November is a mixed
+  month: no surcharge before 2026-11-13.\n   History and reasoning:\n   [[10 Projects/VerifySlip/KBank
+  Client Timeout 3.05 s — Origin And Why It Stays|KBank Client Timeout 3.05 s]].\n
+  \n@@ -169,7 +178,8 @@ printf '%s\\n' \"${days[@]}\" | xargs -P 3 -I{} bash -c 'day
+  {}' | sort\n \n - `timeouts_bank_network` is the main column. It comes from slip-system,
+  so it covers every\n   channel. `verify_200_ge3s` is the same thing seen from slip-api's
+  verify route (timeouts the\n-  proxy retry rescued). The two should be close.\n+
+  \ retry rescued: the proxy until 2026-11-12 19:24Z, the in-app retry since). The
+  two should be\n+  close.\n - Profile `vestearth` cannot run Logs Insights, so the
+  script uses `filter-log-events` and\n   sums the per-page counts. One day takes
+  a few minutes.\n - `cause=bank_network` exists only since the slip-system deploy
+  of 2026-10-31. October was\ndiff --git a/Knowledge Base/10 Projects/VerifySlip/Project
+  Map.md b/Knowledge Base/10 Projects/VerifySlip/Project Map.md\nindex ec74806..c150d0f
+  100644\n--- a/Knowledge Base/10 Projects/VerifySlip/Project Map.md\t\n+++ b/Knowledge
+  Base/10 Projects/VerifySlip/Project Map.md\t\n@@ -318,7 +318,13 @@ slip-contracts
+  ──generated Go/gRPC contract──> slip-api + slip-system\n - ผลตรวจสลิป, UX copy,
+  Quota รายกรณี, retry/idempotency, timeout ที่ยังยืนยันยอดหักไม่ได้,\n   queue/batch
+  และข้อจำกัด `quota_used` (source ตรวจ 2026-11-12):\n   [[10 Projects/VerifySlip/Verification
+  Results Retry Timeout And Quota — UX Reference|ผลตรวจสลิปและ Quota — UX Reference]].\n-
+  \ แยกพฤติกรรม prod ที่ตรวจออกจาก decision TASK-VS-068 ที่ยัง pending\n+  อัปเดต
+  2026-11-13 หลัง TASK-VS-068 ขึ้น prod: แยกพฤติกรรมก่อนและหลัง `daa6dbe`\n+- KBank
+  retry surcharge, TASK-VS-068: slip-system retries a written-request timeout once
+  in the\n+  app (`slip-system-production:30`, 2026-11-12) and slip-api charges one
+  more quota for a retried\n+  charged `0000`, plus the bank answer's charge for a
+  post-bank duplicate (`slip-api-production:152`,\n+  2026-11-13). Pre-bank duplicates
+  stay free; the LINE duplicate footer and slip-landing still say\n+  duplicates are
+  free (known gap). Details in the UX reference above and in\n+  [[10 Projects/VerifySlip/KBank
+  Client Timeout 3.05 s — Origin And Why It Stays|KBank Client Timeout 3.05 s]].\n
+  - KBank 8404 (\"transaction reference does not exist\") quota rule C, TASK-VS-063:
+  one quota per\n   slip, with free repeats and free verifies inside 24 h, state in\n
+  \  `verification_not_found_slips` (migration 078). On prod since `slip-api-production:140`\n@@
+  -332,7 +338,7 @@ slip-contracts ──generated Go/gRPC contract──> slip-api + slip-system\n
+  \  [[10 Projects/VerifySlip/KBank Monthly Reconciliation|KBank Monthly Reconciliation]].\n
+  - Why the KBank client timeout is 3.05 s (hand-tuned in the 2026-09-24 load test
+  with no written\n   reason), why longer timeouts were rolled back (the merchant
+  gives up at about 8 s), what the\n-  timeout costs, and the TASK-VS-068 decision
+  to charge +1 quota for a billed retry instead:\n+  timeout costs, and TASK-VS-068
+  (live 2026-11-13), which charges +1 quota for a billed retry instead:\n   [[10 Projects/VerifySlip/KBank
+  Client Timeout 3.05 s — Origin And Why It Stays|KBank Client Timeout 3.05 s]].\n
+  - Postpaid partner product in `agent-slip-api` (TASK-VS-069, planning and documents
+  only on\n   2026-11-12). The note covers Earth's DEC-01..08, including the 13 duplicate-bank-work
+  cases and\ndiff --git \"a/Knowledge Base/10 Projects/VerifySlip/Verification Results
+  Retry Timeout And Quota \\342\\200\\224 UX Reference.md\" \"b/Knowledge Base/10
+  Projects/VerifySlip/Verification Results Retry Timeout And Quota \\342\\200\\224
+  UX Reference.md\"\nindex 66ab3d6..4a15167 100644\n--- \"a/Knowledge Base/10 Projects/VerifySlip/Verification
+  Results Retry Timeout And Quota \\342\\200\\224 UX Reference.md\"\t\n+++ \"b/Knowledge
+  Base/10 Projects/VerifySlip/Verification Results Retry Timeout And Quota \\342\\200\\224
+  UX Reference.md\"\t\n@@ -1,8 +1,10 @@\n ---\n freshness: current\n-verified_at:
+  2026-11-12\n+verified_at: 2026-11-13\n+task_id: TASK-VS-068\n+evidence_refs: [ev-028]\n
+  repo_origin: SparqLab/slip-api\n-repo_sha: 47e4245b113e1fdea1d0922f5010a39c5e9b6e03\n+repo_sha:
+  daa6dbe9f0cfca621029dd40a0822b170f85a35b\n aliases:\n   - ผลตรวจสลิปและการคิดโควต้า\n
+  \  - Slip timeout retry quota UX\n@@ -27,6 +29,12 @@ aliases:\n   `171baeb20e1438883ec0e366fe48bdf0b554c569`
+  สำหรับ timeout defaults และ error mapping\n - GitHub Deploy PRODUCTION ล่าสุดที่ตรวจในบทสนทนา
+  success ที่ SHA ทั้งสองข้างต้น\n   นี่เป็น source/CI snapshot ไม่ใช่การทดสอบทุกกรณีกับธนาคารจริงหรือการอ่าน
+  ECS/config ใหม่ในรอบนี้\n+- **อัปเดต 2026-11-13 (TASK-VS-068 ขึ้น prod):** slip-api
+  prod เป็น `daa6dbe`\n+  (`slip-api-production:152`) และ slip-system prod เป็น `2dfc116`
+  (`slip-system-production:30`)\n+  ส่วนต่างของ slip-api จาก `47e4245` มีแค่ commit
+  ของ VS-068 (`d6e6a40`) กับ VS-046 (`3324e14`)\n+  จุดที่เปลี่ยนจึงมีแค่การคิดโควตาสลิปซ้ำหลังถามธนาคาร
+  การหักเพิ่มเมื่อ retry ธง `quota_used`\n+  ของ duplicate ในคิว และข้อความเหตุผลของสลิปเติมเงินที่เกินเวลา
+  แถวอื่นในโน้ตนี้ยังตรงกับ `daa6dbe`\n+  หลักฐาน runtime: TASK-VS-068 ev-028 (12
+  นาทีหลัง rollout, retry 11/11 ถูกหักเพิ่ม)\n - `freshness: current` หมายถึงตรวจ
+  source ณ วันที่ระบุ ไม่ใช่รับรองว่า production ไม่เปลี่ยนภายหลัง\n   ก่อนให้คำตอบปัจจุบันหรือเผยแพร่เงื่อนไข
+  ต้องตรวจ source และสถานะ TASK-VS-068 ใหม่\n \n@@ -53,7 +61,8 @@ aliases:\n | ตรวจรายการสำเร็จ
+  | HTTP 200, `statusCode: 200`, `statusMessage: verified` | 1* | ตรวจสอบรายการโอนสำเร็จ
+  — แสดงยอด ผู้รับ และเวลาโอนประกอบ |\n | ธนาคารตรวจสำเร็จ แต่ผู้รับไม่ตรงกับสาขา
+  | 200/verified และ `outcome_reason: receiver_mismatch` | 1* | บัญชีผู้รับไม่ตรง
+  — ยังไม่ควรยืนยันรับชำระโดยอัตโนมัติ |\n | พบสลิปซ้ำก่อนเรียกธนาคาร | 409/duplicate
+  พร้อมข้อมูลสลิปเดิม | 0 เพิ่ม | สลิปซ้ำ — เปิดดูรายการเดิม |\n-| เรียกธนาคารแล้วจึงพบซ้ำ
+  เช่น คำขอพร้อมกันหรือ insert ชน unique index | 409/duplicate | 0 เพิ่ม **ตามโค้ดปัจจุบัน**
+  | คำขอที่บันทึกสำเร็จอาจคิดไปแล้ว แต่คำขอที่จบ duplicate ไม่คิดเพิ่ม; แยกจากแผน
+  VS-068 |\n+| เรียกธนาคารแล้วจึงพบซ้ำ เช่น คำขอพร้อมกันหรือ insert ชน unique index
+  | 409/duplicate | **ตามผลธนาคาร** (ตั้งแต่ `daa6dbe`, 2026-11-13) และ +1 ถ้า retry
+  แล้วได้ 0000 ที่คิดโควตา | สลิปซ้ำ — แต่คำขอนี้ไปถามธนาคารแล้วจึงคิดโควตา (VS-068
+  D2) ก่อน 2026-11-13 ไม่คิด |\n+| slip-system retry เองแล้วได้ 0000 | 200/verified
+  เหมือนปกติ | 1* + 1 เป็นแถว \"ธนาคารตอบช้า ระบบส่งตรวจซ้ำ\" | แสดงผลสำเร็จตามปกติ
+  ในประวัติโควตาจะเห็น 2 แถว (VS-068 ตั้งแต่ 2026-11-13) |\n | ธนาคารตอบ 404/4040
+  | 404/not_found | 0 | ไม่พบรายการโอน — ตรวจข้อมูลและลองใหม่ภายหลัง |\n | ธนาคารปฏิเสธด้วยรหัสอื่นนอกจาก
+  8404 | 422/rejected | 1 | ยังยืนยันรายการโอนนี้ไม่ได้ — การตรวจไม่ผ่านอาจใช้ Quota
+  |\n | ธนาคารตอบ 8404 ไม่พบเลขอ้างอิง | 422/rejected | 0 หรือ 1 | ใช้กฎ 8404 ด้านล่าง
+  |\n@@ -118,12 +127,12 @@ Slip key = สาขา + ช่องทาง + `lower(sending_bank)` + `lower\n
+  | จำกัดความถี่และไม่เข้าคิว | 429 `rate limit exceeded` | 0 | ส่งคำขอถี่เกินไป —
+  รอตาม Retry-After |\n | จำนวนตรวจพร้อมกันเต็ม | 429 `verification capacity exhausted`
+  | 0 | มีผู้ใช้งานจำนวนมาก — รอตาม Retry-After |\n | ธนาคารจำกัดคำขอ | 429 `bank
+  rate limit exceeded` | 0 สำหรับความพยายามที่ถูกปฏิเสธ | คิวอาจนำไปตรวจใหม่ภายหลังและคิดตามผลใหม่
+  |\n-| ธนาคาร/connector ไม่พร้อม | 502 `bank verifier unavailable` | 0 เมื่อจบ error
+  ก่อนบันทึกผล | ยังตรวจสอบกับธนาคารไม่ได้ — ลองใหม่ภายหลัง |\n+| ธนาคาร/connector
+  ไม่พร้อม รวมกรณี timeout ทั้งครั้งแรกและครั้งที่ retry | 502 `bank verifier unavailable`
+  + `Retry-After: 30` | 0 เมื่อจบ error ก่อนบันทึกผล | ยังตรวจสอบกับธนาคารไม่ได้ —
+  ลองใหม่หลัง 30 วินาทีด้วย key เดิม |\n | หมดเวลารอของระบบ | 504 | ต้องตรวจประวัติ
+  | ยังไม่ได้รับผลภายในเวลาที่กำหนด — ตรวจรายการเดิมก่อนส่งใหม่ |\n | ยกเลิกคำขอ |
+  อาจเป็น 408 ฝั่ง server | ต้องตรวจประวัติ | การตรวจสอบถูกขัดจังหวะ — ยังยืนยันผลไม่ได้
+  |\n | อินเทอร์เน็ตขาด/อุปกรณ์หยุดรอ | อาจไม่ได้รับ HTTP response | ต้องตรวจประวัติ
+  | ไม่ได้รับผลตรวจสอบ — ตรวจการเชื่อมต่อและรายการเดิม |\n | ระบบภายในผิดพลาด | 500
+  หรือ 502 อื่น | ต้องดูจุดล้มเหลว/transaction | ไม่สามารถตรวจสอบได้ในขณะนี้ — เก็บ
+  X-Request-ID ให้ support |\n-| proxy retry ภายในแล้วจบ verified | ปลายทางได้ 200
+  | 1* ตามผลสำเร็จปัจจุบัน | ปัจจุบันไม่มี +1 เพียงเพราะมี retry ภายใน |\n+| slip-system
+  retry ภายในแล้วจบ verified (0000 ที่คิดโควตา) | ปลายทางได้ 200 | 1* + 1 (ตั้งแต่
+  2026-11-13) | ถ้าโควตาไม่พอสำหรับแถวที่เพิ่ม จะไม่หักแถวนั้น (D4) และยังได้ผล verified
+  |\n \n หลักสำคัญ:\n \n@@ -132,8 +141,10 @@ Slip key = สาขา + ช่องทาง + `lower(sending_bank)`
+  + `lower\n    ผู้ใช้อาจไม่เห็นผลทั้งที่หักแล้ว ห้ามแสดง “ไม่หัก Quota” จาก timeout
+  อย่างเดียว\n 3. ยกเลิกฝั่ง browser อาจทำให้ผู้ใช้ไม่ได้รับ 408 กลับมา แม้ server
+  บันทึกการยกเลิกไว้\n 4. **3.5 วินาทีไม่ใช่ SLA รวมของการตรวจและไม่ใช่เกณฑ์เปลี่ยนเป็น
+  duplicate**\n-   slip-system code default อยู่ที่ 3.05 วินาทีต่อ bank attempt; ทั้งคำขออาจมี
+  proxy retry\n-   และงาน DB/บันทึกผลเพิ่มเติม ตัวเลขจาก runtime เดิมต้องดูวันที่ในโน้ต
+  timeout\n+   slip-system code default อยู่ที่ 3.05 วินาทีต่อ bank attempt; ตั้งแต่
+  2026-11-12 ถ้า timeout\n+   หลังส่ง request แล้ว slip-system จะ retry เองอีก 1 ครั้ง
+  (attempt ละ 3.05 วินาที) ส่วน proxy\n+   retry เหลือเฉพาะความล้มเหลวก่อนส่ง request
+  ทั้งคำขอยังมีงาน DB/บันทึกผลเพิ่ม\n+   ตัวเลขจาก runtime เดิมต้องดูวันที่ในโน้ต
+  timeout\n 5. 202 เกิดจากเส้น overflow ของ rate admission ที่ enqueue ได้ ไม่ใช่แปลงเป็นคิวทุกครั้งที่
+  timeout\n    InFlightLimit ยังตอบ 429 โดยตรงได้\n 6. จำนวน bank attempts กับ Quota
+  ของลูกค้าเป็นคนละเรื่อง ห้ามอ้างค่าธนาคารจากโค้ดเราเพียงอย่างเดียว\n@@ -177,7 +188,8
+  @@ UX copy สำหรับกรณีไม่รู้ผล:\n | --- | --- | --- |\n | บันทึก verified แล้ว ใช้
+  key เดิมและข้อมูลเดิม | replay ผลเดิม | 0 เพิ่ม |\n | คำขอเดิมยังทำงาน ใช้ key เดิมและข้อมูลเดิม
+  | รอ idempotency lock; อาจหมดเวลารอได้ | ไม่คิดซ้ำจากการ replay; ต้องดูผลเดิม |\n-|
+  verified แล้ว ใช้ key ใหม่หรือไม่ได้คง key เดิม | โดยทั่วไป duplicate ในขอบเขตเดิม
+  | 0 เพิ่มตามโค้ดปัจจุบัน |\n+| verified แล้ว ใช้ key ใหม่หรือไม่ได้คง key เดิม |
+  duplicate ก่อนถามธนาคาร ถ้าคำขอแรกบันทึกผลแล้ว | 0 เพิ่ม |\n+| คำขอแรกยังไม่เสร็จ
+  ส่งซ้ำด้วย key ใหม่หรือไม่มี key | ไปถึงธนาคาร แล้วจบเป็น duplicate หลังถามธนาคาร
+  | ตามผลธนาคาร (+1 ถ้า retry) ตั้งแต่ 2026-11-13 |\n | รอบแรกไม่ได้บันทึกสำเร็จ |
+  ตรวจใหม่ได้ และยังล้มเหลวซ้ำได้ | ตามผลการตรวจใหม่ |\n | ผลเดิม 404/4040 | ตรวจธนาคารใหม่ได้หลัง
+  cooldown | 0 ถ้ายัง not_found; ถ้าเปลี่ยนเป็น verified ใช้กฎใหม่ |\n | ผลเดิม 8404
+  | replay ภายใน 30 วินาที; หลังจากนั้นตรวจใหม่ได้ | ใช้ตาราง 8404 ไม่ใช่ replay ฟรีถาวร
+  |\n@@ -194,7 +206,7 @@ UX copy สำหรับกรณีไม่รู้ผล:\n | PROCESSING | ยังสรุปไม่ได้
+  | งานอาจกำลังตรวจหรือบันทึก |\n | COMPLETED | ตามผลแต่ละรายการ | ไม่ได้แปลว่าผ่านทุกไฟล์หรือหักทุกไฟล์
+  |\n | verified | 1* | ตามกฎตรวจปกติ |\n-| duplicate | 0 เพิ่มปัจจุบัน | ไม่คืนค่าตรวจครั้งก่อน
+  |\n+| duplicate | 0 เพิ่มถ้าพบก่อนถามธนาคาร; ตามผลธนาคารถ้าพบหลังถาม (ตั้งแต่ 2026-11-13)
+  | ไม่คืนค่าตรวจครั้งก่อน |\n | condition_failed | ตามผลธนาคาร โดยทั่วไป 1* | ผู้รับ/ยอด/วันที่/อายุไม่ผ่าน
+  ไม่ทำให้คืนค่าตรวจที่บันทึกแล้ว |\n | not_found จาก 404/4040 | 0 | ไม่พบรายการ |\n
+  | rejected | 1 หรือกฎ 8404 | แยกรหัสธนาคารภายใน |\n@@ -215,27 +227,42 @@ UX copy
+  สำหรับกรณีไม่รู้ผล:\n ### ข้อจำกัด quota_used ของ batch ที่ต้องจำ\n \n `batchOutcomeFromVerify`
+  ปัจจุบันตั้ง `quotaUsed` จากรหัสผล/ชนิด error ไม่ได้รับจำนวนที่\n-transaction หักจริง
+  เช่น duplicate ตั้ง true แม้ VerifyBank ไม่หักเพิ่ม, verified/rejected\n-ตั้ง true
+  แม้ได้สิทธิ์ฟรีจากกฎ 8404 สรุป `quota_used` ระดับชุดจึงคลาดเคลื่อนได้ด้วย\n+transaction
+  หักจริง ตั้งแต่ `daa6dbe` duplicate จะตั้ง true เฉพาะ duplicate หลังถามธนาคาร\n+(`ErrDuplicateSlipAfterBank`)
+  แต่ verified/rejected ยังตั้ง true แม้ได้สิทธิ์ฟรีจากกฎ 8404\n+และธงนี้ไม่บอกแถวที่หักเพิ่มเมื่อ
+  retry สรุป `quota_used` ระดับชุดจึงยังคลาดเคลื่อนได้\n \n **ห้ามใช้ `quota_used`
+  ของ batch เป็นหลักฐานยอดหักจริงสำหรับรับรองกับลูกค้าในกรณีเหล่านี้**\n ตรวจประวัติ
+  Quota ที่ผูก verification/reference จริงประกอบ ยังไม่มีการแก้ข้อจำกัดนี้ใน session
+  นี้\n นี่ไม่ใช่หลักฐานว่าทุกช่องทางแสดงยอดผิดหรือ ledger หักผิด\n \n-## พฤติกรรมปัจจุบันกับสิ่งที่ตัดสินใจแล้วแต่ยัง
+  pending\n+## TASK-VS-068 มีผลบน prod แล้ว (2026-11-13)\n \n-TASK-VS-068 บันทึก decision
+  ของ Earth วันที่ 2026-11-10 แต่ status ที่อ่าน 2026-11-12 ยัง pending\n-และ source
+  prod ที่ตรวจยังไม่ทำการคิดเพิ่มนั้น\n+ลำดับที่ขึ้น: slip-system `2dfc116` (`slip-system-production:30`,
+  rollout เสร็จ 2026-11-12 19:24Z)\n+ทำ retry ในแอปและส่งสัญญาณ `x-bank-billed-attempts:
+  2` ก่อน ต่อมา slip-api `daa6dbe`\n+(`slip-api-production:152`, rollout เสร็จ 2026-11-13
+  04:07:58Z หรือ 11:07 น.) เริ่มคิดโควตา\n+Earth แจ้งร้านก่อน deploy แล้ว (gate `merchant_notice`)
+  ใน 12 นาทีหลัง rollout\n+retry 11/11 ครั้งถูกหักเพิ่ม ไม่มีการข้ามการหัก (D4) และไม่มี
+  5xx หรือ ERROR (ev-028)\n \n-| ประเด็น | Prod source ที่ตรวจ | Decision/งาน VS-068
+  |\n+| ประเด็น | ก่อน 2026-11-13 | ตั้งแต่ `daa6dbe` |\n | --- | --- | --- |\n-|
+  retry ภายในแล้วได้ 0000 | โดยทั่วไป 1* ต่อผลที่บันทึก ไม่มี surcharge จาก retry
+  | เพิ่ม surcharge 1 ตามเงื่อนไข retry ที่กำหนด |\n-| duplicate ตอบจากข้อมูลเดิมก่อนธนาคาร
+  | 0 เพิ่ม | คงฟรี |\n-| duplicate ที่เรียกธนาคารไปแล้ว | 0 เพิ่ม | คิดตามผลธนาคาร
+  และอาจมี retry surcharge |\n-| verified ในช่วง 8404 ที่คิดแล้ว 24 ชั่วโมง | ฟรีตามกฎ
+  | D1: ถ้า base ฟรี ก็ไม่มี surcharge |\n+| retry ภายในแล้วได้ 0000 ที่คิดโควตา |
+  1* ไม่มีแถวเพิ่ม | 1* + 1 แถว `verification_bank_retry` (\"ธนาคารตอบช้า ระบบส่งตรวจซ้ำ\")
+  |\n+| retry แล้วได้ 0000 ที่ฟรีเพราะอยู่ในช่วง 24 ชั่วโมงของ 8404 (D1) | ฟรี | ฟรีทั้งแถวหลักและแถวเพิ่ม
+  |\n+| retry แล้วได้ 8404 หรือรหัส rejected อื่น | ตามกฎเดิม | ตามกฎเดิม ไม่มีแถวเพิ่ม
+  เพราะ KBank คิดเงินเราเฉพาะ 0000 |\n+| โควตาพอสำหรับแถวหลักแต่ไม่พอสำหรับแถวเพิ่ม
+  (D4) | ไม่เกี่ยว | หักแถวหลัก ข้ามแถวเพิ่ม ผลยัง verified และ log `bank retry surcharge
+  skipped` |\n+| duplicate ตอบจากข้อมูลเดิมก่อนถามธนาคาร | 0 เพิ่ม | 0 เพิ่ม (เหมือนเดิม)
+  |\n+| duplicate ที่ถามธนาคารไปแล้ว (D2) | 0 เพิ่ม | ตามผลธนาคาร และ +1 ถ้า retry
+  |\n \n-ต้องยืนยัน implementation, deploy, acceptance และ merchant_notice ก่อนเขียนว่ากฎใหม่มีผลแล้ว\n-ห้ามใช้
+  task decision แทนหลักฐาน runtime และห้ามลบ decision เพียงเพราะยังไม่ deploy\n+ช่องโหว่ที่
+  Earth รับไว้ (2026-11-13): footer ของ LINE flex สำหรับสลิปซ้ำยังเขียนว่า\n+\"ระบบเคยตรวจสลิปนี้แล้ว
+  ยืนยันว่าสลิปนี้ซ้ำไม่หักโควตา\" ทุกกรณี รวมสลิปซ้ำหลังถามธนาคารที่ตอนนี้คิดโควตา\n+(`slip-api/internal/core/service/line_flex.go`)
+  ส่วนข้อความใน slip-landing ที่บอกว่าสลิปซ้ำไม่คิดโควตา\n+ยังไม่ได้แก้ (PR slip-landing#18
+  ถูกปิดไป และ Earth แจ้งร้านเองนอกระบบ)\n+\n+สิ่งที่ devops บอกร้านไว้ (viewsupat
+  ผ่าน Earth, 2026-11-13): ให้ร้านส่งซ้ำเองเมื่อได้ 408/502\n+และส่งซ้ำโดยไม่มี `Idempotency-Key`
+  จะคิดเพิ่ม ข้อนี้สอดคล้องกับโค้ด: ส่งซ้ำด้วย key เดิมได้ผลเดิมฟรี\n+ส่วนส่งซ้ำแบบไม่มี
+  key จะคิดโควตาเฉพาะเมื่อไปถึงธนาคาร ซึ่งเกิดเมื่อคำขอแรกยังไม่เสร็จ\n+\n+`production_acceptance`
+  ของ VS-068 ยังรอผลเช็คเต็มวัน 2026-11-13 ICT ก่อนสรุปอัตราการหักทั้งวัน\n+ให้ตรวจ
+  status ของ task ก่อนอ้างตัวเลขรายวัน\n \n ## วิธีตรวจใหม่ครั้งหน้า\n \n@@ -263,6
+  +290,12 @@ bank unavailable, not_found และ queue receiver path ด้วย unit test\n
+  ไม่ได้ทดสอบทุก failure กับธนาคารจริง ไม่ได้อ่าน ledger production ของทุกรายการ\n
+  และไม่ได้แก้ batch quota flag หรือ deploy อะไรใน session นี้\n \n+อัปเดต 2026-11-13:
+  อ่าน source `daa6dbe` (`VerifyBank`, `bankQuotaRule`, `saveBankRecord`,\n+`saveWithRetrySurcharge`,
+  `finishPostBankDuplicate`, `duplicateResponse`, `replayBankVerification`,\n+`batchOutcomeFromVerify`)
+  และอ่าน log prod ครบทุกหน้า โดย join retry ฝั่ง slip-system กับบรรทัด\n+`bank retry
+  surcharge charged` ด้วย request_id (TASK-VS-068 ev-028) ชุดทดสอบ VS-068 ผ่าน 19/19\n+บน
+  PostgreSQL จริง (ev-015, ev-025) ยังไม่ได้อ่าน quota_history บน prod โดยตรง\n+\n
+  ## Sources\n \n - `slip-api/internal/core/service/verification.go`\n@@ -286,8 +319,12
+  @@ bank unavailable, not_found และ queue receiver path ด้วย unit test\n - `slip-system/configs/config.go`\n
+  - `slip-system/internal/handler/grpc/bank.go`\n - `slip-system/internal/core/services/kbank_normalize.go`\n--
+  `ai-dev-office/runs/TASK-VS-068/task.md`\n-- `ai-dev-office/runs/TASK-VS-068/status.yaml`\n+-
+  `slip-api/internal/models/bank_retry.go` (origin/prod `daa6dbe`)\n+- `slip-api/internal/core/service/line_flex.go`
+  (footer สลิปซ้ำ)\n+- `slip-api/internal/adapters/slipsystemadt/adapter.go` (BANK_UNAVAILABLE
+  → 502, Retry-After 30)\n+- `slip-system/internal/core/services/bank.go` (origin/prod
+  `2dfc116`, `verifyWithBilledRetry`)\n+- `ai-dev-office/runs/TASK-VS-068/task.md`
+  (Decisions, Answers)\n+- `ai-dev-office/runs/TASK-VS-068/status.yaml` (ev-023, ev-028,
+  gates)\n \n ## Related\n \n"
+provenance:
+  freshness: current
+  verified_at: '2026-11-13'
+  task_id: TASK-VS-068
+  evidence_refs:
+  - ev-023
+  - ev-028
+  repo_origin: SparqLab/slip-api
+  repo_sha: daa6dbe9f0cfca621029dd40a0822b170f85a35b
+  confidence: high

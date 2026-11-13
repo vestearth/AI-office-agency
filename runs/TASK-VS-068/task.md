@@ -182,10 +182,10 @@ Earth sent the questions on its own channel; the conductor drafted them. Answers
 
 - **viewsupat (devops):** the merchant has been told to resend on its own when it gets 408 or 502,
   and that a resend without retry/idempotency (the `Idempotency-Key`) is charged extra.
-- **watcharapol-spl:** 3.05 s lets verify take calls up to the limit, "1200/s or 1300/s"; with other
-  timeouts the load test did not reach it. The load-test report and slip-system config give the bank
-  budget as 1,200 per **minute** (`BANK_ATTEMPT_LIMIT_PER_MINUTE`); "/s" is as relayed and was not
-  checked back.
+- **watcharapol-spl:** 3.05 s lets verify take calls up to the limit of 1,200 per minute (the
+  `BANK_ATTEMPT_LIMIT_PER_MINUTE` budget); with other timeouts the load test did not reach it. The
+  first relay said "1200/s or 1300/s"; watcharapol-spl corrected it to 1,200 per minute the same day
+  (relayed by Earth), which matches the load-test report and the slip-system config.
 
 Check against slip-api prod `daa6dbe` (`internal/core/service/verification.go`, `VerifyBank`):
 
