@@ -270,6 +270,19 @@ history:
     in knowledge-reviews/closeouts/20261113T050037Z-verifyslip-kbank-retry-surcharge.yaml'
   at: '2026-11-13T05:00:37Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'Knowledge closeout finished. Earth approved pushing knowledge-base (chat 2026-11-13);
+    1761bc3 and 6527f78 pushed (0a8247f..6527f78). Librarian reconcile KLR-20261113T050720Z-verifyslip-kbank-retry-surcharge
+    (local audit, validated) found 8 corrections, none critical; each was re-checked against
+    slip-api daa6dbe and slip-system 2dfc116 and applied in knowledge-base 538b8d6 (pushed):
+    Retry-After 30 only on a BANK_UNAVAILABLE 502, D4 surcharge auto-renews before it is skipped,
+    resends after a 502/408 are fresh verifies, any failed retry becomes BANK_UNAVAILABLE,
+    ''retry succeeded'' is an upper bound, charging start ~04:00Z during the rollout, UX note
+    provenance. Another session''s uncommitted Review Queue edit (TASK-EAR-402) was left untouched.
+    Remaining: production_acceptance after the full-day check (check_after 2026-11-13T17:30Z).'
+  at: '2026-11-13T05:25:00Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
