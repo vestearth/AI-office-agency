@@ -226,6 +226,30 @@ history:
     since 2026-11-12T19:24:14Z
   at: '2026-11-13T04:22:14Z'
   operator: claude
+- phase: 'gate staging_acceptance: pending -> na'
+  agent: pm
+  reason: 'Earth decided in chat 2026-11-13 (''ปิดตามนั้น'', answering ''mark staging_acceptance
+    na and pass deploy_production on the prod evidence?''): staging cannot produce
+    the forced slow-then-0000 verify without staging test accounts and a slow bank
+    answer, and prod already shows the behavior: after slip-api-production:152, 11/11
+    slip-system retries joined by request_id to ''bank retry surcharge charged'',
+    0 skipped, 0 surcharge without a retry (ev-028). Staging still proved boot only
+    (slip-system ev-022, slip-api ev-026/ev-027).'
+  at: '2026-11-13T04:26:31Z'
+  operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: 'Both prod deploys ran from the trees that booted on staging, each approved
+    by Earth. slip-system: PR #27, prod 171baeb..2dfc116 (tree f45042a == dry run
+    T2), slip-system-production:30 COMPLETED 3/3 2026-11-12T19:24:14Z, env unchanged
+    from :29, 0 5xx / 0 panic-fatal, first retries succeeded (ev-023, authz-002);
+    rollback :29. slip-api: PR #144, prod 47e4245..daa6dbe (tree 604284b == dry run
+    T2 == staging tree), slip-api-production:152 COMPLETED 3/3 2026-11-13T04:07:58Z,
+    env unchanged from :151, 0 5xx / 0 ERROR, 11/11 post-deploy retries surcharged
+    (ev-028, authz-004); rollback :151. staging_acceptance is na by Earth''s decision
+    (2026-11-13).'
+  at: '2026-11-13T04:26:40Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -284,24 +308,49 @@ completion_gates:
       ref: slip-system staging 15c61c4 (slip-system-staging:35, staging-sha-15c61c4)
       url: https://github.com/SparqLab/slip-system/pull/26
   staging_acceptance:
-    status: pending
+    status: na
     actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-10T08:09:35Z'
+    reason: 'Earth decided in chat 2026-11-13 (''ปิดตามนั้น'', answering ''mark staging_acceptance
+      na and pass deploy_production on the prod evidence?''): staging cannot produce
+      the forced slow-then-0000 verify without staging test accounts and a slow bank
+      answer, and prod already shows the behavior: after slip-api-production:152,
+      11/11 slip-system retries joined by request_id to ''bank retry surcharge charged'',
+      0 skipped, 0 surcharge without a retry (ev-028). Staging still proved boot only
+      (slip-system ev-022, slip-api ev-026/ev-027).'
+    updated_at: '2026-11-13T04:26:31Z'
     evidence_refs: []
     after:
     - deploy_staging
     requires_record: true
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-10T08:09:35Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'Both prod deploys ran from the trees that booted on staging, each approved
+      by Earth. slip-system: PR #27, prod 171baeb..2dfc116 (tree f45042a == dry run
+      T2), slip-system-production:30 COMPLETED 3/3 2026-11-12T19:24:14Z, env unchanged
+      from :29, 0 5xx / 0 panic-fatal, first retries succeeded (ev-023, authz-002);
+      rollback :29. slip-api: PR #144, prod 47e4245..daa6dbe (tree 604284b == dry
+      run T2 == staging tree), slip-api-production:152 COMPLETED 3/3 2026-11-13T04:07:58Z,
+      env unchanged from :151, 0 5xx / 0 ERROR, 11/11 post-deploy retries surcharged
+      (ev-028, authz-004); rollback :151. staging_acceptance is na by Earth''s decision
+      (2026-11-13).'
+    updated_at: '2026-11-13T04:26:40Z'
+    evidence_refs:
+    - ev-023
+    - ev-028
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    - authz-004
+    authorization_through: authz-004
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: claude
+      ref: 'slip-api prod daa6dbe (slip-api-production:152) + slip-system prod 2dfc116
+        (slip-system-production:30, PR #27)'
+      url: https://github.com/SparqLab/slip-api/pull/144
   production_acceptance:
     status: pending
     actor: pm
