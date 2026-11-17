@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-060
 task_label: 'UpSlip blog categories: managed through slip-api instead of hardcoded'
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-04'
-updated_at: '2026-11-04'
+updated_at: '2026-11-17'
 history:
 - phase: created -> assigned
   agent: pm
@@ -73,6 +73,44 @@ history:
     2026-11-05.'
   at: '2026-11-12T16:16:05Z'
   operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: pm
+  reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+    reports the integration complete and said close as Done. Claude did not log in
+    as admin; no authenticated CRUD was observed by the conductor. Observed (ev-023):
+    slip-api-staging:200 (75fd8bc) contains 1ac8e880; GET /v1/web/blog/categories
+    200 served from the API (5 rows); admin categories without login 401. A test category
+    test-1a is still on staging; acceptance asked for test categories to be cleaned
+    up, not done (needs an admin login and is a delete).'
+  at: '2026-11-17T04:05:01Z'
+  operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: 'Earth merged PR #121 release/TASK-VS-060-production as b9f8cda on 2026-11-04
+    (authz-002). Re-checked 2026-11-17 (ev-023): 1ac8e880 is an ancestor of origin/prod
+    ba44240 and prod runs slip-api-production:154 production-sha-ba44240, 3/3, rollout
+    COMPLETED.'
+  at: '2026-11-17T04:05:01Z'
+  operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: pm
+  reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+    reports the integration complete and said close as Done. Claude did not log in
+    as admin; no authenticated CRUD was observed by the conductor. Observed (ev-023):
+    prod public categories 200 from the API (fake-slips, merchant-tips, developer-guides,
+    bank-news), admin without login 401.'
+  at: '2026-11-17T04:05:01Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261117T040535Z-upslip-blog-categories.yaml'
+  at: '2026-11-17T04:05:35Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-17T04:05:47Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -116,39 +154,68 @@ completion_gates:
       ref: 759890768624da5dd2f7ca36271a796c907167fb
       url: https://github.com/SparqLab/slip-api/actions/runs/41806442510
   staging_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-04T08:23:17Z'
-    evidence_refs: []
+    reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+      reports the integration complete and said close as Done. Claude did not log
+      in as admin; no authenticated CRUD was observed by the conductor. Observed (ev-023):
+      slip-api-staging:200 (75fd8bc) contains 1ac8e880; GET /v1/web/blog/categories
+      200 served from the API (5 rows); admin categories without login 401. A test
+      category test-1a is still on staging; acceptance asked for test categories to
+      be cleaned up, not done (needs an admin login and is a delete).'
+    updated_at: '2026-11-17T04:05:01Z'
+    evidence_refs:
+    - ev-023
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: operator
+      ref: viewsupat frontend integration on staging, relayed by Earth 2026-11-17
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-04T08:23:17Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'Earth merged PR #121 release/TASK-VS-060-production as b9f8cda on 2026-11-04
+      (authz-002). Re-checked 2026-11-17 (ev-023): 1ac8e880 is an ancestor of origin/prod
+      ba44240 and prod runs slip-api-production:154 production-sha-ba44240, 3/3, rollout
+      COMPLETED.'
+    updated_at: '2026-11-17T04:05:01Z'
+    evidence_refs:
+    - ev-023
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: operator
+      ref: 'slip-api prod b9f8cda (PR #121, 2026-11-04)'
+      url: https://github.com/SparqLab/slip-api/pull/121
   production_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-04T08:23:17Z'
-    evidence_refs: []
+    reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+      reports the integration complete and said close as Done. Claude did not log
+      in as admin; no authenticated CRUD was observed by the conductor. Observed (ev-023):
+      prod public categories 200 from the API (fake-slips, merchant-tips, developer-guides,
+      bank-news), admin without login 401.'
+    updated_at: '2026-11-17T04:05:01Z'
+    evidence_refs:
+    - ev-023
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: operator
+      ref: viewsupat frontend integration, relayed by Earth 2026-11-17
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-04T08:23:17Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261117T040535Z-upslip-blog-categories.yaml'
+    updated_at: '2026-11-17T04:05:35Z'
     evidence_refs: []
 waits_on:
 - kind: qa
+decision_applied_at: '2026-11-17T04:05:40Z'

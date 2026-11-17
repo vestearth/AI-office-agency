@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-066
 task_label: 'UpSlip blog: editable cover image alt text'
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-09'
-updated_at: '2026-11-09'
+updated_at: '2026-11-17'
 history:
 - phase: created -> assigned
   agent: pm
@@ -77,6 +77,41 @@ history:
     2026-11-12 no public post on prod (5) or staging (7) had a non-empty cover_alt.'
   at: '2026-11-12T16:16:05Z'
   operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: pm
+  reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+    reports the integration complete and said close as Done. Claude did not log in
+    as admin; the set/keep/clear alt and 251-character checks were not observed by
+    the conductor. Observed (ev-015): slip-api-staging:200 (75fd8bc) contains 2b2d30e;
+    public posts return cover_alt (7 posts, none non-empty); admin without login 401.'
+  at: '2026-11-17T04:05:20Z'
+  operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: 'watcharapol-spl merged staging into prod directly as d8e1542 on 2026-11-09;
+    Earth accepted it after the fact on 2026-11-17 (authz-002). Re-checked 2026-11-17
+    (ev-015): 2b2d30e is an ancestor of origin/prod ba44240 and prod runs slip-api-production:154
+    production-sha-ba44240, 3/3, rollout COMPLETED.'
+  at: '2026-11-17T04:08:59Z'
+  operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: pm
+  reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+    reports the integration complete and said close as Done. Claude did not log in
+    as admin; setting an alt on prod was not observed. Observed (ev-015): prod public
+    posts return cover_alt (10 posts, none non-empty yet); admin without login 401.'
+  at: '2026-11-17T04:08:59Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261117T040908Z-upslip-blog-cover-alt.yaml'
+  at: '2026-11-17T04:09:08Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-17T04:09:08Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -124,39 +159,66 @@ completion_gates:
       ref: 3b33b8e40a3b3269fe9fcc7cf880a9afbe68c717
       url: https://github.com/SparqLab/slip-api/actions/runs/42563785540
   staging_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-09T03:23:57Z'
-    evidence_refs: []
+    reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+      reports the integration complete and said close as Done. Claude did not log
+      in as admin; the set/keep/clear alt and 251-character checks were not observed
+      by the conductor. Observed (ev-015): slip-api-staging:200 (75fd8bc) contains
+      2b2d30e; public posts return cover_alt (7 posts, none non-empty); admin without
+      login 401.'
+    updated_at: '2026-11-17T04:05:20Z'
+    evidence_refs:
+    - ev-015
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: operator
+      ref: viewsupat frontend integration on staging, relayed by Earth 2026-11-17
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-09T03:23:57Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'watcharapol-spl merged staging into prod directly as d8e1542 on 2026-11-09;
+      Earth accepted it after the fact on 2026-11-17 (authz-002). Re-checked 2026-11-17
+      (ev-015): 2b2d30e is an ancestor of origin/prod ba44240 and prod runs slip-api-production:154
+      production-sha-ba44240, 3/3, rollout COMPLETED.'
+    updated_at: '2026-11-17T04:08:59Z'
+    evidence_refs:
+    - ev-015
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: watcharapol-spl
+      ref: slip-api prod d8e1542 (merge staging into prod, 2026-11-09)
   production_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-09T03:23:57Z'
-    evidence_refs: []
+    reason: 'operator-attested: Earth relayed in chat 2026-11-17 that viewsupat (frontend)
+      reports the integration complete and said close as Done. Claude did not log
+      in as admin; setting an alt on prod was not observed. Observed (ev-015): prod
+      public posts return cover_alt (10 posts, none non-empty yet); admin without
+      login 401.'
+    updated_at: '2026-11-17T04:08:59Z'
+    evidence_refs:
+    - ev-015
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: operator
+      ref: viewsupat frontend integration, relayed by Earth 2026-11-17
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-09T03:23:57Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261117T040908Z-upslip-blog-cover-alt.yaml'
+    updated_at: '2026-11-17T04:09:08Z'
     evidence_refs: []
 waits_on:
 - kind: qa
+decision_applied_at: '2026-11-17T04:09:08Z'

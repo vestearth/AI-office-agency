@@ -12,3 +12,13 @@ authorizations:
   scope: 'slip-api main 2b2d30e -> staging 10d0870 through a PR (merge commit), dry-run
     tree fe4dcd3c; carries TASK-VS-064 (#127: e19a09c, 038fd73, 802dc14, 2826114)
     and TASK-VS-066 (#129: a763481, migration 079 at boot); staging only, not production'
+- id: authz-002
+  type: grant
+  actor: operator
+  via: chat
+  reason: 'Earth in chat 2026-11-17: ''ยอมรับย้อนหลัง'' — accepts after the fact the
+    prod promotion that watcharapol-spl made directly on 2026-11-09 without an office
+    authorization. Authorizes no new deploy.'
+  at: '2026-11-17T04:08:51Z'
+  action: deploy_production
+  scope: slip-api prod d8e1542 (staging into prod, 2026-11-09), already deployed

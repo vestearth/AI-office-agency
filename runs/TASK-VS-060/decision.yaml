@@ -1,0 +1,7 @@
+task_id: TASK-VS-060
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-17T04:05:40Z'
+  against_phase: assigned
+  note: "recorded from chat by the Claude conductor: Earth said viewsupat (frontend) reports everything complete and to close as Done (2026-11-17). Acceptance gates are operator-attested; prod re-checked in ev-023. Left open: test category test-1a on staging."

@@ -1,0 +1,7 @@
+task_id: TASK-VS-066
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-17T04:09:08Z'
+  against_phase: assigned
+  note: "recorded from chat by the Claude conductor: Earth said viewsupat (frontend) reports everything complete and to close as Done, and accepted the 2026-11-09 prod promotion after the fact (2026-11-17). Acceptance gates are operator-attested; prod re-checked in ev-015."
