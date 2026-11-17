@@ -58,9 +58,20 @@
   fixture whose previous revision carries the keys. RED on `3ea510f` (both workflows
   leak when the GitHub secrets are set), GREEN after the change.
 
-## Decision needed (Earth)
+## Operator decision (Earth, 2026-11-17): parked
 
-Every route needs an IAM admin. Options:
+Earth chose **D: "คงตาม decision 10 ไว้ก่อน"** (keep TASK-VS-058 decision 10 for now),
+relayed by the SPAR-71 review session. Decision 10 (2026-11-02) chose the static key
+pair and accepted that the keys sit as plain task-definition env, readable with
+`ecs:DescribeTaskDefinition`; its follow-ups (rotate/split per environment, move to
+ECS `secrets`) were left for later. So: no IAM route, no Secrets Manager work, no
+prod or key change. Draft SparqLab/slip-api#148 stays open and unmerged; do not close
+it unless Earth says so. The admin-staging session request is withdrawn. Resume only
+on a new operator decision; the options below and the ordering still apply then.
+Correction to this run's first draft: decision 6 had been superseded by decision 10
+on 2026-11-02, so option A was not a standing operator decision.
+
+Options laid out before the decision (every route needs an IAM admin):
 
 - **A (recommended, = TASK-VS-058 decision 6/8):** two dedicated roles,
   `slip-api-staging-task-role` / `slip-api-production-task-role`, each scoped to its

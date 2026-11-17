@@ -1,13 +1,17 @@
 ---
 task_id: TASK-VS-074
 task_label: slip-api S3 uploads via an ECS task role; drop plaintext static S3 keys from ECS task definitions
-phase: assigned
-state: assigned
+phase: blocked
+state: blocked
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: pm
+ready: false
 blocked_on: []
-waiting_for: []
+waiting_for:
+- 'Parked by operator decision 2026-11-17: Earth chose "D: keep TASK-VS-058 decision
+  10 for now" (static S3 key pair as task-definition env, risk already accepted there).
+  No IAM route, no Secrets Manager work. Resume only on a new operator decision to
+  move slip-api S3 access to a task role or ECS secrets.'
 assignment:
   primary: dev
   parallel: false
@@ -50,6 +54,15 @@ history:
   reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-17T08:59:59Z'
+  operator: claude
+- phase: assigned -> blocked
+  agent: pm
+  reason: 'Parked on Earth''s decision "D: คงตาม decision 10 ไว้ก่อน" (keep TASK-VS-058
+    decision 10 for now), relayed 2026-11-17 by the SPAR-71 review session. Static
+    key pair stays as task-definition env; no IAM or Secrets Manager change. Draft
+    SparqLab/slip-api#148 stays open and unmerged. Nothing deployed; staging and prod
+    unchanged. Gates stay pending.'
+  at: '2026-11-17T09:31:00Z'
   operator: claude
 completion_gates:
   implementation_verification:
