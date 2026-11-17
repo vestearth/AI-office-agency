@@ -1,0 +1,7 @@
+task_id: TASK-VS-068
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-17T03:50:00Z'
+  against_phase: in_review
+  note: "recorded from chat by the Claude conductor: Earth said 'ปิด done' (2026-11-17) after accepting the restated 502 criterion and passing production_acceptance (ev-031..ev-034). Open note carried in the gate: D2 post-bank duplicate charges not checked against the database."

@@ -244,7 +244,10 @@ Check against slip-api prod `daa6dbe` (`internal/core/service/verification.go`, 
   - extra charges ≈ retried calls that ended 0000;
   - post-bank duplicate charges ≈ 409s at 100 ms or more (about 14/day), and pre-bank 409s still
     charge 0;
-  - merchant 408s stay near 4–8/day and 502s stay equal to the 8500 count (no new 502 source);
+  - merchant 408s stay near 4–8/day and 502s equal the 8500 count plus slip-system
+    `kbank verify retry failed` (no other 502 source). Restated by Earth 2026-11-17: the proxy made up
+    to 3 attempts and saved most double timeouts with a third; the in-app retry stops at 2 by design,
+    so a double timeout now ends 502 at about 6.1 s (7–27/day in the proxy era, ev-034);
   - p95 of retried 200s stays near 3.7 s.
 - **Month end:** the KBank invoice gap is covered by extra charges (reconciliation worksheet in KB).
 

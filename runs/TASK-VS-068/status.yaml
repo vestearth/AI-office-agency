@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-068
 task_label: Charge +1 quota for a KBank retry that returns 0000
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-10'
-updated_at: '2026-11-13'
+updated_at: '2026-11-17'
 history:
 - phase: created -> pending
   agent: pm
@@ -272,42 +272,119 @@ history:
   operator: claude
 - phase: in_review -> in_review
   agent: pm
-  reason: 'Knowledge closeout finished. Earth approved pushing knowledge-base (chat 2026-11-13);
-    1761bc3 and 6527f78 pushed (0a8247f..6527f78). Librarian reconcile KLR-20261113T050720Z-verifyslip-kbank-retry-surcharge
-    (local audit, validated) found 8 corrections, none critical; each was re-checked against
-    slip-api daa6dbe and slip-system 2dfc116 and applied in knowledge-base 538b8d6 (pushed):
-    Retry-After 30 only on a BANK_UNAVAILABLE 502, D4 surcharge auto-renews before it is skipped,
+  reason: 'Knowledge closeout finished. Earth approved pushing knowledge-base (chat
+    2026-11-13); 1761bc3 and 6527f78 pushed (0a8247f..6527f78). Librarian reconcile
+    KLR-20261113T050720Z-verifyslip-kbank-retry-surcharge (local audit, validated)
+    found 8 corrections, none critical; each was re-checked against slip-api daa6dbe
+    and slip-system 2dfc116 and applied in knowledge-base 538b8d6 (pushed): Retry-After
+    30 only on a BANK_UNAVAILABLE 502, D4 surcharge auto-renews before it is skipped,
     resends after a 502/408 are fresh verifies, any failed retry becomes BANK_UNAVAILABLE,
-    ''retry succeeded'' is an upper bound, charging start ~04:00Z during the rollout, UX note
-    provenance. Another session''s uncommitted Review Queue edit (TASK-EAR-402) was left untouched.
-    Remaining: production_acceptance after the full-day check (check_after 2026-11-13T17:30Z).'
+    ''retry succeeded'' is an upper bound, charging start ~04:00Z during the rollout,
+    UX note provenance. Another session''s uncommitted Review Queue edit (TASK-EAR-402)
+    was left untouched. Remaining: production_acceptance after the full-day check
+    (check_after 2026-11-13T17:30Z).'
   at: '2026-11-13T05:25:00Z'
   operator: claude
 - phase: in_review -> in_review
   agent: devops
-  reason: 'Earth asked (chat 2026-11-13) to schedule the production_acceptance check. Desktop
-    scheduled task vs068-production-acceptance-fullday fires once at 2026-11-13T17:40:00Z
+  reason: 'Earth asked (chat 2026-11-13) to schedule the production_acceptance check.
+    Desktop scheduled task vs068-production-acceptance-fullday fires once at 2026-11-13T17:40:00Z
     (00:40 ICT 11/14, Auto mode). It runs runs/TASK-VS-068/evidence/vs068-fullday-check.sh
     through record-evidence.sh (slip-system 19:24:14Z..17:00Z, slip-api 04:07:58Z..17:00Z,
-    every page; joins each retry to surcharge/skip/D1 and each 502 to its slip-system cause),
-    and only on verdict PASS passes production_acceptance, clears check_after and commits
-    status.yaml. Trial run on 04:07:58Z..05:30Z (not recorded): 77 retries after the slip-api
-    rollout, 76 charged at http 200, 1 http 422 not charged as designed, 0 unexplained, 0
-    orphan surcharge, ERROR 0, no 5xx/408; 22 retry failures happened before the slip-api
-    rollout. The script and cwf.sh live in the gitignored evidence directory.'
+    every page; joins each retry to surcharge/skip/D1 and each 502 to its slip-system
+    cause), and only on verdict PASS passes production_acceptance, clears check_after
+    and commits status.yaml. Trial run on 04:07:58Z..05:30Z (not recorded): 77 retries
+    after the slip-api rollout, 76 charged at http 200, 1 http 422 not charged as
+    designed, 0 unexplained, 0 orphan surcharge, ERROR 0, no 5xx/408; 22 retry failures
+    happened before the slip-api rollout. The script and cwf.sh live in the gitignored
+    evidence directory.'
   at: '2026-11-13T05:40:00Z'
   operator: claude
 - phase: in_review -> in_review
   agent: pm
-  reason: 'Raised to Earth: in the trial window (02:24-12:30 ICT 11/13) 22 of 294 first-attempt
-    timeouts also failed the in-app retry (cause bank_network; 8 of 16 at 05:00, 8 of 54 at
-    09:00, 4 at 10:00, 2 at 04:00 ICT) and answered the merchant 502, while in the proxy-retry
-    era no timeout ended in 502 (ev-001, 11/08-09). Hypothesis, unconfirmed: the Service Connect
-    retry may have tried more than once (policy undocumented, devops not yet answered). The
-    full-day script reports these counts but does not fail on them. Earth decided in chat
-    2026-11-13 (''ปิด gate ได้ถ้า PASS''): the scheduled task keeps passing production_acceptance
-    on verdict PASS.'
+  reason: 'Raised to Earth: in the trial window (02:24-12:30 ICT 11/13) 22 of 294
+    first-attempt timeouts also failed the in-app retry (cause bank_network; 8 of
+    16 at 05:00, 8 of 54 at 09:00, 4 at 10:00, 2 at 04:00 ICT) and answered the merchant
+    502, while in the proxy-retry era no timeout ended in 502 (ev-001, 11/08-09).
+    Hypothesis, unconfirmed: the Service Connect retry may have tried more than once
+    (policy undocumented, devops not yet answered). The full-day script reports these
+    counts but does not fail on them. Earth decided in chat 2026-11-13 (''ปิด gate
+    ได้ถ้า PASS''): the scheduled task keeps passing production_acceptance on verdict
+    PASS.'
   at: '2026-11-13T05:55:00Z'
+  operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'production_acceptance re-check 2026-11-17 (Earth asked for VS-068 acceptance).
+    The scheduled full-day run did not pass the gate: ev-029 was killed (exit 143)
+    and ev-030 said FAIL because the slip-system read failed mid-way (InvalidSignatureException,
+    signature expired while the Mac slept; 1,920 of 2,168 events), so 121 surcharge
+    lines looked like they had no retry. Reran awake: ev-031 (ICT 11/13, same window)
+    and ev-032 (ICT 11/16 full day), both slip-api-production:153 (342c561, watcharapol-spl
+    2026-11-13 09:32Z; daa6dbe is its ancestor; the diff only adds verification model
+    fields and Postman text, no retry/surcharge code) and slip-system-production:30.
+    Both scripts say FAIL. Why: (1) every ERROR line is the http 502 completion line
+    (ev-031 6/6, ev-032 203/203), so the script counts each joined 502 twice; (2)
+    ev-031 1 unexplained retried 200 (request 45a0a335...), whose surcharge line ev-029
+    and ev-030 both read (833 lines; ev-031 read 832), so it is a read loss, not a
+    missed charge. With both read artifacts removed: 11/13 orphan surcharge 0, unexplained
+    0. task.md criteria on ICT 11/16 (ev-032, ev-033): first-attempt timeouts 1,571
+    (range 1,200-1,900, ok); 1,520 charged of 1,523 retries, other 3 answered 422
+    (ok); p95 of retried 200s 3,655 ms (ok); 408 = 2 (range 4-8, ok); 502 = 203 but
+    8500 = 156, the other 47 are in-app retry failures (cause bank_network, 31 of
+    them at 13:00 ICT), so 502 != 8500 count: NOT met, this is the retry-failure signal;
+    409 at 100 ms or more = 44 (expected ~14) and whether each was charged needs a
+    database read (D2 writes no log line), not done. Gate left pending for Earth:
+    the script verdict is FAIL and one criterion is not met.'
+  at: '2026-11-17T03:30:00Z'
+  operator: claude
+- phase: in_review -> in_review
+  agent: debugger
+  reason: 'Root cause of the retry-failure 502s (Earth: investigate before deciding
+    the gate). Every one of the 47 ICT 11/16 retry failures took 6,101-6,127 ms: the
+    first call and the new-connection retry both hit the 3.05 s timeout after the
+    request was written (ev-032 sys log). 31 fell in 13:28:54-13:29:10 ICT on all
+    3 tasks, so KBank was slow for about 16 s; the other 16 are spread over the day.
+    Proxy era (ev-034, ICT 11/08 and 11/09): 7 and 27 requests timed out twice, each
+    time on a different task, so Service Connect made a third attempt; 28 of those
+    34 ended 200 at 6.3-8.0 s and 6 ended 408 when the merchant gave up near 8 s;
+    1 request timed out 3 times. So the proxy gave up to 3 billed attempts and VS-068
+    gives 2 by design (verifyWithBilledRetry: a failed retry ends as BANK_UNAVAILABLE
+    so the proxy adds no third call). The new 502s are the requests a third attempt
+    used to save: same order as before (16/day outside the burst vs 7-27/day), now
+    a 502 at 6.1 s instead of a 200 or 408 at 6.3-8 s, which also explains 408 = 2
+    on 11/16. slip-api stores nothing for a 502, so the merchant is not charged; its
+    resend is a new verify. Not a code defect: the task.md criterion "502 = 8500"
+    did not account for losing the third attempt. Options for Earth: accept and restate
+    the criterion as 502 = 8500 + retry failed, or add a bounded third attempt as
+    a separate task (it must fit the merchant 8 s limit and would bill a third call).'
+  at: '2026-11-17T03:40:00Z'
+  operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: pm
+  reason: 'Earth accepted 2026-11-17 (''ยอมรับ แก้เกณฑ์ ปิด gate'') with the 502 criterion
+    restated as 502 = 8500 + retry failed (task.md). ICT 11/16 full day (ev-032, ev-033):
+    first-attempt timeouts 1,571; 1,520 surcharges for 1,523 retries, other 3 answered
+    422; 0 retried 200 without a surcharge/skip/D1 line; 0 surcharge without a retry;
+    p95 retried 200 3,655 ms; 408 = 2; 502 = 203 = 156 KBank 8500 + 47 retry failed,
+    all joined by request_id; every ERROR line is one of those 502 completions. ICT
+    11/13 (ev-031, with ev-029/ev-030 reads): same joins clean once two read losses
+    are removed. Retry failures are the double timeouts a proxy third attempt used
+    to save (ev-034). Script verdict FAIL is due only to counting 502 completions
+    as ERROR and one read loss. Not checked: D2 post-bank duplicate charges (no log
+    line; 409 >= 100 ms = 44 on 11/16, expected ~14) need a database read.'
+  at: '2026-11-17T03:45:40Z'
+  operator: claude
+- phase: 'check_after: cleared'
+  agent: pm
+  reason: full-day production check done 2026-11-17 (ev-031..ev-034); production_acceptance
+    passed
+  at: '2026-11-17T03:46:15Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-17T03:49:51Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -411,14 +488,33 @@ completion_gates:
         (slip-system-production:30, PR #27)'
       url: https://github.com/SparqLab/slip-api/pull/144
   production_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-10T08:09:35Z'
-    evidence_refs: []
+    reason: 'Earth accepted 2026-11-17 (''ยอมรับ แก้เกณฑ์ ปิด gate'') with the 502
+      criterion restated as 502 = 8500 + retry failed (task.md). ICT 11/16 full day
+      (ev-032, ev-033): first-attempt timeouts 1,571; 1,520 surcharges for 1,523 retries,
+      other 3 answered 422; 0 retried 200 without a surcharge/skip/D1 line; 0 surcharge
+      without a retry; p95 retried 200 3,655 ms; 408 = 2; 502 = 203 = 156 KBank 8500
+      + 47 retry failed, all joined by request_id; every ERROR line is one of those
+      502 completions. ICT 11/13 (ev-031, with ev-029/ev-030 reads): same joins clean
+      once two read losses are removed. Retry failures are the double timeouts a proxy
+      third attempt used to save (ev-034). Script verdict FAIL is due only to counting
+      502 completions as ERROR and one read loss. Not checked: D2 post-bank duplicate
+      charges (no log line; 409 >= 100 ms = 44 on 11/16, expected ~14) need a database
+      read.'
+    updated_at: '2026-11-17T03:45:40Z'
+    evidence_refs:
+    - ev-031
+    - ev-032
+    - ev-033
+    - ev-034
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-api-production:153 (342c561) + slip-system-production:30 (2dfc116),
+        ICT 11/13 and 11/16
   devops_coordination:
     status: pass
     actor: pm
@@ -455,13 +551,4 @@ handoff:
   from: devops
   to: reviewer
   artifact: forced-route
-check_after:
-  at: '2026-11-13T17:30:00Z'
-  what: 'ICT 2026-11-13 full day on prod (method of ev-001 and ev-028, every page):
-    slip-system 2dfc116 ''kbank verify unavailable'', ''kbank verify retry succeeded''
-    and ''retry failed'' (compare 11/08-09: 1,186 / 1,920 timeouts); merchant 408s
-    (~4-8/day) and 502s == slip-system 8500 count; p95 of retried 200s near 3.7 s.
-    slip-api daa6dbe from 04:07:58Z: every retry_succeeded request_id joined to ''bank
-    retry surcharge charged'' / ''skipped'' / none, with the http status of each unsurcharged
-    one (expect only non-0000, D1-free or duplicate answers); 0 surcharge lines without
-    a retry; skipped count and reasons; ERROR 0, 5xx only 502'
+decision_applied_at: '2026-11-17T03:50:00Z'
