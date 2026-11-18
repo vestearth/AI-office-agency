@@ -2,18 +2,18 @@
 task_id: TASK-VS-076
 task_label: 'slip-api email alerts: harden the claim job so one slow candidate cannot
   block every alert'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 1
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-18'
-updated_at: '2026-11-18'
+updated_at: '2026-11-19'
 history:
 - phase: created -> assigned
   agent: pm
@@ -143,6 +143,23 @@ history:
   reason: 'closeout recorded: capture (new_durable_knowledge) in knowledge-reviews/closeouts/20261118T114755Z-verifyslip-email-alert-claim.yaml'
   at: '2026-11-18T11:47:55Z'
   operator: claude
+- phase: 'check_after: cleared'
+  agent: devops
+  reason: 'checked early (ev-012) because Earth asked to close the task before the
+    24 h mark: /ecs/slip-api-production filter ''"email alert"'' 2026-11-18T07:52:51Z..17:35:00Z
+    (9 h 42 min, not 24 h) = 0 lines over 4 pages, across slip-api-production:158
+    (836e123) and :159 (e0cfe0c, email-alert files unchanged from 836e123). Positive
+    control: the same filter matched 30 ''process email alerts'' lines in 10 min of
+    the 2026-11-17 outage. Logs reach the sink: 651 ''http request completed'' in
+    17:30-17:32Z. Delivery itself (email_alert_deliveries.sent_at) not checked: no
+    DB read access.'
+  at: '2026-11-18T17:39:20Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-18T17:39:28Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -266,10 +283,4 @@ last_synced_output:
   file: dev-output.yaml
   digest: d7aa2191d8be96533cdd887e4aa52cf94e91032918a3c17885c124ad55fe0413
   next: reviewer
-check_after:
-  at: '2026-11-19T08:10:00Z'
-  what: '24 h recheck of slip-api prod after 836e123 (slip-api-production:158): CloudWatch
-    /ecs/slip-api-production filter ''"email alert"'' from 2026-11-18T07:52:51Z =
-    0 lines (no claim/enqueue/lookup error, no send or mark failure), every page read;
-    if DB read access exists, email_alert_deliveries rows with sent_at after 07:52:51Z
-    keep appearing'
+decision_applied_at: '2026-11-18T17:39:30Z'

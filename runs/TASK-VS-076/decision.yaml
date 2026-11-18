@@ -1,0 +1,7 @@
+task_id: TASK-VS-076
+decisions:
+- decision: approve
+  actor: operator
+  decided_at: '2026-11-18T17:39:30Z'
+  against_phase: in_review
+  note: 'recorded from chat by the Claude conductor: Earth said "ย้าย VS-076 เป็น done ได้เลย" (2026-11-19 Bangkok). Every completion gate passes; the 24 h check_after was run early and cleared (ev-012: 0 "email alert" lines in 9 h 42 min after the prod deploy, positive control 30). Not covered: delivery rows (no DB read access) and the out-of-scope follow-ups in task.md.'
