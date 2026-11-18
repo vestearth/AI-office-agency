@@ -122,21 +122,26 @@ history:
   operator: claude
 - phase: 'note: slip-api 309660f promoted to staging (outside this task)'
   agent: devops
-  reason: 'Earth asked in this lane for staging ("ขึ้น staging ต่อเลย"); TASK-VS-076 was
-    already on staging (#155) and prod (#156), and staging..main held only 309660f
-    (watcharapol-spl, LINE webhook package name + QR scan size, pushed to main without a
-    PR). Earth then approved promoting it ("Promote ด้วย"), staging only, not prod. Local
-    gate at 309660f: go build -mod=readonly, go vet, go test -count=1 ./... with the
-    repository DSN all pass (ev-009). Dry run T1 6538e15 == main tree, 4 files in
-    internal/core/service, no migration/ecs/workflow/go.mod change. PR #158 (main ->
-    staging) merged 08:57:19Z pinned to 309660f; staging 3646f06..177a25f, merged tree
-    == T1. Deploy STAGING run 44271441731 success (ev-011); slip-api-staging:207
-    staging-sha-177a25f COMPLETED 1/1, new task started gRPC + HTTP listeners at
-    09:00:27Z, /ecs/slip-api-staging 08:57:19-09:10:40Z pages=2 events=38: 33 requests,
-    0 5xx, 0 ERROR, 0 panic/fatal (ev-010). Rollback: slip-api-staging:206. At 09:09:16Z
+  reason: 'Earth asked in this lane for staging ("ขึ้น staging ต่อเลย"); TASK-VS-076
+    was already on staging (#155) and prod (#156), and staging..main held only 309660f
+    (watcharapol-spl, LINE webhook package name + QR scan size, pushed to main without
+    a PR). Earth then approved promoting it ("Promote ด้วย"), staging only, not prod.
+    Local gate at 309660f: go build -mod=readonly, go vet, go test -count=1 ./...
+    with the repository DSN all pass (ev-009). Dry run T1 6538e15 == main tree, 4
+    files in internal/core/service, no migration/ecs/workflow/go.mod change. PR #158
+    (main -> staging) merged 08:57:19Z pinned to 309660f; staging 3646f06..177a25f,
+    merged tree == T1. Deploy STAGING run 44271441731 success (ev-011); slip-api-staging:207
+    staging-sha-177a25f COMPLETED 1/1, new task started gRPC + HTTP listeners at 09:00:27Z,
+    /ecs/slip-api-staging 08:57:19-09:10:40Z pages=2 events=38: 33 requests, 0 5xx,
+    0 ERROR, 0 panic/fatal (ev-010). Rollback: slip-api-staging:206. At 09:09:16Z
     the TASK-VS-079 lane promoted #159 (7af8c5d, which contains 309660f) on top; that
     rollout is tracked there. Not on prod.'
   at: '2026-11-18T09:12:12Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture (new_durable_knowledge) in knowledge-reviews/closeouts/20261118T114755Z-verifyslip-email-alert-claim.yaml'
+  at: '2026-11-18T11:47:55Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -248,11 +253,10 @@ completion_gates:
       by: claude
       ref: 836e1232f1d2719ddfc2dec7c7f42f81ff3b189d
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-18T06:27:39Z'
+    reason: 'closeout recorded: capture (new_durable_knowledge) in knowledge-reviews/closeouts/20261118T114755Z-verifyslip-email-alert-claim.yaml'
+    updated_at: '2026-11-18T11:47:55Z'
     evidence_refs: []
 handoff:
   from: dev

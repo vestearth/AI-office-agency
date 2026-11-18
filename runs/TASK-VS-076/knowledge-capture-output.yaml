@@ -1,0 +1,40 @@
+task_id: TASK-VS-076
+capture_type: project_note
+target_repo: knowledge-base
+target_note: "Knowledge Base/10 Projects/VerifySlip/Email Alert Claim Isolation — 2026-11-18.md"
+summary: Since slip-api-production:158 one slow alert step can no longer stop every quota alert email, and a `process email alerts` ERROR line no longer means nothing was sent; its prefix tells which step failed.
+sources:
+  - "slip-api/internal/repositories/email_alert.go"
+  - "slip-api/internal/core/service/email_alert.go"
+  - "slip-api/cmd/main.go"
+  - "slip-api/internal/repositories/email_alert_test.go"
+  - "slip-api/internal/core/service/email_alert_test.go"
+  - "ai-dev-office/runs/TASK-VS-076/task.md"
+  - "ai-dev-office/runs/TASK-VS-076/status.yaml"
+recommended_action: create_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-11-18'
+  confidence: high
+  task_id: TASK-VS-076
+  run_id: null
+  evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008]
+  repo_origin: "SparqLab/slip-api"
+  repo_sha: "836e1232f1d2719ddfc2dec7c7f42f81ff3b189d"
+note_patch: |
+  Applied in knowledge-base 59b76b3 (committed to main, not pushed yet):
+  - New note "Knowledge Base/10 Projects/VerifySlip/Email Alert Claim Isolation — 2026-11-18.md":
+    the 2026-11-17 outage and the four earlier episodes with the same signature; how
+    the job works on prod 836e123 (enqueue as its own autocommit statement, a short
+    claim transaction that no longer reads quota_history, the stopped-at lookup after
+    the commit with a bp.updated_at fallback, emailAlertQueryTimeout = 10 s per step,
+    RunOnce sending before returning the joined error); how to read each
+    `process email alerts` error prefix; the ACCESS EXCLUSIVE lock technique
+    (holdTableLocks) for deterministic blocked-query regressions; the known gaps
+    (unbounded enqueue arms, stale pending rows, SMTP time after an outage).
+    Related links and a Sources section with file:line at 836e123.
+  - "Knowledge Base/10 Projects/VerifySlip/Project Map.md": one bullet and one
+    Related link to the new note. No existing note's claims change.
+  Evidence ev-009..ev-011 in this run are about the separate 309660f staging
+  promotion and are not cited by the note.
