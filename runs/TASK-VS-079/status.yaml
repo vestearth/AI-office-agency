@@ -67,14 +67,39 @@ history:
     need Earth''s go-ahead (main also carries 309660f, outside this task).'
   at: '2026-11-18T08:56:04Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'On 15502f4 (merged to slip-api main as 1b63b6b via PR 157 at 2026-11-18T08:57:36Z
+    with --match-head-commit; merge tree 1294f4e == PR head tree == dry run): the
+    regression test failed before the fix on 8d1f014 (ev-001) and passes on 15502f4
+    with the two corrected assertions (ev-002); full go test ./... with repository
+    and migration DSNs (ev-003), go vet and go build -mod=readonly (ev-004) pass.
+    No independent review: Earth chose ''Merge it'' over ''Review first''. Not on
+    staging or prod.'
+  at: '2026-11-18T08:58:29Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-18T08:51:39Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'On 15502f4 (merged to slip-api main as 1b63b6b via PR 157 at 2026-11-18T08:57:36Z
+      with --match-head-commit; merge tree 1294f4e == PR head tree == dry run): the
+      regression test failed before the fix on 8d1f014 (ev-001) and passes on 15502f4
+      with the two corrected assertions (ev-002); full go test ./... with repository
+      and migration DSNs (ev-003), go vet and go build -mod=readonly (ev-004) pass.
+      No independent review: Earth chose ''Merge it'' over ''Review first''. Not on
+      staging or prod.'
+    updated_at: '2026-11-18T08:58:29Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
+    - ev-004
     requires_record: true
+    ran:
+      by: claude
+      ref: 15502f4325f2d44b131490d56c916e7e48fa105e
+      url: https://github.com/SparqLab/slip-api/pull/157
   deploy_staging:
     status: pending
     actor: pm

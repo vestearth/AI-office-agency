@@ -82,3 +82,18 @@ A search of CloudWatch from 2026-10-20 to 2026-11-18T08:20Z found no other LINE
 
 Not merged. `main` also carries 309660f (watcharapol-spl, feat(line-webhook)), which is
 outside this task. A promotion would ship it too, so it needs Earth's scope approval.
+
+## Merged (2026-11-18T08:57:36Z)
+
+Earth said "Merge it" and chose that over an independent review first. PR 157 was merged
+into slip-api `main` as `1b63b6b` (parents `309660f`, `15502f4`), pinned with
+`--match-head-commit 15502f4`. The tree `1294f4e` equals the PR head tree and the dry run.
+
+18 s earlier, another session merged PR 158 (main → staging, `177a25f`) for `309660f`
+only, with Earth's staging-only approval. So `309660f` is on staging, and its Deploy
+STAGING run was in progress at merge time. This fix is not on staging or prod.
+
+The next promotion has two parts:
+- main → staging carries only `8d1f014` and `15502f4`.
+- staging → prod carries those two plus `309660f`, which is outside this task and was
+  approved for staging only. It needs Earth's scope approval.
