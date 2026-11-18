@@ -92,5 +92,5 @@ access (`email_alert_deliveries.sent_at`).
 ("sql files = 85, want 84"; ev-005, ev-009). SparqLab/slip-api#153 (`8b12953`, test-only)
 sets the expected count to 85. Results: `go test ./migrations` passes all 11 tests with
 `SLIP_API_MIGRATION_TEST_DSN` on PG 18.3 (ev-010); full `go test ./...` passes with both
-DSNs (ev-011); `go vet ./...` clean (ev-012). Merge to main waits for Earth. Nothing ships,
+DSNs (ev-011); `go vet ./...` clean (ev-012). Merged to main as `d90039b` on Earth's "Merge #153". Nothing ships,
 so it needs no promotion.
