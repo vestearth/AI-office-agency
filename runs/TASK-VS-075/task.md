@@ -85,3 +85,12 @@ release carried only the two TASK-VS-075 commits.
 Open: knowledge closeout; 24 h recheck (`check_after` 2026-11-19T05:30Z). The alert
 backlog since 2026-11-17 09:17Z is sent silently by design; a sent count needs DB read
 access (`email_alert_deliveries.sent_at`).
+
+## Follow-up in this run — migrations count test (2026-11-18)
+
+`migrations/TestGooseSQLFiles` had failed on main since `0c6a949` added migration 085
+("sql files = 85, want 84"; ev-005, ev-009). SparqLab/slip-api#153 (`8b12953`, test-only)
+sets the expected count to 85. Results: `go test ./migrations` passes all 11 tests with
+`SLIP_API_MIGRATION_TEST_DSN` on PG 18.3 (ev-010); full `go test ./...` passes with both
+DSNs (ev-011); `go vet ./...` clean (ev-012). Merge to main waits for Earth. Nothing ships,
+so it needs no promotion.
