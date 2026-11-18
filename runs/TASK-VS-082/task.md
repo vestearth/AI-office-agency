@@ -64,3 +64,27 @@ can no longer verify slips (API key revoked, LINE channel cleared).
   without Earth's explicit go-ahead.
 - Prod impact: this machine has no prod DB read access. The PR lists the read-only
   query Earth would run to find `package_auto_renew` debits on deleted branches.
+
+## Result (2026-11-19, in review)
+
+Confirmed and fixed on slip-api PR https://github.com/SparqLab/slip-api/pull/161
+(`dd0af1e` test, `9baf2f2` fix; not merged, nothing deployed).
+
+- Red on `dd0af1e` (ev-003): all 7 deleted-branch cases debited 5.00 (cron, package
+  list, pending plan, merchant deletion, renewal toggle, cancel subscription, plan
+  change). The paused-branch control renewed as before. ev-001 and ev-002 are red
+  runs of earlier drafts of the same test, superseded by ev-003.
+- Fix: `renewalBlockedByBranch` treats `branches.status = 'deleted'` like an inactive
+  owner, so the due package expires with no debit. It is used in
+  `processExpiredForBranchChannelTx` and in `RequestPlanChange`, `CancelSubscription`
+  and `UpdateRenewal`. No schema change.
+- Green: ev-004 (regression and existing renewal tests), ev-005 (full
+  `go test ./...` with repository and migration DSNs), ev-006 (`go vet`), ev-007
+  (`go build -mod=readonly`).
+- `origin/staging` `7af8c5d` and `origin/prod` `e0cfe0c` carry the same unguarded
+  source. Whether any merchant was actually charged is unknown: there is no prod DB
+  access from this machine. The read-only queries Q1 (debits after deletion) and Q2
+  (still-exposed active packages) are in the PR body. Both were checked against the
+  test schema, and Q1 found the red-run charges.
+- Open for Earth: review/merge of PR 161, then main → staging → prod promotions; run
+  Q1/Q2 on prod; decide whether paused branches should keep auto-renewing (unchanged).
