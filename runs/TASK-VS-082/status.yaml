@@ -68,14 +68,46 @@ history:
     queries Q1/Q2 in the PR body.'
   at: '2026-11-18T20:12:53Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'On 9baf2f2 (merged to slip-api main as b6ac678 via PR 161 at 2026-11-18T20:49:03Z
+    with --match-head-commit 9baf2f2; parents 1b63b6b+9baf2f2, merge tree 487700b
+    == PR head tree): the regression test failed on dd0af1e with all 7 deleted-branch
+    cases charged 5.00 and the paused control passing (ev-003), and passes on the
+    fix (ev-004); full go test ./... with repository and migration DSNs (ev-005),
+    go vet (ev-006) and go build -mod=readonly (ev-007) pass. Independent review approved
+    at 9baf2f2 (PR comment 6991190787): red reproduced, green suite re-run, mutation
+    removing the cron-path guard fails the 4 cron-driven cases. Earth said ''Merge
+    it''. Not on staging (7af8c5d) or prod (e0cfe0c); promotion needs Earth''s separate
+    go-ahead.'
+  at: '2026-11-18T20:50:05Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-18T20:06:19Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'On 9baf2f2 (merged to slip-api main as b6ac678 via PR 161 at 2026-11-18T20:49:03Z
+      with --match-head-commit 9baf2f2; parents 1b63b6b+9baf2f2, merge tree 487700b
+      == PR head tree): the regression test failed on dd0af1e with all 7 deleted-branch
+      cases charged 5.00 and the paused control passing (ev-003), and passes on the
+      fix (ev-004); full go test ./... with repository and migration DSNs (ev-005),
+      go vet (ev-006) and go build -mod=readonly (ev-007) pass. Independent review
+      approved at 9baf2f2 (PR comment 6991190787): red reproduced, green suite re-run,
+      mutation removing the cron-path guard fails the 4 cron-driven cases. Earth said
+      ''Merge it''. Not on staging (7af8c5d) or prod (e0cfe0c); promotion needs Earth''s
+      separate go-ahead.'
+    updated_at: '2026-11-18T20:50:05Z'
+    evidence_refs:
+    - ev-003
+    - ev-004
+    - ev-005
+    - ev-006
+    - ev-007
     requires_record: true
+    ran:
+      by: claude
+      ref: 9baf2f2
+      url: https://github.com/SparqLab/slip-api/pull/161
   deploy_staging:
     status: pending
     actor: pm

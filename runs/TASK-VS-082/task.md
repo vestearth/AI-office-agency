@@ -86,5 +86,11 @@ Confirmed and fixed on slip-api PR https://github.com/SparqLab/slip-api/pull/161
   access from this machine. The read-only queries Q1 (debits after deletion) and Q2
   (still-exposed active packages) are in the PR body. Both were checked against the
   test schema, and Q1 found the red-run charges.
-- Open for Earth: review/merge of PR 161, then main → staging → prod promotions; run
-  Q1/Q2 on prod; decide whether paused branches should keep auto-renewing (unchanged).
+- Merged 2026-11-18T20:49:03Z: independent review approved at `9baf2f2` (PR comment
+  6991190787: red reproduced, green re-run, removing the cron-path guard fails the 4
+  cron-driven cases), Earth said "Merge it", slip-api main `b6ac678` (tree `487700b`
+  == PR head). `implementation_verification` passed. Not on staging `7af8c5d` or prod
+  `e0cfe0c`.
+- Open for Earth: main → staging → prod promotions (each needs a separate go-ahead);
+  run Q1/Q2 on prod; decide whether paused branches should keep auto-renewing
+  (unchanged).
