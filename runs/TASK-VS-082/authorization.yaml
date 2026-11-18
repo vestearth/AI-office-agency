@@ -1,0 +1,24 @@
+---
+task_id: TASK-VS-082
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Earth answered 'Approve both' (staging and prod) in the Claude Code session
+    at about 2026-11-18T21:04Z, after the read-only dry run (T1 = T2 = 487700b) and
+    the promotion plan
+  at: '2026-11-18T21:04:54Z'
+  action: deploy_staging
+  scope: 'slip-api main b6ac678 -> staging via main->staging PR: dd0af1e, 9baf2f2
+    (TASK-VS-082)'
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Earth answered 'Approve both' (staging and prod) in the Claude Code session
+    at about 2026-11-18T21:04Z
+  at: '2026-11-18T21:04:54Z'
+  action: deploy_production
+  scope: 'slip-api staging -> prod via release/TASK-VS-082-production PR: dd0af1e,
+    9baf2f2 (TASK-VS-082) only'
