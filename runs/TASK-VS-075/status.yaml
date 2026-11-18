@@ -1,0 +1,123 @@
+---
+task_id: TASK-VS-075
+task_label: 'slip-api email alerts: claim query times out on quota_history scan (no
+  alert emails since 2026-11-17 09:17Z)'
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-18'
+updated_at: '2026-11-18'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, deploy_production, production_acceptance, knowledge_closeout'
+  at: '2026-11-18T04:31:46Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-18T04:31:46Z'
+  operator: claude
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-18T04:31:46Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-18T04:31:46Z'
+  operator: claude
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: the production deploy ran from the commit accepted on staging
+  at: '2026-11-18T04:31:46Z'
+  operator: claude
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working in production
+  at: '2026-11-18T04:31:46Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-18T04:31:46Z'
+  operator: claude
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review PR 150. Then, with Earth's go-ahead for each step, merge to main
+    and promote main -> staging -> prod through PRs. Staging acceptance and production
+    acceptance check that the process email alerts error stops (CloudWatch, read over
+    every page) and that RDS CPU returns to baseline.
+  at: '2026-11-18T04:42:19Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-11-18T04:31:46Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-11-18T04:31:46Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-11-18T04:31:46Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+  deploy_production:
+    status: pending
+    actor: pm
+    reason: the production deploy ran from the commit accepted on staging
+    updated_at: '2026-11-18T04:31:46Z'
+    evidence_refs: []
+    requires_authorization: deploy_production
+    after:
+    - staging_acceptance
+    requires_record: true
+  production_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working in production
+    updated_at: '2026-11-18T04:31:46Z'
+    evidence_refs: []
+    after:
+    - deploy_production
+    requires_record: true
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-11-18T04:31:46Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-VS-075/dev-output.yaml
+last_synced_output:
+  file: dev-output.yaml
+  digest: 53c2ddea3c3bb74a1068e9c52685b761d436ee98bda7ea47b374fe376f91a94d
+  next: reviewer

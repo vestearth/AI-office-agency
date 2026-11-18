@@ -1,0 +1,41 @@
+summary: |-
+  F1 implemented in slip-api on branch fix/TASK-VS-075-email-alert-claim, PR
+  https://github.com/SparqLab/slip-api/pull/150 against main (open, not merged).
+  17b778d moves the claim SELECT into claimDueAlertsSQL; its SQL text is
+  byte-identical to origin/main 5932478. ca383cc adds qh.branch_id = bp.branch_id
+  to the quota_exhausted stopped-at LATERAL, so the existing
+  quota_history_branch_created_idx serves the MAX, and runs that lookup only for
+  quota_exhausted alerts. No schema change and no migration.
+  Regression test TestClaimDueAlertsReadsOnlyTheAlertBranchQuotaHistory runs
+  EXPLAIN ANALYZE of the claim query on real PostgreSQL 18.3 (the prod version),
+  with 2000 quota_history rows on another branch. On 17b778d it failed: one lookup
+  read 2003 rows, because PG18 picks a skip scan over created_at (ev-001). On
+  ca383cc it passes (ev-002). Guard test
+  TestClaimDueAlertsQuotaStoppedAtIsLastDeductionOfThePeriod keeps the
+  QuotaStoppedAt semantics; a mutation that drops the branch_package_id predicate
+  fails it. go vet ./... passes (ev-003). go test ./... fails only
+  migrations/TestGooseSQLFiles ("sql files = 85, want 84", ev-004). That failure is
+  pre-existing on clean origin/main 5932478 (ev-005): 0c6a949 added migration 085
+  without bumping the count. It is out of scope for this task.
+artifacts:
+- path: slip-api/internal/repositories/email_alert.go
+  action: modified
+  description: Claim SELECT named claimDueAlertsSQL; stopped-at LATERAL bounded by branch_id and limited to quota_exhausted.
+- path: slip-api/internal/repositories/email_alert_test.go
+  action: modified
+  description: EXPLAIN ANALYZE regression for the quota_history read and a QuotaStoppedAt semantics guard (real PostgreSQL).
+next_action:
+  agent: reviewer
+  reason: Review PR 150. Then, with Earth's go-ahead for each step, merge to main and promote main -> staging -> prod through PRs. Staging acceptance and production acceptance check that the process email alerts error stops (CloudWatch, read over every page) and that RDS CPU returns to baseline.
+context_sources:
+  github:
+    branch: fix/TASK-VS-075-email-alert-claim
+    pr: https://github.com/SparqLab/slip-api/pull/150
+  socraticode:
+    status: skipped
+    notes: Single-repo change; located with git grep and read at origin/prod and origin/main directly.
+evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005]
+blockers:
+  - Merge to main and every promotion step (staging, prod) wait for Earth's explicit go-ahead.
+  - The pre-existing migrations/TestGooseSQLFiles count failure on main (085 vs 84) is out of scope; it does not block deploys, because the deploy workflows run no tests.
+  - Not verified without production DB access: EXPLAIN on production data, the size of quota_history, and the alert backlog that will be sent after the deploy.
