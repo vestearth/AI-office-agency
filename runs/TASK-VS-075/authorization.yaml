@@ -1,0 +1,23 @@
+---
+task_id: TASK-VS-075
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: 'Earth answered ''Merge + staging'' in the Claude Code session on 2026-11-18
+    to the question: merge 150 into main then open main->staging'
+  at: '2026-11-18T04:47:18Z'
+  action: deploy_staging
+  scope: slip-api PR 150 (17b778d, ca383cc) merged to main, then main -> staging PR;
+    no prod
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Earth wrote 'ขึ้น prod ต่อเลย' in the Claude Code session on 2026-11-18
+    after the staging promotion of PR 151
+  at: '2026-11-18T04:59:35Z'
+  action: deploy_production
+  scope: slip-api staging a27a0fb (TASK-VS-075 commits 17b778d, ca383cc only) -> prod
+    via release/TASK-VS-075-production PR

@@ -60,52 +60,152 @@ history:
     every page) and that RDS CPU returns to baseline.
   at: '2026-11-18T04:42:19Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'On ca383cc (merged to main as 23de73d via PR 150): regression test failed
+    before the fix on 17b778d (ev-001, one lookup read 2003 rows) and passes after
+    (ev-002); go vet clean (ev-003); go test ./... fails only migrations/TestGooseSQLFiles,
+    pre-existing on clean origin/main 5932478 (ev-004, ev-005). Earth approved the
+    merge in chat; no separate reviewer pass.'
+  at: '2026-11-18T04:49:14Z'
+  operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: PR 151 main->staging merged at a27a0fb (tree == dry-run T1 04b8445); Deploy
+    STAGING run 44239793720 success; slip-api-staging:205 staging-sha-a27a0fb COMPLETED
+    1/1 at 04:59:24Z; rollback slip-api-staging:204 (ev-006)
+  at: '2026-11-18T05:00:26Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: devops
+  reason: 'Staging proves boot only: new task started HTTP and gRPC listeners at 04:51:24Z
+    with 0 ERROR/panic/fatal lines; old task drained cleanly (ev-006). Staging (upslip-postgres-dev)
+    never showed the alert timeout (0 ''email alert'' lines 11-10..11-18, pages=41),
+    so the behavioural check is production_acceptance.'
+  at: '2026-11-18T05:00:26Z'
+  operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: PR 152 release/TASK-VS-075-production -> prod merged at 5b1ea17 (tree ==
+    dry-run T2 04b8445; range 775b37c..5b1ea17 = 17b778d, ca383cc); Deploy PRODUCTION
+    run 44241292694 success; slip-api-production:157 production-sha-5b1ea17 COMPLETED
+    3/3 (05:04:20Z -> 05:13:02Z); env/secrets hash-equal to :156, only image changed;
+    rollback slip-api-production:156 (ev-007)
+  at: '2026-11-18T05:14:25Z'
+  operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: devops
+  reason: 'slip-api-production:157 (5b1ea17): 12 min after COMPLETED (05:13:02-05:25:02Z)
+    vs 12 min before rollout (04:52:20-05:04:20Z), every page read: ''email alert''
+    lines 36 -> 0, ERROR lines 38 -> 0, requests 4318 -> 4893, 5xx 2 -> 0, p95 618
+    -> 520 ms; the slowest requests are pre-existing POST /v1/slips/decode 400s. New
+    tasks started 05:05Z and logged no alert error. RDS upslip-postgres-prod CPU ~12%
+    -> ~7% from 05:06Z (ev-008).'
+  at: '2026-11-18T05:26:32Z'
+  operator: claude
+- phase: 'check_after: 2026-11-19T05:30:00Z'
+  agent: devops
+  reason: fix effect seen in the first 12 min (ev-008); confirm no recurrence over
+    a full day
+  at: '2026-11-18T05:26:40Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-18T04:31:46Z'
-    evidence_refs: []
+    status: pass
+    actor: dev
+    reason: 'On ca383cc (merged to main as 23de73d via PR 150): regression test failed
+      before the fix on 17b778d (ev-001, one lookup read 2003 rows) and passes after
+      (ev-002); go vet clean (ev-003); go test ./... fails only migrations/TestGooseSQLFiles,
+      pre-existing on clean origin/main 5932478 (ev-004, ev-005). Earth approved the
+      merge in chat; no separate reviewer pass.'
+    updated_at: '2026-11-18T04:49:14Z'
+    evidence_refs:
+    - ev-001
+    - ev-002
+    - ev-003
+    - ev-004
+    - ev-005
     requires_record: true
+    ran:
+      by: claude
+      ref: ca383ccc1b2064713fca0e6c4745aae896cc3770
+      url: https://github.com/SparqLab/slip-api/pull/150
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-18T04:31:46Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: PR 151 main->staging merged at a27a0fb (tree == dry-run T1 04b8445); Deploy
+      STAGING run 44239793720 success; slip-api-staging:205 staging-sha-a27a0fb COMPLETED
+      1/1 at 04:59:24Z; rollback slip-api-staging:204 (ev-006)
+    updated_at: '2026-11-18T05:00:26Z'
+    evidence_refs:
+    - ev-006
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-002
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: github-actions
+      ref: a27a0fb949c56241173935ec08b6e88917b07f2a
+      url: https://github.com/SparqLab/slip-api/actions/runs/44239793720
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-18T04:31:46Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'Staging proves boot only: new task started HTTP and gRPC listeners at
+      04:51:24Z with 0 ERROR/panic/fatal lines; old task drained cleanly (ev-006).
+      Staging (upslip-postgres-dev) never showed the alert timeout (0 ''email alert''
+      lines 11-10..11-18, pages=41), so the behavioural check is production_acceptance.'
+    updated_at: '2026-11-18T05:00:26Z'
+    evidence_refs:
+    - ev-006
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: claude
+      ref: a27a0fb949c56241173935ec08b6e88917b07f2a
   deploy_production:
-    status: pending
-    actor: pm
-    reason: the production deploy ran from the commit accepted on staging
-    updated_at: '2026-11-18T04:31:46Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: PR 152 release/TASK-VS-075-production -> prod merged at 5b1ea17 (tree
+      == dry-run T2 04b8445; range 775b37c..5b1ea17 = 17b778d, ca383cc); Deploy PRODUCTION
+      run 44241292694 success; slip-api-production:157 production-sha-5b1ea17 COMPLETED
+      3/3 (05:04:20Z -> 05:13:02Z); env/secrets hash-equal to :156, only image changed;
+      rollback slip-api-production:156 (ev-007)
+    updated_at: '2026-11-18T05:14:25Z'
+    evidence_refs:
+    - ev-007
     requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
     after:
     - staging_acceptance
     requires_record: true
+    ran:
+      by: github-actions
+      ref: 5b1ea171189c68147f0b6a9cacda6700c5626c22
+      url: https://github.com/SparqLab/slip-api/actions/runs/44241292694
   production_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-18T04:31:46Z'
-    evidence_refs: []
+    status: pass
+    actor: devops
+    reason: 'slip-api-production:157 (5b1ea17): 12 min after COMPLETED (05:13:02-05:25:02Z)
+      vs 12 min before rollout (04:52:20-05:04:20Z), every page read: ''email alert''
+      lines 36 -> 0, ERROR lines 38 -> 0, requests 4318 -> 4893, 5xx 2 -> 0, p95 618
+      -> 520 ms; the slowest requests are pre-existing POST /v1/slips/decode 400s.
+      New tasks started 05:05Z and logged no alert error. RDS upslip-postgres-prod
+      CPU ~12% -> ~7% from 05:06Z (ev-008).'
+    updated_at: '2026-11-18T05:26:32Z'
+    evidence_refs:
+    - ev-008
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: claude
+      ref: 5b1ea171189c68147f0b6a9cacda6700c5626c22
   knowledge_closeout:
     status: pending
     actor: pm
@@ -121,3 +221,9 @@ last_synced_output:
   file: dev-output.yaml
   digest: 53c2ddea3c3bb74a1068e9c52685b761d436ee98bda7ea47b374fe376f91a94d
   next: reviewer
+check_after:
+  at: '2026-11-19T05:30:00Z'
+  what: '24 h recheck of slip-api prod after 5b1ea17: CloudWatch /ecs/slip-api-production
+    filter ''"email alert"'' from 2026-11-18T05:13:02Z = 0 lines (no claim timeout,
+    no send/mark failure) and RDS upslip-postgres-prod CPU at baseline; earlier episodes
+    (10-18, 10-25, 11-08, 11-11) were intermittent'

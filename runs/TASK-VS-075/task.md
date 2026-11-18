@@ -66,3 +66,22 @@ an off-peak manual pre-build); a separate timeout / per-row isolation for the al
 - On recovery, every alert that became due since 2026-11-17 09:17Z and still matches its
   guard will be sent in the first runs (up to 100 per run per task) via Gmail SMTP.
 - Rollback: revert the PR (query-only change, no migration).
+
+## Delivery — 2026-11-18 (Earth: "Merge + staging", then "ขึ้น prod ต่อเลย")
+
+| Step | Change | Result |
+| --- | --- | --- |
+| main | PR 150 merged as `23de73d` (`17b778d` refactor, `ca383cc` fix + tests) | ev-001..005 |
+| staging | PR 151 main → staging, `2002aff..a27a0fb`, tree = dry-run T1 `04b8445` | Deploy STAGING run 44239793720 success; `slip-api-staging:205` `staging-sha-a27a0fb` COMPLETED 1/1 at 04:59:24Z; clean boot, 0 ERROR (ev-006); rollback `:204` |
+| prod | PR 152 `release/TASK-VS-075-production` → prod, `775b37c..5b1ea17`, tree = dry-run T2 `04b8445` | Deploy PRODUCTION run 44241292694 success; `slip-api-production:157` `production-sha-5b1ea17` COMPLETED 3/3 05:04:20Z → 05:13:02Z; env/secrets hash-equal to `:156`, image only (ev-007); rollback `:156` |
+
+Production acceptance (ev-008), 12 min after COMPLETED vs 12 min before the rollout:
+`email alert` lines 36 → 0, ERROR lines 38 → 0, requests 4318 → 4893, 5xx 2 → 0,
+p95 618 → 520 ms. RDS `upslip-postgres-prod` CPU fell from about 12% to about 7% at 05:06Z,
+as the new tasks took over. Note: a teammate had promoted `775b37c` (LINE webhook
+refactor) to prod at 03:48Z; it was already on prod before this promotion, so this
+release carried only the two TASK-VS-075 commits.
+
+Open: knowledge closeout; 24 h recheck (`check_after` 2026-11-19T05:30Z). The alert
+backlog since 2026-11-17 09:17Z is sent silently by design; a sent count needs DB read
+access (`email_alert_deliveries.sent_at`).
