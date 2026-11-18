@@ -1,0 +1,61 @@
+summary: |-
+  Design B, as approved by Earth (relayed from the top session, quoting Earth:
+  "อนุมัติ design B ให้ session นั้นเลย"), is implemented in slip-api on branch
+  fix/TASK-VS-076-email-alert-claim-isolation, PR
+  https://github.com/SparqLab/slip-api/pull/154 against main (open, not merged),
+  based on main d90039b.
+  d3da8fb adds three regressions. All of them fail on unchanged main code (ev-001):
+  a lock on quota_history makes the claim return
+  "select email alerts: timeout: context deadline exceeded" with 0 alerts (the
+  2026-11-17 prod signature); a lock on packages makes the claim roll back the
+  delivery it just enqueued; RunOnce sends nothing when ClaimDueAlerts also
+  reports an error.
+  5dd1dfd is the fix. The alert repository gets its own 10 s budget per step
+  (emailAlertQueryTimeout) instead of the shared 3 s. The enqueue commits as its
+  own statement. The claim no longer reads quota_history, and quotaStoppedAtSQL
+  (with the same VS-075 branch filter) runs after the claim commits, keeping
+  bp.updated_at when it fails. ClaimDueAlerts returns the claimed alerts joined
+  with any enqueue or lookup error, and RunOnce sends them before returning the
+  error. On 5dd1dfd all TestClaimDueAlerts* and the service regression pass
+  against PostgreSQL 18.3 (ev-002), full go test ./... passes with
+  SLIP_API_REPOSITORY_TEST_DSN set (ev-003, migrations package included now that
+  PR 153 counts 85 files), and go vet ./... is clean (ev-004).
+  Test changed, coverage kept: TestClaimDueAlertsReadsOnlyTheAlertBranchQuotaHistory
+  now runs EXPLAIN on quotaStoppedAtSQL instead of claimDueAlertsSQL, because the
+  claim intentionally stopped reading quota_history (approved design B). Its
+  assertions are unchanged. Removing the branch filter by hand still fails it
+  (2003 rows read), which is the same number as the VS-075 failing-before run.
+  No schema change and no migration.
+artifacts:
+- path: slip-api/internal/repositories/email_alert.go
+  action: modified
+  description: Enqueue, claim, and stopped-at lookup split into steps with their own timeouts; the claim no longer reads quota_history; quotaStoppedAtSQL runs after the commit and falls back to bp.updated_at.
+- path: slip-api/internal/core/service/email_alert.go
+  action: modified
+  description: RunOnce sends the claimed alerts, then returns the claim error.
+- path: slip-api/internal/core/ports/repositories.go
+  action: modified
+  description: Documents the ClaimDueAlerts partial-result contract.
+- path: slip-api/cmd/main.go
+  action: modified
+  description: emailAlertQueryTimeout = 10s for the alert repository.
+- path: slip-api/internal/repositories/email_alert_test.go
+  action: modified
+  description: Regressions for a blocked stopped-at lookup and for a failed claim keeping its enqueue; the VS-075 EXPLAIN test is retargeted to quotaStoppedAtSQL.
+- path: slip-api/internal/core/service/email_alert_test.go
+  action: modified
+  description: Regression for RunOnce sending claimed alerts when the claim also reports an error.
+next_action:
+  agent: reviewer
+  reason: Review PR 154. Merging to main and each promotion (main -> staging -> prod, through PRs) need Earth's explicit go-ahead for that step. Staging and production acceptance check that no process email alerts error appears after the deploy (CloudWatch, read over every page) and that alert sends continue.
+context_sources:
+  github:
+    branch: fix/TASK-VS-076-email-alert-claim-isolation
+    pr: https://github.com/SparqLab/slip-api/pull/154
+  socraticode:
+    status: skipped
+    notes: Single-repo change; located with git grep and read at origin/main directly.
+evidence_refs: [ev-001, ev-002, ev-003, ev-004]
+blockers:
+  - Merging to main and every promotion step (staging, prod) wait for Earth's explicit go-ahead. Earth's design approval covers implementing, testing, and opening the PR only.
+  - Out of scope, named in task.md: unbounded enqueue arms (auto_renew_failed, expired_forfeited), stale pending deliveries that are re-evaluated forever, and the SMTP send rate after a long outage.

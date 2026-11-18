@@ -2,10 +2,10 @@
 task_id: TASK-VS-076
 task_label: 'slip-api email alerts: harden the claim job so one slow candidate cannot
   block every alert'
-phase: assigned
-state: assigned
-iteration: 0
-current_agent: dev
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -51,6 +51,14 @@ history:
   reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-18T06:27:39Z'
+  operator: claude
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review PR 154. Merging to main and each promotion (main -> staging -> prod,
+    through PRs) need Earth's explicit go-ahead for that step. Staging and production
+    acceptance check that no process email alerts error appears after the deploy (CloudWatch,
+    read over every page) and that alert sends continue.
+  at: '2026-11-18T06:41:08Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -105,3 +113,11 @@ completion_gates:
       --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
     updated_at: '2026-11-18T06:27:39Z'
     evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-VS-076/dev-output.yaml
+last_synced_output:
+  file: dev-output.yaml
+  digest: d7aa2191d8be96533cdd887e4aa52cf94e91032918a3c17885c124ad55fe0413
+  next: reviewer

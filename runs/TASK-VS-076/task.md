@@ -4,6 +4,11 @@ Opened 2026-11-18 by a Claude conductor side session, as the F3 follow-up of
 TASK-VS-075. Design first; implementation starts only after Earth approves the design.
 Each promotion step (main → staging → prod) needs Earth's go-ahead.
 
+**Status 2026-11-18:** Earth approved design B (relayed from the top session, quoting
+Earth: "อนุมัติ design B ให้ session นั้นเลย"). The approval covers implementing,
+testing, and opening a PR to main only. The implementation is SparqLab/slip-api#154
+(`d3da8fb` tests, `5dd1dfd` fix), evidence ev-001..ev-004. Not merged and not deployed.
+
 ## Why
 
 From 2026-11-17 09:17Z, prod sent no alert email for about 20 hours (TASK-VS-075).
