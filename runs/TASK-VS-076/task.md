@@ -7,7 +7,13 @@ Each promotion step (main → staging → prod) needs Earth's go-ahead.
 **Status 2026-11-18:** Earth approved design B (relayed from the top session, quoting
 Earth: "อนุมัติ design B ให้ session นั้นเลย"). The approval covers implementing,
 testing, and opening a PR to main only. The implementation is SparqLab/slip-api#154
-(`d3da8fb` tests, `5dd1dfd` fix), evidence ev-001..ev-004. Not merged and not deployed.
+(`d3da8fb` tests, `5dd1dfd` fix), evidence ev-001..ev-004.
+
+**Merged 2026-11-18T07:24:02Z:** an independent review approved at `5dd1dfd`
+([PR comment](https://github.com/SparqLab/slip-api/pull/154#issuecomment-6971953834)),
+then Earth said "Merge it". Merge commit `e132009` (parents `d90039b`, `5dd1dfd`; tree
+`fddc52a` == PR head tree). main is 2 PRs ahead of staging (#153 tests only, #154).
+Not on staging or prod: each promotion step waits for a separate go-ahead from Earth.
 
 ## Why
 
