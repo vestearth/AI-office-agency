@@ -1,0 +1,232 @@
+---
+task_id: TASK-VS-073
+task_label: SPAR-71 public manual CMS backend and staging delivery
+phase: done
+state: done
+iteration: 1
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-17'
+updated_at: '2026-11-18'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-11-17T07:41:06Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-17T07:41:06Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-17T07:41:06Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-17T07:41:06Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-17T07:41:06Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: 'Clean commit b4a5c36: full race suite 697 passing test/subtest events,
+    zero skipped; real PostgreSQL 18 integration; vet and readonly build passed'
+  at: '2026-11-17T07:59:58Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261117T080945Z-thread-01a1e79f-ea40-7616-a87a-bf22cf778451-upslip-manual.yaml'
+  at: '2026-11-17T08:09:45Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Promotion PR146 merge tree equals dry run; Deploy STAGING completed success;
+    ECS completed on staging-sha-46f32b0 at slip-api-staging:201, 1/1
+  at: '2026-11-17T08:13:27Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review the staged backend; coordinate authenticated staging CRUD/S3 and
+    Admin/Portal integration before full feature acceptance.
+  at: '2026-11-17T08:13:27Z'
+  operator: codex
+- phase: 'gate backend_review_fixes: absent -> pending'
+  agent: reviewer
+  reason: Earth review comment 01a1e8bb-612e-742a-8df1-50746ffd0211 requires Blog
+    message compatibility and NUL validation corrections before production; await
+    reviewed/merged fix PR
+  at: '2026-11-17T09:04:07Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261117T090634Z-thread-01a1e79f-ea40-7616-a87a-bf22cf778451-upslip-manual.yaml'
+  at: '2026-11-17T09:06:34Z'
+  operator: codex
+- phase: 'gate backend_review_fixes: pending -> pass'
+  agent: reviewer
+  reason: Michael independent APPROVE comment 01a1e8c8-cffc-7621-9224-2b63364e2226
+    matches current 284b879; evidence hashes/test counts verified; PR147 merged into
+    main at da49fc9
+  at: '2026-11-17T09:16:40Z'
+  operator: codex
+- phase: 'gate implementation_verification: pass -> pass'
+  agent: dev
+  reason: 'Reviewed fix commit 284b879: exact clean-tree evidence hashes verified,
+    718 passing events and zero failures/skips; vet and readonly build passed'
+  at: '2026-11-17T09:16:40Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261117T091924Z-thread-01a1e79f-ea40-7616-a87a-bf22cf778451-upslip-manual.yaml'
+  at: '2026-11-17T09:19:24Z'
+  operator: codex
+- phase: 'slip-admin main: PR #45 merged'
+  agent: pm
+  reason: 'Earth merged slip-admin PR #45 into main at 8b0c40d08a95be82cd4c8d987c0b967d61ab08de,
+    pinned to approved head f7df507; main tree equals that head. Staging promotion
+    is separate and does not pass staging_acceptance.'
+  at: '2026-11-17T09:46:56Z'
+  operator: cursor
+- phase: 'slip-front-end staging: PR #22 merged'
+  agent: dev
+  reason: 'Portal PR #21 merged to main at 18557428 pinned to 944f5f9; main tree equals
+    that head. Staging PR #22 merged at 3ae2d179, tree matches, Deploy STAGING 44063118918
+    success, ECS slip-front-end-staging:136 image staging-sha-3ae2d17 HEALTHY. Logged-out
+    /manual returns 200. Prod remains ea10273. staging_acceptance stays pending.'
+  at: '2026-11-17T10:21:00Z'
+  operator: cursor
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'Earth reported authenticated staging acceptance passed in Multica comment
+    01a1ea33-e7af-79f1-9734-73e8d96d5cd2, tested 2026-11-17 15:40-15:48 UTC against
+    slip-api-staging and slip-admin-staging:104. Topic/article CRUD, draft/publish
+    visibility, reorder, move_to delete, history, PNG upload 201/CDN read and article
+    save/HeadObject 200 passed. Missing image key returned 422 block_invalid at sections[0].blocks[1].image_key
+    without data/history changes. Logged-out Portal staging rendered correctly. Test
+    topics/articles removed; public topics [] and test slugs 404. Residual staging
+    artifacts: 1 test image in public/manual/ and activity-log rows for qa-vs073-*.
+    Nonblocking slip-admin follow-ups, not gate conditions: environment-specific PORTAL_URL
+    instead of hardcoded prod; final-topic deletion UI/API rule decision; move-history
+    Topic chip lacks old/new values. Seed import is separate and was not performed
+    in this gate-recording session; production remains prohibited.'
+  at: '2026-11-17T16:23:33Z'
+  operator: codex
+- phase: in_review -> done
+  agent: dev
+  reason: Production delivery accepted by Earth in comment 01a1eccb-9d54-7330-a840-9514f91651e0;
+    Jason authorized closure in 01a1eccd-3c68-7ced-98c5-9ee5dd662b9f. Recorded Admin
+    PR47/prod 2e78711 and Portal PR23/prod 7022c10, successful deploy workflows and
+    independently passing public production smoke in ev-035. ECS/images/rollback and
+    authenticated content import attributed to Earth. Existing non-manual lint limitation
+    recorded in ev-036. Nonblocking follow-ups transferred to SPAR-72 backlog (01a1eccc-f541-702c-bde6-0f5d91c416ae),
+    not completion gates. No deploy or content import performed by this closeout.
+  at: '2026-11-18T04:03:01Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: 'Reviewed fix commit 284b879: exact clean-tree evidence hashes verified,
+      718 passing events and zero failures/skips; vet and readonly build passed'
+    updated_at: '2026-11-17T09:16:40Z'
+    evidence_refs:
+    - ev-017
+    - ev-018
+    - ev-019
+    - ev-021
+    requires_record: true
+    ran:
+      by: codex
+      ref: 284b879104627bbaac8bc0656d8ac0289280f76f
+      url: https://github.com/SparqLab/slip-api/pull/147
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: Promotion PR146 merge tree equals dry run; Deploy STAGING completed success;
+      ECS completed on staging-sha-46f32b0 at slip-api-staging:201, 1/1
+    updated_at: '2026-11-17T08:13:27Z'
+    evidence_refs:
+    - ev-012
+    - ev-013
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: github-actions
+      ref: 46f32b0cc382daff554e9de22daf5875a6bec266
+      url: https://github.com/SparqLab/slip-api/actions/runs/44043125251
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'Earth reported authenticated staging acceptance passed in Multica comment
+      01a1ea33-e7af-79f1-9734-73e8d96d5cd2, tested 2026-11-17 15:40-15:48 UTC against
+      slip-api-staging and slip-admin-staging:104. Topic/article CRUD, draft/publish
+      visibility, reorder, move_to delete, history, PNG upload 201/CDN read and article
+      save/HeadObject 200 passed. Missing image key returned 422 block_invalid at
+      sections[0].blocks[1].image_key without data/history changes. Logged-out Portal
+      staging rendered correctly. Test topics/articles removed; public topics [] and
+      test slugs 404. Residual staging artifacts: 1 test image in public/manual/ and
+      activity-log rows for qa-vs073-*. Nonblocking slip-admin follow-ups, not gate
+      conditions: environment-specific PORTAL_URL instead of hardcoded prod; final-topic
+      deletion UI/API rule decision; move-history Topic chip lacks old/new values.
+      Seed import is separate and was not performed in this gate-recording session;
+      production remains prohibited.'
+    updated_at: '2026-11-17T16:23:33Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: Earth
+      ref: multica-comment:01a1ea33-e7af-79f1-9734-73e8d96d5cd2
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261117T091924Z-thread-01a1e79f-ea40-7616-a87a-bf22cf778451-upslip-manual.yaml'
+    updated_at: '2026-11-17T09:19:24Z'
+    evidence_refs: []
+  backend_review_fixes:
+    status: pass
+    actor: reviewer
+    reason: Michael independent APPROVE comment 01a1e8c8-cffc-7621-9224-2b63364e2226
+      matches current 284b879; evidence hashes/test counts verified; PR147 merged
+      into main at da49fc9
+    updated_at: '2026-11-17T09:16:40Z'
+    evidence_refs:
+    - ev-017
+    - ev-018
+    - ev-019
+    - ev-021
+    - ev-022
+    requires_record: true
+    ran:
+      by: Michael-De-Santa
+      ref: 284b879104627bbaac8bc0656d8ac0289280f76f
+      url: https://github.com/SparqLab/slip-api/pull/147
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route
+last_synced_output:
+  file: dev-output.yaml
+  digest: bd508284a334a30d4fdc529afcef0a11b6d77b2f79c65cb29acebfbd27e26cbf
+  next: reviewer

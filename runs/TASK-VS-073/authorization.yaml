@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-073
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: multica
+  reason: Earth approved implementation and backend -> staging in comment 01a1e872-c8a6-7883-ac02-094ee232fb3d;
+    Jason delegated staging delivery in 01a1e873-2868-7e26-8364-4d4c59304a6d
+  at: '2026-11-17T07:51:39Z'
+  action: deploy_staging
+  scope: slip-api manual CMS backend only; main implementation then staging promotion;
+    no prod

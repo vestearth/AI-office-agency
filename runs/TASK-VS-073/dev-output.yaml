@@ -1,0 +1,43 @@
+summary: |-
+  Implemented the approved public Portal manual CMS backend in slip-api at
+  b4a5c361c6b44e585725c1062f487cfc58bb619d. Implementation PR 145 merged into
+  main; promotion PR 146 merged main into staging at 46f32b0. Deploy STAGING
+  run 44043125251 succeeded. ECS slip-api-staging:201 completed on the expected
+  image with 1/1 tasks; migration 084 took 136ms. Public/auth/CORS smoke passed.
+  Full race suite: 697 passing test/subtest events, zero skips, with real
+  PostgreSQL 18 integration. Readonly build and vet passed. Admin and Portal
+  integration, authenticated staging CRUD/S3 and full UI E2E remain separate.
+artifacts:
+- path: slip-api/internal/manual/
+  action: created
+  description: Manual validation, public/admin HTTP contract, transactional repository and tests.
+- path: slip-api/migrations/084_manual_cms.sql
+  action: created
+  description: Additive tables/indexes plus widened history CHECK; retain content on rollback.
+- path: slip-api/docs/manual-api.md
+  action: created
+  description: Approved frontend contract, examples, errors, rollout and QA guidance.
+- path: slip-api/internal/contentimage/
+  action: created
+  description: Reuse existing Blog image validation/storage; preserve credential-source assertions.
+next_action:
+  agent: reviewer
+  reason: Review the staged backend; coordinate authenticated staging CRUD/S3 and Admin/Portal integration before full feature acceptance.
+context_sources:
+  github:
+    branch: task/TASK-VS-073
+    pr: https://github.com/SparqLab/slip-api/pull/145
+  socraticode:
+    status: used
+    queries:
+      - slip-api blog S3 uploader repository integration PostgreSQL test seed schema activity logs manual
+    relevant_symbols:
+      - blog.NewS3Uploader
+      - service.NewActivityLogger
+      - manual.Handler.Register
+    notes: Remote d:\llm reported green; index watcher manual. Every implementation decision verified against current source.
+evidence_refs: [ev-007, ev-008, ev-009, ev-010, ev-011, ev-012, ev-013]
+blockers:
+  - staging_acceptance remains pending for authenticated staging CRUD/S3; no admin session was available in this run.
+  - Admin/Portal implementation and UI E2E are subsequent work; no frontend repository changed.
+  - Knowledge capture proposal validated, but librarian followup is unavailable in this session.

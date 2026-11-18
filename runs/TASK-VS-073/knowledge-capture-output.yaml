@@ -1,0 +1,95 @@
+task_id: TASK-VS-073
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Project Map.md
+summary: Record the Portal-only manual production delivery, verified GitHub/public evidence, operator-reported runtime facts, and separate nonblocking backlog SPAR-72.
+sources:
+  - slip-api/docs/manual-api.md
+  - slip-api/migrations/084_manual_cms.sql
+  - slip-api/internal/manual/handler.go
+  - ai-dev-office/runs/TASK-VS-073/task.md
+  - ai-dev-office/runs/TASK-VS-073/evidence.yaml
+  - ai-dev-office/runs/TASK-VS-073/verification-evidence.md
+  - ai-dev-office/runs/TASK-VS-073/evidence/ev-033.log
+  - ai-dev-office/runs/TASK-VS-073/evidence/ev-035.log
+  - ai-dev-office/runs/TASK-VS-073/evidence/ev-036.log
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-11-18'
+  confidence: high
+  task_id: TASK-VS-073
+  evidence_refs: [ev-007, ev-008, ev-009, ev-033, ev-035, ev-036]
+note_patch: |
+  Proposed addition after the historical 2026-11-12 inventory (do not rewrite that snapshot):
+
+  Manual CMS, TASK-VS-073 / SPAR-71 (2026-11-17): Earth chose public Portal
+  UM1–UM3 as the reader, Thai content, topics/articles, separate manual_topics
+  and manual_articles tables with JSONB blocks, existing AdminAuth, public
+  images from upload, and single-version last-write-wins. slip-landing retains
+  its existing static manual. The backend contract and implementation are in
+  slip-api/docs/manual-api.md (implementation PR 145; staging promotion PR 146).
+  Images must never contain real customer information and remain public after
+  articles are unpublished. History is metadata-only and best effort.
+
+  Dated update, 2026-11-18: Earth restored the Portal-only decision in comment
+  01a1eca4-f49d-7b21-b834-2b7c41aa2a73, canceling the temporary landing/API
+  expansion from 01a1ea65-fce1-7e7d-acdd-da0be2b06931. Landing PR #23 reverted
+  the manual feature/renderer changes into main at 19ef72c; PR #24 promoted the
+  revert to staging at dc1674d. GitHub checks (ev-033) establish a shared tree
+  03658f915e8419d089fe77e51b2dd292c3124da6 for main, staging, pre-feature
+  0f0910c and prod; prod commit remains e6dc302. Deploy STAGING run 44228202726
+  succeeded. This does not constitute a new production deployment.
+
+  GitHub also establishes slip-api prod d5a99e2, a direct staging -> prod merge
+  by watcharapol-spl at 2026-11-17T09:44:41Z with no associated PR. Earth reports
+  migration 084 applied in 74 ms; the duration is operator-reported, not proven
+  by the GitHub checks. Earth reports staging seed import through Admin API
+  (8 topics, 61 articles: 42 published / 19 draft), superseding the unused
+  task-local DB import command. Earth also reported authenticated staging
+  CRUD/history/S3 and Portal acceptance; staging_acceptance was recorded pass
+  from comment 01a1ea33-e7af-79f1-9734-73e8d96d5cd2 and stays unchanged.
+
+  Later production delivery, 2026-11-18: Earth approved the release plan and
+  reported its completion in comment 01a1eccb-9d54-7330-a840-9514f91651e0,
+  superseding the earlier production hold. Content was imported by Earth via
+  Admin API at 03:42 UTC (8 topics / 61 articles, 42 published / 19 draft).
+  Independent checks ev-035 establish Admin PR #47 -> prod 2e78711 pinned to
+  fd5d0b3, tree 548ec579; Portal PR #23 -> prod 7022c10 pinned to 3ae2d17,
+  tree 69548fb1; both production deploy workflows succeeded. Landing prod
+  remains e6dc302 and serves its static manual.
+
+  Independent public checks confirm 8 topics/counts 4,7,5,6,3,7,6,4, no-store,
+  draft article API 404, anonymous production Portal /manual 200, and a rendered
+  API response table with "บทที่ 3 จาก 6". Authenticated import/draft totals,
+  ECS revisions, images, env/secret hash equivalence and rollback remain
+  Earth-reported: Admin :92 / production-sha-2e78711 / rollback :91; Portal
+  :95 / production-sha-7022c10 / rollback :94; COMPLETED 1/1 for both.
+  Production image upload/save remains unverified because the seed has no images.
+
+  Portal CI lint is not green (ev-036), in two files whose blobs match
+  pre-manual main; deployment success is a separate claim. Nonblocking manual
+  follow-ups are in SPAR-72 (01a1eccc-f541-702c-bde6-0f5d91c416ae), verified
+  backlog/unassigned, not gates of TASK-VS-073. Jason authorized guarded task
+  closure in 01a1eccd-3c68-7ced-98c5-9ee5dd662b9f. The existing guarded writer
+  completed TASK-VS-073 as done, preserving all five gates and adding no
+  follow-up gate; the task validator passed. Reuse the existing Portal
+  manual implementation rather than a new copy. This capture remains a
+  proposal only; publication to the vault is separate from task completion.
+
+  Related: [[10 Projects/VerifySlip/Project Map]], [[Promotion Rule]].
+  Sources: Earth approval comment 01a1e872-c8a6-7883-ac02-094ee232fb3d;
+  slip-api/docs/manual-api.md, migration 084 and manual implementation at
+  b4a5c361c6b44e585725c1062f487cfc58bb619d; TASK-VS-073 ev-007/008/009;
+  task.md, verification-evidence.md and ev-033/035/036; Earth comments
+  01a1eca4-f49d-7b21-b834-2b7c41aa2a73,
+  01a1ea65-fce1-7e7d-acdd-da0be2b06931 and
+  01a1ea33-e7af-79f1-9734-73e8d96d5cd2 and
+  01a1eccb-9d54-7330-a840-9514f91651e0; SPAR-72. GitHub:
+  https://github.com/SparqLab/slip-admin/pull/47,
+  https://github.com/SparqLab/slip-front-end/pull/23,
+  https://github.com/SparqLab/slip-landing/pull/23,
+  https://github.com/SparqLab/slip-landing/pull/24,
+  https://github.com/SparqLab/slip-landing/actions/runs/44228202726,
+  https://github.com/SparqLab/slip-api/commit/d5a99e2d41589d761cc17adf02b455554218a668.
