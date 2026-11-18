@@ -58,6 +58,17 @@
   fixture whose previous revision carries the keys. RED on `3ea510f` (both workflows
   leak when the GitHub secrets are set), GREEN after the change.
 
+## Closed (2026-11-18): aborted without shipping
+
+Earth asked "ประเด็นนี้จบเลยได้ไหม" (can this be closed?). The run is closed as
+`aborted` (decision.yaml `reject`); delivery gates are `na` and knowledge closeout
+records a skip, since nothing shipped and decision 10 stands. Draft
+SparqLab/slip-api#148 is closed unmerged. Its branch `task/TASK-VS-074-s3-task-role`
+(`1abbf72`) is kept on the remote so it can be reopened; the local worktree is
+removed. The exposure stays as accepted in TASK-VS-058 decision 10 (its follow-ups:
+split keys per environment, move to ECS `secrets`, rotate). A future resume starts
+from the findings, options and ordering below.
+
 ## Operator decision (Earth, 2026-11-17): parked
 
 Earth chose **D: "คงตาม decision 10 ไว้ก่อน"** (keep TASK-VS-058 decision 10 for now),

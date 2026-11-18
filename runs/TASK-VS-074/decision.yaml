@@ -1,0 +1,8 @@
+---
+task_id: TASK-VS-074
+decisions:
+- decision: reject
+  actor: operator
+  decided_at: '2026-11-18T06:24:31Z'
+  against_phase: blocked
+  note: 'recorded from chat by the Claude conductor: operator asked "ประเด็นนี้จบเลยได้ไหม" (2026-11-18), after decision D on 2026-11-17 to keep TASK-VS-058 decision 10 (static S3 key pair as task-definition env). Closed without shipping; draft SparqLab/slip-api#148 closed unmerged, branch kept so it can be reopened.'
