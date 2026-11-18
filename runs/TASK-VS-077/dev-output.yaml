@@ -1,0 +1,66 @@
+---
+summary: |
+  SPAR-72 Admin changes at 3dca9b82814381981a666417537c8c8a50cf2cd9 approved independently by Michael (Multica 01a1edc9-ac1e-706a-9495-22424ed8e65b) and accepted by Jason (01a1edcb-52e0-7626-bff5-f283c1bc9af0).
+  Pinned PR48 merged into main at 6de87987441631f6e541820311218e4eceb3333f; separate pinned PR49 main-to-staging merged at b0d7de462f15fbbd5771054a5ce46af960a370e1. Deployed tree equals reviewed tree.
+  NUXT_PUBLIC_PORTAL_URL matches staging, verified before merge (ev-018), live ECS and served runtime config verified after deploy (ev-022, ev-025); no variable/secret values printed.
+  Deploy STAGING 44269249401 success (ev-020, ev-023): slip-admin-staging:105, staging-sha-b0d7de4, COMPLETED single deployment, running/desired 1/1, pending 0 (ev-022).
+  Anonymous curl smoke passes (ev-025): Admin shell 200, unauthenticated Admin API 401, public topics API 200 with 8 topics; Portal index/topic/sample article and topic/article public APIs 200 without login redirect.
+  Prior local verification remains 19/19 tests (ev-014), typecheck (ev-015), Nuxt build (ev-004), Docker build (ev-013), workflow/config smoke (ev-007, ev-012). This Admin lane performed no production or API changes; MINOR-1 remains outside scope.
+  ev-017 organization lookup was corrected by repository-scoped inherited variables in ev-018; ev-021 smoke indentation was corrected; ev-024 urllib HTTP 403 is recorded without attributing cause, curl checks pass in ev-025.
+  Staging acceptance now recorded pass from Earth operator report 01a1ee45-f387-7a7b-a9d5-23dd63c0b899, explicitly accepted by Jason in 01a1ee48-9906-7d7b-977b-7ace0175c15d (ev-026); not independently retested in this run. Check 4 empty-topic deletion passed, only-remaining-topic case NOT tested and must not be attempted by removing real content. Test records removed by Earth, create/delete activity-log history remains. No data edits/uploads or production push/dispatch performed by this lane. Office records/evidence remain local/uncommitted pending publication.
+  Task remains in_review by explicit instruction; no production gates added and no other task folders changed.
+artifacts:
+- path: https://github.com/SparqLab/slip-admin/pull/48
+  action: created
+  description: Implementation PR merged with head pinned to 3dca9b82814381981a666417537c8c8a50cf2cd9;
+    main merge 6de87987441631f6e541820311218e4eceb3333f.
+- path: slip-admin-TASK-VS-077/tests/manual-ui.test.ts
+  action: created
+  description: Real Vue SFC rendering, translations/error formatting, history and
+    Portal-link regression coverage with existing installed dependencies.
+- path: ai-dev-office/runs/TASK-VS-077/evidence.yaml
+  action: created
+  description: Commands, provenance and output for regression red/green, compile/build,
+    runtime and workflow checks.
+- path: https://github.com/SparqLab/slip-admin/pull/49
+  action: created
+  description: Separate main-to-staging promotion merged with head pinned to 6de87987441631f6e541820311218e4eceb3333f;
+    staging merge b0d7de462f15fbbd5771054a5ce46af960a370e1.
+- path: https://github.com/SparqLab/slip-admin/actions/runs/44269249401
+  action: created
+  description: Successful staging deploy; task definition 105 and image staging-sha-b0d7de4
+    verified live.
+- path: ai-dev-office/runs/TASK-VS-077/evidence/ev-026.log
+  action: created
+  description: Scoped operator report from Earth, including partial check 4, cleanup
+    counts and residual activity-log history; not an independent retest.
+next_action:
+  agent: reviewer
+  reason: Jason retains the task open after accepting operator-reported staging QA
+    with the final-topic limitation; no additional destructive test, production gate,
+    deployment or closure authorized.
+blockers:
+- 'Explicit Jason instruction: keep TASK-VS-077 open/in_review; do not automatically
+  close despite passed gates.'
+- Only-remaining-topic deletion was not tested on staging; do not delete real content
+  to test it. Test create/delete history remains in activity log.
+- Content decisions for 28 articles and LINE OA example remain open; no content application
+  authorized in this record-only update.
+- Office task/evidence records remain local/uncommitted pending publication.
+evidence_refs:
+- ev-001
+- ev-004
+- ev-007
+- ev-010
+- ev-012
+- ev-013
+- ev-014
+- ev-015
+- ev-016
+- ev-018
+- ev-019
+- ev-020
+- ev-022
+- ev-023
+- ev-025
+- ev-026

@@ -1,0 +1,140 @@
+---
+task_id: TASK-VS-077
+task_label: SPAR-72 Admin manual follow-ups
+phase: in_review
+state: in_review
+iteration: 0
+current_agent: reviewer
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-18'
+updated_at: '2026-11-18'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: independent_review, staging_acceptance, knowledge_closeout'
+  at: '2026-11-18T08:12:17Z'
+  operator: codex
+- phase: 'gate independent_review: absent -> pending'
+  agent: pm
+  reason: Michael reviews pinned Admin PR head via Jason
+  at: '2026-11-18T08:12:17Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: Authorized staging QA after separate promotion; no production verification
+    in this task
+  at: '2026-11-18T08:12:17Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-18T08:12:17Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261118T082208Z-spar-72-manual-followups.yaml'
+  at: '2026-11-18T08:22:08Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: PR48 main head 3dca9b8 submitted; local checks pass; Jason coordinates Michael
+    review and subsequent staging acceptance
+  at: '2026-11-18T08:22:42Z'
+  operator: codex
+- phase: 'plan revision rev-001: plan_changed'
+  agent: dev
+  reason: Jason approval comment 01a1edcb-52e0-7626-bff5-f283c1bc9af0 authorizes pinned
+    PR48 merge into main, separate main-to-staging PR and merge after Portal variable
+    verification, collect deploy/runtime/public evidence; no prod or MINOR-1 changes.
+  at: '2026-11-18T08:40:41Z'
+  operator: codex
+- phase: 'gate independent_review: pending -> pass'
+  agent: dev
+  reason: Michael APPROVE at Multica comment 01a1edc9-ac1e-706a-9495-22424ed8e65b
+    for pinned head 3dca9b82814381981a666417537c8c8a50cf2cd9; Jason accepts verdict
+    in 01a1edcb-52e0-7626-bff5-f283c1bc9af0. MINOR-1 outside this PR.
+  at: '2026-11-18T08:40:41Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev
+  reason: Pinned implementation and staging promotion merged; deploy and anonymous
+    HTTP smoke pass; Jason coordinates authenticated staging acceptance, gate remains
+    pending.
+  at: '2026-11-18T08:49:49Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev
+  reason: Staging deploy/anonymous smoke verified; retain reviewer handoff for authenticated
+    acceptance; dev-output role routing corrected to validator-supported reviewer.
+  at: '2026-11-18T08:50:01Z'
+  operator: codex
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'Operator-reported acceptance by Earth, SPAR-72 comment 01a1ee45-f387-7a7b-a9d5-23dd63c0b899,
+    tested 2026-11-18 10:09-10:25Z on slip-admin staging b0d7de4; Jason accepts in
+    01a1ee48-9906-7d7b-977b-7ace0175c15d. Checks 1-3,5,6 pass. Check 4: empty-topic
+    deletion passes, only-remaining-topic case NOT tested to preserve eight real topics;
+    explicitly do not continue destructive testing. Test topics zz-qa-a/b/c and zz-qa-article
+    removed; operator reports baseline 8 topics/61 articles/42 published and unchanged
+    public counts. Test create/delete history remains in activity log. validation_failed
+    topic is the known nonblocking MINOR-1. Evidence is operator report, not an independent
+    rerun.'
+  at: '2026-11-18T10:54:28Z'
+  operator: codex
+completion_gates:
+  independent_review:
+    status: pass
+    actor: dev
+    reason: Michael APPROVE at Multica comment 01a1edc9-ac1e-706a-9495-22424ed8e65b
+      for pinned head 3dca9b82814381981a666417537c8c8a50cf2cd9; Jason accepts verdict
+      in 01a1edcb-52e0-7626-bff5-f283c1bc9af0. MINOR-1 outside this PR.
+    updated_at: '2026-11-18T08:40:41Z'
+    evidence_refs: []
+    ran:
+      by: Michael-De-Santa
+      ref: 3dca9b82814381981a666417537c8c8a50cf2cd9
+      url: https://github.com/SparqLab/slip-admin/pull/48
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'Operator-reported acceptance by Earth, SPAR-72 comment 01a1ee45-f387-7a7b-a9d5-23dd63c0b899,
+      tested 2026-11-18 10:09-10:25Z on slip-admin staging b0d7de4; Jason accepts
+      in 01a1ee48-9906-7d7b-977b-7ace0175c15d. Checks 1-3,5,6 pass. Check 4: empty-topic
+      deletion passes, only-remaining-topic case NOT tested to preserve eight real
+      topics; explicitly do not continue destructive testing. Test topics zz-qa-a/b/c
+      and zz-qa-article removed; operator reports baseline 8 topics/61 articles/42
+      published and unchanged public counts. Test create/delete history remains in
+      activity log. validation_failed topic is the known nonblocking MINOR-1. Evidence
+      is operator report, not an independent rerun.'
+    updated_at: '2026-11-18T10:54:28Z'
+    evidence_refs:
+    - ev-026
+    ran:
+      by: operator
+      ref: b0d7de462f15fbbd5771054a5ce46af960a370e1
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261118T082208Z-spar-72-manual-followups.yaml'
+    updated_at: '2026-11-18T08:22:08Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: forced-route
+revisions:
+- id: rev-001
+  at: '2026-11-18T08:40:41Z'
+  kind: plan_changed
+  actor: dev
+  reason: Jason approval comment 01a1edcb-52e0-7626-bff5-f283c1bc9af0 authorizes pinned
+    PR48 merge into main, separate main-to-staging PR and merge after Portal variable
+    verification, collect deploy/runtime/public evidence; no prod or MINOR-1 changes.
+  no_new_gates: Existing independent_review and staging_acceptance gates cover this
+    promotion; authenticated acceptance remains separate.
