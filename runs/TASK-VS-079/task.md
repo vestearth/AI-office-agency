@@ -59,3 +59,26 @@ Acceptance on prod (a group bind with no `line reply failed`) settles it.
 - PR into slip-api `main`. Merge and each promotion only on Earth's go-ahead.
 - Production: after deploy, a platform-bot group bind (or join of a bound group)
   produces no `line reply failed` in `/ecs/slip-api-production`.
+
+## Implementation (2026-11-18)
+
+SparqLab/slip-api#157, branch `fix/TASK-VS-079-line-adjust-mode` on `main` 309660f:
+`8d1f014` (regression test) and `15502f4` (fix plus the two corrected assertions).
+
+- ev-001: the new test fails on `8d1f014` in all 4 cases (`adjustMode "shrink"`).
+- ev-002: on `15502f4` the new test, `TestGroupSendSlipStaysOnTwoLines` and
+  `TestAlreadyLinkedElsewhereMatchesCard` pass.
+- ev-003: full `go test -count=1 ./...` with the repository and migration DSNs passes on
+  `15502f4`.
+- ev-004: `go vet ./...` and `go build -mod=readonly ./...` pass.
+
+ev-001 and ev-002 print the slip-api commit they ran on. ev-003 and ev-004 ran in the same
+worktree at clean HEAD `15502f4` right after, but their logs do not print it. The
+evidence records' `repo_sha` is the ai-dev-office checkout the wrapper ran from, not
+slip-api.
+
+A search of CloudWatch from 2026-10-20 to 2026-11-18T08:20Z found no other LINE
+`invalid property` errors: production has only these 2 events (4 lines), staging none.
+
+Not merged. `main` also carries 309660f (watcharapol-spl, feat(line-webhook)), which is
+outside this task. A promotion would ship it too, so it needs Earth's scope approval.

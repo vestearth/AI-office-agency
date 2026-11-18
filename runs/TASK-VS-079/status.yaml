@@ -2,10 +2,10 @@
 task_id: TASK-VS-079
 task_label: 'slip-api LINE platform bot: group-bind reply rejected by LINE (adjustMode
   shrink -> shrink-to-fit)'
-phase: assigned
-state: assigned
+phase: in_review
+state: in_review
 iteration: 0
-current_agent: dev
+current_agent: reviewer
 ready: true
 blocked_on: []
 waiting_for: []
@@ -59,6 +59,13 @@ history:
     shrink -> shrink-to-fit, correct the two wrong assertions, PR into main; merge
     and each promotion need Earth''s go-ahead.'
   at: '2026-11-18T08:52:09Z'
+  operator: claude
+- phase: assigned -> in_review
+  agent: dev
+  reason: 'PR 157 open (8d1f014 test, 15502f4 fix): red ev-001, green ev-002..ev-004.
+    Review the 4-line fix and the corrected assertions; merging to main and each promotion
+    need Earth''s go-ahead (main also carries 309660f, outside this task).'
+  at: '2026-11-18T08:56:04Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -114,6 +121,6 @@ completion_gates:
     updated_at: '2026-11-18T08:51:39Z'
     evidence_refs: []
 handoff:
-  from: pm
-  to: dev
+  from: dev
+  to: reviewer
   artifact: forced-route
