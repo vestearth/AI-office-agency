@@ -1,0 +1,24 @@
+---
+task_id: TASK-VS-076
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Earth answered 'Approve both' (staging and prod) in the Claude Code session
+    at about 2026-11-18T07:28Z, after the read-only dry run (T1 = T2 = fddc52a) and
+    the promotion plan
+  at: '2026-11-18T07:42:58Z'
+  action: deploy_staging
+  scope: 'slip-api main e132009 (PR 154: d3da8fb, 5dd1dfd; PR 153: 8b12953) -> staging
+    via main->staging PR'
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Earth answered 'Approve both' (staging and prod) in the Claude Code session
+    at about 2026-11-18T07:28Z, and then 'ทำต่อจนเสร็จเลย'
+  at: '2026-11-18T07:42:58Z'
+  action: deploy_production
+  scope: 'slip-api staging 3646f06 (same commits: d3da8fb, 5dd1dfd, 8b12953) -> prod
+    via release/TASK-VS-076-production PR'
