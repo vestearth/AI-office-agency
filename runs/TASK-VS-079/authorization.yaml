@@ -1,0 +1,25 @@
+---
+task_id: TASK-VS-079
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: 'Earth answered ''Both, incl. 309660f'' in the Claude Code session at about
+    2026-11-18T09:05Z to: promote PR 157 to staging and prod, with 309660f riding
+    along to prod'
+  at: '2026-11-18T09:06:43Z'
+  action: deploy_staging
+  scope: 'slip-api main 1b63b6b -> staging via main->staging PR: 8d1f014, 15502f4
+    (TASK-VS-079); staging already carries 309660f via PR 158'
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Earth answered 'Both, incl. 309660f' in the Claude Code session at about
+    2026-11-18T09:05Z
+  at: '2026-11-18T09:06:43Z'
+  action: deploy_production
+  scope: 'slip-api staging -> prod via release/TASK-VS-079-production PR: 8d1f014,
+    15502f4 (TASK-VS-079) plus 309660f (watcharapol-spl, feat(line-webhook), outside
+    this task, explicitly included by Earth)'

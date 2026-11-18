@@ -97,3 +97,27 @@ The next promotion has two parts:
 - main → staging carries only `8d1f014` and `15502f4`.
 - staging → prod carries those two plus `309660f`, which is outside this task and was
   approved for staging only. It needs Earth's scope approval.
+
+## Promoted to staging and prod (2026-11-18)
+
+Earth answered "Both, incl. 309660f": staging and prod, with 309660f (watcharapol-spl)
+going to prod as well (authz-001, authz-002).
+
+- **Dry run:** T1 = T2 = `1294f4e`, the main tree, on which the full suite passed (ev-003).
+  No migration, no config or env change.
+- **Staging:** first waited for the PR 158 rollout (`staging-sha-177a25f`) to finish. Then
+  PR 159 merged main → staging at `7af8c5d` (tree == T1). `slip-api-staging:208` COMPLETED
+  1/1 with a clean boot (ev-006). ev-005 is a failed run of the check script, whose env vars
+  did not reach it. Rollback `:207`.
+- **Prod:** PR 160 merged `release/TASK-VS-079-production` → prod at `e0cfe0c` (tree == T2;
+  range `836e123..e0cfe0c` = 309660f, 8d1f014, 15502f4). `slip-api-production:159`
+  COMPLETED 3/3 at 09:33:53Z. Env and secrets are unchanged from `:158`; only the image
+  changed (ev-007). Rollback `:158`.
+- **Acceptance:** a bind QR at 09:38:16Z was followed by platform-bot webhooks, and there
+  was no `line reply failed` (ev-009).
+  - The 12-minute window shows 5xx 2 → 1 and email-alert lines 0 → 0 (ev-008).
+  - ev-008's FAIL verdict comes only from one `POST /v1/slips/verify` 502. That 502
+    pattern existed before: 22 in the 6 h before, on the old image.
+- **check_after:** 2026-11-19T09:40Z.
+
+Open: `knowledge_closeout`.
