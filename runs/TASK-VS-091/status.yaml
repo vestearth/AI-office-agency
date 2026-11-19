@@ -1,0 +1,95 @@
+---
+task_id: TASK-VS-091
+task_label: 'SPAR-78: promote slip-api LINE bank logo startup fix to production'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: devops
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-19'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: deploy_production, production_acceptance,
+    knowledge_closeout'
+  at: '2026-11-19T09:44:53Z'
+  operator: claude
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: promote staging adb89e9 (857068d) to prod via PR; Earth approved opening
+    the PR 2026-11-19
+  at: '2026-11-19T09:44:53Z'
+  operator: claude
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: confirm production-sha rollout, 5xx=0, ERROR=0, td 162 loop ends
+  at: '2026-11-19T09:44:53Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-19T09:44:53Z'
+  operator: claude
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: 'Earth approved opening PR #167 (2026-11-19) and then said to merge it.
+    Merged pinned to head 34a7d66, merge commit 682216b; origin/prod tree 38de8e1
+    equals the dry-run T2. Deploy PRODUCTION run 44499504721 ran for 682216b (red
+    on the ServicesStable waiter only; rollout judged from ECS).'
+  at: '2026-11-19T13:23:06Z'
+  operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: devops
+  reason: 'ECS slip-api-production:163 on production-sha-682216b COMPLETED, running
+    = desired, failedTasks 0, targets healthy. Env and secret hashes of td 161 and
+    163 identical. Window 09:47-10:03Z: 4607 requests, 5xx 0, panic 0, ERROR 0; /v1/line/banks/scb.png
+    and ktb.png returned 200 on the new tasks. td 162 loop ended. Not measured: behavior
+    beyond ~16 min after the deploy.'
+  at: '2026-11-19T13:23:06Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261119T132306Z-slip-api-spar-78-prod-promotion.yaml'
+  at: '2026-11-19T13:23:06Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by operator'
+  at: '2026-11-19T13:23:34Z'
+  operator: claude
+completion_gates:
+  deploy_production:
+    status: pass
+    actor: devops
+    reason: 'Earth approved opening PR #167 (2026-11-19) and then said to merge it.
+      Merged pinned to head 34a7d66, merge commit 682216b; origin/prod tree 38de8e1
+      equals the dry-run T2. Deploy PRODUCTION run 44499504721 ran for 682216b (red
+      on the ServicesStable waiter only; rollout judged from ECS).'
+    updated_at: '2026-11-19T13:23:06Z'
+    evidence_refs:
+    - ev-001
+  production_acceptance:
+    status: pass
+    actor: devops
+    reason: 'ECS slip-api-production:163 on production-sha-682216b COMPLETED, running
+      = desired, failedTasks 0, targets healthy. Env and secret hashes of td 161 and
+      163 identical. Window 09:47-10:03Z: 4607 requests, 5xx 0, panic 0, ERROR 0;
+      /v1/line/banks/scb.png and ktb.png returned 200 on the new tasks. td 162 loop
+      ended. Not measured: behavior beyond ~16 min after the deploy.'
+    updated_at: '2026-11-19T13:23:06Z'
+    evidence_refs:
+    - ev-001
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261119T132306Z-slip-api-spar-78-prod-promotion.yaml'
+    updated_at: '2026-11-19T13:23:06Z'
+    evidence_refs: []
+decision_applied_at: '2026-11-19T13:23:34Z'
