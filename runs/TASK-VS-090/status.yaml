@@ -1,0 +1,106 @@
+---
+task_id: TASK-VS-090
+task_label: 'SPAR-78: fix LINE bank logo startup panic and verify slip-api staging'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-19'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: regression, staging_health, knowledge_closeout'
+  at: '2026-11-19T08:57:56Z'
+  operator: codex
+- phase: 'gate regression: absent -> pending'
+  agent: pm
+  reason: Prove router regression fails before and passes after
+  at: '2026-11-19T08:57:56Z'
+  operator: codex
+- phase: 'gate staging_health: absent -> pending'
+  agent: pm
+  reason: 'Verify healthy staging task and image for a revision including PR #164'
+  at: '2026-11-19T08:57:56Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-19T08:57:56Z'
+  operator: codex
+- phase: 'gate regression: pending -> pass'
+  agent: dev
+  reason: Staging mux panic confirmed in CloudWatch. TestLINEBankLogoRoute reproduced
+    the panic before the fix and passed after it.
+  at: '2026-11-19T09:00:42Z'
+  operator: codex
+- phase: 'gate staging_health: pending -> pass'
+  agent: dev
+  reason: 'ECS sole running staging task and ALB target are healthy on the exact image,
+    the SHA includes PR #164, and public health, readiness and bank-logo smoke checks
+    passed.'
+  at: '2026-11-19T09:16:20Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261119T091829Z-spar-75-verifyslip-account-suspension.yaml'
+  at: '2026-11-19T09:18:29Z'
+  operator: codex
+- phase: 'gate staging_health: pass -> pass'
+  agent: dev
+  reason: 'ECS completed the rollout after the Actions waiter timed out. The sole
+    staging task and ALB target are healthy on the exact image, which includes PR
+    #164. Public health, readiness and bank-logo checks passed.'
+  at: '2026-11-19T09:21:09Z'
+  operator: codex
+- phase: assigned -> done
+  agent: dev
+  reason: SPAR-78 delivered and staging rollout verified directly against ECS, ALB,
+    CloudWatch, and public HTTP.
+  at: '2026-11-19T09:21:09Z'
+  operator: codex
+completion_gates:
+  regression:
+    status: pass
+    actor: dev
+    reason: Staging mux panic confirmed in CloudWatch. TestLINEBankLogoRoute reproduced
+      the panic before the fix and passed after it.
+    updated_at: '2026-11-19T09:00:42Z'
+    evidence_refs:
+    - ev-002
+    - ev-003
+    - ev-005
+  staging_health:
+    status: pass
+    actor: dev
+    reason: 'ECS completed the rollout after the Actions waiter timed out. The sole
+      staging task and ALB target are healthy on the exact image, which includes PR
+      #164. Public health, readiness and bank-logo checks passed.'
+    updated_at: '2026-11-19T09:21:09Z'
+    evidence_refs:
+    - ev-010
+    - ev-012
+    - ev-013
+    - ev-015
+    - ev-016
+    ran:
+      by: codex
+      ref: adb89e9d078b1a877a80118703ced3ca938af650
+      url: https://github.com/SparqLab/slip-api/actions/runs/44493002207
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261119T091829Z-spar-75-verifyslip-account-suspension.yaml'
+    updated_at: '2026-11-19T09:18:29Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route
