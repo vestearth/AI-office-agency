@@ -55,6 +55,7 @@ router.get('/', async (_req, res) => {
     };
     res.json(response);
   } catch (err) {
+    console.error('Failed to build review model:', err);
     res.status(500).json({ error: 'Failed to build review model' });
   }
 });
