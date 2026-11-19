@@ -2,18 +2,18 @@
 task_id: TASK-VS-075
 task_label: 'slip-api email alerts: claim query times out on quota_history scan (no
   alert emails since 2026-11-17 09:17Z)'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 1
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-18'
-updated_at: '2026-11-18'
+updated_at: '2026-11-19'
 history:
 - phase: created -> assigned
   agent: pm
@@ -108,6 +108,21 @@ history:
   reason: fix effect seen in the first 12 min (ev-008); confirm no recurrence over
     a full day
   at: '2026-11-18T05:26:40Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture (new_durable_knowledge) in knowledge-reviews/closeouts/20261119T054608Z-verifyslip-email-alerts.yaml'
+  at: '2026-11-19T05:46:08Z'
+  operator: claude
+- phase: 'check_after: cleared'
+  agent: devops
+  reason: '24 h recheck passed (ev-014): 0 email alert lines since 2026-11-18T05:13:02Z'
+  at: '2026-11-19T05:46:15Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by Earth'
+  at: '2026-11-19T05:46:27Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -207,11 +222,10 @@ completion_gates:
       by: claude
       ref: 5b1ea171189c68147f0b6a9cacda6700c5626c22
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-18T04:31:46Z'
+    reason: 'closeout recorded: capture (new_durable_knowledge) in knowledge-reviews/closeouts/20261119T054608Z-verifyslip-email-alerts.yaml'
+    updated_at: '2026-11-19T05:46:08Z'
     evidence_refs: []
 handoff:
   from: dev
@@ -221,9 +235,4 @@ last_synced_output:
   file: dev-output.yaml
   digest: 53c2ddea3c3bb74a1068e9c52685b761d436ee98bda7ea47b374fe376f91a94d
   next: reviewer
-check_after:
-  at: '2026-11-19T05:30:00Z'
-  what: '24 h recheck of slip-api prod after 5b1ea17: CloudWatch /ecs/slip-api-production
-    filter ''"email alert"'' from 2026-11-18T05:13:02Z = 0 lines (no claim timeout,
-    no send/mark failure) and RDS upslip-postgres-prod CPU at baseline; earlier episodes
-    (10-18, 10-25, 11-08, 11-11) were intermittent'
+decision_applied_at: '2026-11-19T05:46:21Z'
