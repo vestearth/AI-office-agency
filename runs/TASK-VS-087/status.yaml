@@ -157,6 +157,23 @@ history:
     and Portal QA, and a suspend and lift on prod. SPAR-76 stays in_review.'
   at: '2026-11-20T04:03:00Z'
   operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: 'Multica SPAR-76 after the slip-admin prod promotion. Niko Belic acknowledged
+    the status comment and kept SPAR-76 in_review (04:19:56Z). A request posted from
+    Earth''s account at 04:38:55Z asked Claude Speed to test the suspension flow on
+    prod with an internal test account. Claude Speed stopped before testing because
+    no confirmed internal test account or Admin prod access was available. It touched
+    no prod account or data and set SPAR-76 to blocked (04:39:38Z). Earth then decided
+    that the team tests on prod itself with its own admin and test accounts, and that
+    no credentials go to agents (SPAR-76 comment 01a1f746-9c1b-7373-806c-a9899e406f9e,
+    04:46:02Z). That cancelled the Claude Speed prod test, and Claude Speed returned
+    SPAR-76 to in_review (04:46:12Z). No ev-017 was recorded. Open: the team''s prod
+    suspend and lift test (steps 1-5 in that thread, account restored afterwards),
+    and joint Admin and Portal QA on staging, which waits for Thanwa''s PR (SPAR-77).
+    No code, deploy, env, task definition, or ECS change. SPAR-76 stays in_review.'
+  at: '2026-11-20T04:46:12Z'
+  operator: claude
 completion_gates:
   pr_review:
     status: pass
