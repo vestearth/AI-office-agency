@@ -1,0 +1,53 @@
+summary: |-
+  SPAR-75 account suspension is ready for review in slip-api PR #164.
+  Verified base main and head task/SPAR-75 at dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d.
+  The Portal receives a structured 403 after successful owner authentication.
+  Social sign-in requires an existing linked provider identity to disclose
+  suspension details. Both unlinked verified-email paths now return the
+  generic 401 and pass the HTTP regression tests that failed on de73b09.
+  Legacy inactive accounts keep a null suspension. Temporary suspensions resume
+  at the database cutoff on sign-in, valid Portal sessions, API keys, LINE,
+  and transactions that lock the owner before purchasing or renewing a package.
+  The PostgreSQL package regression failed before the fix and passed afterward.
+  The full PostgreSQL-backed Go suite, readonly build, and vet passed locally.
+  The PR is open for review.
+artifacts:
+  - path: slip-api/migrations/086_account_suspension.sql
+    action: created
+    description: Preserve legacy accounts and enforce suspension details and the automatic resume cutoff.
+  - path: slip-api/internal/handler/router/account_suspension_test.go
+    action: created
+    description: Cover response variants, unlinked verified email including signup conflicts, and the owner-only profile route.
+  - path: slip-api/internal/core/service/auth.go
+    action: modified
+    description: Require provider identity linkage before disclosing account suspension in social sign-in.
+  - path: slip-api/internal/repositories/user_suspension_test.go
+    action: created
+    description: Verify Ops updates, manual lift, and real PostgreSQL resume behavior.
+  - path: slip-api/internal/repositories/branch_package.go
+    action: modified
+    description: Read effective account status under the existing row lock.
+  - path: slip-api/internal/repositories/branch_package_renewal_test.go
+    action: modified
+    description: Verify purchase and charged auto-renew after the temporary suspension cutoff.
+  - path: slip-api/README.md
+    action: modified
+    description: Document Portal payloads, Ops requests, resume behavior, and rollback.
+next_action:
+  agent: reviewer
+  reason: Independently review account ownership, payload variants, the owner-only profile route, and regression evidence at the current PR head.
+context_sources:
+  github:
+    branch: task/SPAR-75
+    pr: https://github.com/SparqLab/slip-api/pull/164
+  socraticode:
+    status: used
+    queries:
+      - slip-api internal/core/service/auth.go passwordLogin SocialLogin profile BearerAuth user status
+    relevant_symbols:
+      - auth.passwordLogin
+      - auth.SocialLogin
+      - BearerAuth
+    notes: Confirmed affected paths against the task worktree and PostgreSQL tests.
+evidence_refs: [ev-001, ev-006, ev-007, ev-010, ev-011, ev-012, ev-013, ev-014, ev-015]
+blockers: []

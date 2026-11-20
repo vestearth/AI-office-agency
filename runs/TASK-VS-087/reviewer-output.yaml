@@ -1,0 +1,59 @@
+summary: >-
+  Trevor's independent review approved the slip-api backend at
+  dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d. Recorded from Multica SPAR-75
+  comment 01a1f2bd-8812-70b0-97b5-cecdfb5e3f50. PR 164 later merged to main
+  at 20375208a96f6a08cddc39206b6223179349504f on 2026-11-19 15:03
+  Asia/Bangkok. Production is not authorized.
+review_verdict: approved
+risk_level: high
+evidence_refs:
+  - ev-011
+  - ev-012
+  - ev-013
+  - ev-014
+  - ev-015
+independent_review:
+  preliminary_assessment: >-
+    PR head matched dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d. Unlinked Google
+    sign-in returns 401 without suspension details. Linked ownership returns
+    403 account_suspended with no session. GET /v1/me returns 403 only for a
+    still-valid owner token.
+  rationale_reviewed_after: true
+  assessment_changed: false
+build_check:
+  compile: pass
+  tests: pass
+  details: >-
+    ev-011 failed before the fix on a dirty tree at de73b09 because unlinked
+    verified Google returned 403. ev-012 passed after the fix on that dirty
+    tree. ev-013 go vet, ev-014 readonly build, and ev-015 full tests passed
+    on the clean tree of dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d. Trevor
+    re-ran TestUnlinkedProviderCannotReadRestriction and
+    TestSuspensionResponseAcrossPortalRoutes on that SHA.
+artifacts:
+  - path: internal/core/service/auth.go
+    action: unchanged
+    description: Linked provider identity is required before suspension details are returned.
+  - path: internal/handler/router/account_suspension_test.go
+    action: unchanged
+    description: Portal response and unlinked-provider regression coverage.
+  - path: internal/handler/middleware/bearer.go
+    action: unchanged
+    description: GET /v1/me checks the token before revealing a restriction.
+context_sources:
+  github:
+    branch: task/SPAR-75
+    pr: https://github.com/SparqLab/slip-api/pull/164
+next_action:
+  agent: pm
+  reason: >-
+    Production deploy run 44499504721 for PR 167 completed with failure.
+    The image upslip/slip-api:production-sha-682216b was pushed. The ECS
+    stability waiter hit max attempts. At 09:48:58Z one deployment was
+    completed at 3 running and another in-progress deployment had 15 failed
+    tasks. Earth had seen revision :163 at 3/3 with HTTP 200 on /health,
+    /ready, and /v1/line/banks/scb.png while the waiter was still running.
+    Staging API for joint QA is adb89e9d078b1a877a80118703ced3ca938af650.
+    Admin PR 51 and Portal issue 31 are still open. Do not promote either UI
+    to production.
+blockers: []

@@ -1,0 +1,207 @@
+---
+task_id: TASK-VS-087
+task_label: SPAR-75 account suspension response
+phase: in_review
+state: in_review
+iteration: 3
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-20'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: pr_review, knowledge_closeout'
+  at: '2026-11-19T06:24:00Z'
+  operator: cursor
+- phase: 'gate pr_review: absent -> pending'
+  agent: pm
+  reason: slip-api PR from main with tests, for review only, no merge and no deploy
+  at: '2026-11-19T06:24:00Z'
+  operator: cursor
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-19T06:24:00Z'
+  operator: cursor
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261119T063757Z-spar-75-verifyslip-account-suspension.yaml'
+  at: '2026-11-19T06:37:57Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review the slip-api PR targeting main and its authentication and migration
+    behavior.
+  at: '2026-11-19T06:38:47Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev
+  reason: Re-review the current slip-api PR head, including the package status check
+    under row lock.
+  at: '2026-11-19T06:52:44Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: dev
+  reason: Independently review account ownership, payload variants, the owner-only
+    profile route, and regression evidence at the current PR head.
+  at: '2026-11-19T07:35:05Z'
+  operator: codex
+- phase: in_review -> in_review
+  agent: reviewer
+  reason: Review is recorded. Do not merge or deploy. knowledge_closeout stays pending.
+    SPAR-76 and SPAR-77 remain backlog.
+  at: '2026-11-19T07:46:23Z'
+  operator: cursor
+- phase: 'gate pr_review: pending -> pass'
+  agent: reviewer
+  reason: Trevor independent review approved backend at dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d.
+    Multica SPAR-75 comment 01a1f2bd-8812-70b0-97b5-cecdfb5e3f50. ev-011 failed before
+    the fix; ev-012 passed after it; ev-013 vet, ev-014 readonly build, and ev-015
+    full tests passed on the pushed SHA. No merge and no deploy.
+  at: '2026-11-19T07:46:23Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: reviewer
+  reason: Review is recorded. Do not merge or deploy. knowledge_closeout already passed
+    at 2026-11-19 13:37 Asia/Bangkok. SPAR-76 and SPAR-77 remain backlog.
+  at: '2026-11-19T07:48:16Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: pm
+  reason: PR 164 is on main at 20375208a96f6a08cddc39206b6223179349504f, mergedAt
+    2026-11-19T08:03:34Z (15:03 Asia/Bangkok). Earth reported the Go suite on PostgreSQL
+    16 passed on that merge commit. GitHub has no check runs for it. Do not deploy.
+    SPAR-76 and SPAR-77 stay backlog for a joint staging test against this SHA.
+  at: '2026-11-19T08:23:29Z'
+  operator: cursor
+- phase: 'gate main_merge: absent -> pending'
+  agent: pm
+  reason: Record that slip-api PR 164 reached main. This does not authorize production.
+  at: '2026-11-19T08:23:29Z'
+  operator: cursor
+- phase: 'gate main_merge: pending -> pass'
+  agent: pm
+  reason: PR 164 merged to main at 20375208a96f6a08cddc39206b6223179349504f at 2026-11-19
+    15:03 Asia/Bangkok (mergedAt 2026-11-19T08:03:34Z). Parents ab78394e7dd31ee2090f084d15f1f5f5925c709e
+    and dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d. Earth reported the Go suite on PostgreSQL
+    16 passed when re-run on this merge commit. GitHub check runs on the commit are
+    empty. The merge tree differs from the reviewed tree of dc061eb. Production is
+    not authorized.
+  at: '2026-11-19T08:23:30Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: pm
+  reason: 20375208a96f6a08cddc39206b6223179349504f is the main merge of PR 164 (mergedAt
+    2026-11-19T08:03:34Z). Staging has a separate history, so a promotion PR may deploy
+    a new SHA. Joint QA confirms the staging build contains PR 164 and records the
+    deployed SHA and image. Admin and Portal use that same staging API. UI starts
+    from the agreed contract when assigned. Waiting for the staging API blocks only
+    the joint test. Do not deploy. Production is not authorized.
+  at: '2026-11-19T08:27:13Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: pm
+  reason: 20375208a96f6a08cddc39206b6223179349504f is the main merge of PR 164 only.
+    SPAR-76 owner is Niko Belic on slip-admin. SPAR-77 owner is Thanwa (thanwa-t)
+    on slip-front-end issue 31. UI starts from the agreed contract when assigned.
+    Joint QA waits for one deployed staging API that contains PR 164, and records
+    that deployed SHA and image. Admin and Portal share it. Do not deploy. Production
+    is not authorized.
+  at: '2026-11-19T08:35:44Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: pm
+  reason: 20375208a96f6a08cddc39206b6223179349504f is the main merge of PR 164 only.
+    SPAR-76 owner is Niko Belic on slip-admin. SPAR-77 owner is Thanwa (thanwa-t)
+    on slip-front-end issue 31 and may proceed from the contract. Joint QA waits until
+    Tommy confirms the staging API that contains PR 164 is healthy after the LINE
+    route startup panic is fixed, and records that deployed SHA and image. Admin and
+    Portal then share it. Production rollout status is a separate DevOps check. Do
+    not deploy from this task.
+  at: '2026-11-19T08:55:59Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: pm
+  reason: Production deploy run 44499504721 for PR 167 completed with failure. The
+    image upslip/slip-api:production-sha-682216b was pushed. The ECS stability waiter
+    hit max attempts. At 09:48:58Z one deployment was completed at 3 running and another
+    in-progress deployment had 15 failed tasks. Earth had seen revision :163 at 3/3
+    with HTTP 200 on /health, /ready, and /v1/line/banks/scb.png while the waiter
+    was still running. Staging API for joint QA is adb89e9d078b1a877a80118703ced3ca938af650.
+    Admin PR 51 and Portal issue 31 are still open. Do not promote either UI to production.
+  at: '2026-11-19T10:01:48Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: devops
+  reason: 'Earth approved each step in chat: "merge #51 แล้วขึ้น staging", "Merge
+    + staging", then "ขึ้น prod เลย". The Claude conductor promoted slip-admin for
+    SPAR-76: 5b2a88e (PR 51, account suspensions) and 8112b1c (PR 55, user picker
+    status labels). Staging through PRs 54 and 56: origin/staging e949e8b..adc82d8,
+    Deploy STAGING runs 44568752638 and 44574998380 success, slip-admin-staging:108
+    runs staging-sha-adc82d8 at 1/1 with a clean boot. Prod through PR 57 from release/TASK-VS-087-production,
+    merged tree c041968 equal to the dry run and to the staging tree: origin/prod
+    da4de98..5a52e72, Deploy PRODUCTION run 44667473831 success, slip-admin-production:95
+    runs production-sha-5a52e72 at 1/1 COMPLETED. Env and secrets unchanged from
+    :94. Window 03:24-03:37Z: 1 log line (listener), 0 error lines, ALB 2 requests,
+    0 target 5xx (ev-016). Prod slip-api :164 (production-sha-2fc6b04) contains
+    PR 164. Rollback: point the service back at slip-admin-production:94 (production-sha-da4de98);
+    prod has no circuit breaker. This supersedes the 2026-11-19T10:01:48Z note for
+    slip-admin only; the Portal (SPAR-77) is not promoted here. Not done: joint Admin
+    and Portal QA, and a suspend and lift on prod. SPAR-76 stays in_review.'
+  at: '2026-11-20T04:03:00Z'
+  operator: claude
+completion_gates:
+  pr_review:
+    status: pass
+    actor: reviewer
+    reason: Trevor independent review approved backend at dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d.
+      Multica SPAR-75 comment 01a1f2bd-8812-70b0-97b5-cecdfb5e3f50. ev-011 failed
+      before the fix; ev-012 passed after it; ev-013 vet, ev-014 readonly build, and
+      ev-015 full tests passed on the pushed SHA. No merge and no deploy.
+    updated_at: '2026-11-19T07:46:23Z'
+    evidence_refs:
+    - ev-011
+    - ev-012
+    - ev-013
+    - ev-014
+    - ev-015
+    ran:
+      by: reviewer
+      ref: dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d
+      url: https://github.com/SparqLab/slip-api/pull/164
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261119T063757Z-spar-75-verifyslip-account-suspension.yaml'
+    updated_at: '2026-11-19T06:37:57Z'
+    evidence_refs: []
+  main_merge:
+    status: pass
+    actor: pm
+    reason: PR 164 merged to main at 20375208a96f6a08cddc39206b6223179349504f at 2026-11-19
+      15:03 Asia/Bangkok (mergedAt 2026-11-19T08:03:34Z). Parents ab78394e7dd31ee2090f084d15f1f5f5925c709e
+      and dc061ebcb3f899cc04f7afc22b4ed315b43b1d8d. Earth reported the Go suite on
+      PostgreSQL 16 passed when re-run on this merge commit. GitHub check runs on
+      the commit are empty. The merge tree differs from the reviewed tree of dc061eb.
+      Production is not authorized.
+    updated_at: '2026-11-19T08:23:30Z'
+    evidence_refs: []
+    ran:
+      by: operator
+      ref: 20375208a96f6a08cddc39206b6223179349504f
+      url: https://github.com/SparqLab/slip-api/pull/164
+handoff:
+  from: pm
+  to: pm
+  artifact: runs/TASK-VS-087/reviewer-output.yaml
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: e8cd1a2bfc24393672d60fb9208ade08c169652134183664579bb0a31e55ac98
+  next: pm
