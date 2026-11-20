@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-067
 task_label: 'UpSlip: log topup slip rejection reasons by request_id'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 7
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-09'
-updated_at: '2026-11-13'
+updated_at: '2026-11-20'
 history:
 - phase: created -> assigned
   agent: pm
@@ -193,6 +193,21 @@ history:
     by operator decision, not an acceptance claim.'
   at: '2026-11-13T06:27:47Z'
   operator: claude
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: pm
+  reason: 'Earth accepted 2026-11-20 (chat): first real post-deploy top-up 422 on
+    prod joins Warn line to access log by request_id 1/1 (POST /v1/payments/slips
+    422 slip not verified); reason not_verified, provider_status 8404, sending_bank
+    002, truncated trans_ref_sha256, no sensitive values. Receiver shape N/A: 8404
+    returns no slip data, so receiver fields are omitted per Scope item 2. receiver_account_masked
+    not yet observed on prod; accepted by operator decision.'
+  at: '2026-11-20T11:04:58Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-20T11:05:16Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -268,14 +283,23 @@ completion_gates:
       ref: 164df8c9a4df21290aa636a84ce0c04fd9e5ea04
       url: https://github.com/SparqLab/slip-api/actions/runs/42750998419
   production_acceptance:
-    status: pending
+    status: pass
     actor: pm
-    reason: the change is observed working in production
-    updated_at: '2026-11-09T07:29:20Z'
-    evidence_refs: []
+    reason: 'Earth accepted 2026-11-20 (chat): first real post-deploy top-up 422 on
+      prod joins Warn line to access log by request_id 1/1 (POST /v1/payments/slips
+      422 slip not verified); reason not_verified, provider_status 8404, sending_bank
+      002, truncated trans_ref_sha256, no sensitive values. Receiver shape N/A: 8404
+      returns no slip data, so receiver fields are omitted per Scope item 2. receiver_account_masked
+      not yet observed on prod; accepted by operator decision.'
+    updated_at: '2026-11-20T11:04:58Z'
+    evidence_refs:
+    - ev-037
     after:
     - deploy_production
     requires_record: true
+    ran:
+      by: slip-api production (CloudWatch /ecs/slip-api-production)
+      ref: request_id c35bf4a87bcc55473e46b87e71d02dc6 @ 2026-11-20T04:29:40Z
   knowledge_closeout:
     status: pass
     actor: devops
@@ -290,3 +314,4 @@ last_synced_output:
   file: devops-output.yaml
   digest: 0a1e518413393d0641b52a68ee9922a3a228e8893b840aec8b3a037eaa7afda0
   next: reviewer
+decision_applied_at: '2026-11-20T11:05:16Z'

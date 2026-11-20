@@ -1,0 +1,7 @@
+task_id: TASK-VS-067
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-20T11:05:16Z'
+  against_phase: in_review
+  note: 'recorded from chat by the Claude conductor: Earth accepted the 2026-11-20 prod 422 (ev-037) as production_acceptance and closed SPAR-63'
