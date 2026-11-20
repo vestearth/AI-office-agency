@@ -47,13 +47,9 @@ context_sources:
 next_action:
   agent: pm
   reason: >-
-    Production deploy run 44499504721 for PR 167 completed with failure.
-    The image upslip/slip-api:production-sha-682216b was pushed. The ECS
-    stability waiter hit max attempts. At 09:48:58Z one deployment was
-    completed at 3 running and another in-progress deployment had 15 failed
-    tasks. Earth had seen revision :163 at 3/3 with HTTP 200 on /health,
-    /ready, and /v1/line/banks/scb.png while the waiter was still running.
-    Staging API for joint QA is adb89e9d078b1a877a80118703ced3ca938af650.
-    Admin PR 51 and Portal issue 31 are still open. Do not promote either UI
-    to production.
+    Staging QA is pinned to slip-api-staging:218 at 63d3d7e, Admin :108,
+    and Portal 54654db. Earth reported three auth/suspension Go regressions
+    passed at that commit. The five Portal login cases and five Admin
+    production steps still have no team result. Do not merge PR 35 and do
+    not promote Portal. SPAR-75 stays open.
 blockers: []

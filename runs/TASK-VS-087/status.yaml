@@ -1,11 +1,11 @@
 ---
 task_id: TASK-VS-087
 task_label: SPAR-75 account suspension response
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 3
-current_agent: pm
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -148,13 +148,13 @@ history:
     runs staging-sha-adc82d8 at 1/1 with a clean boot. Prod through PR 57 from release/TASK-VS-087-production,
     merged tree c041968 equal to the dry run and to the staging tree: origin/prod
     da4de98..5a52e72, Deploy PRODUCTION run 44667473831 success, slip-admin-production:95
-    runs production-sha-5a52e72 at 1/1 COMPLETED. Env and secrets unchanged from
-    :94. Window 03:24-03:37Z: 1 log line (listener), 0 error lines, ALB 2 requests,
-    0 target 5xx (ev-016). Prod slip-api :164 (production-sha-2fc6b04) contains
-    PR 164. Rollback: point the service back at slip-admin-production:94 (production-sha-da4de98);
-    prod has no circuit breaker. This supersedes the 2026-11-19T10:01:48Z note for
-    slip-admin only; the Portal (SPAR-77) is not promoted here. Not done: joint Admin
-    and Portal QA, and a suspend and lift on prod. SPAR-76 stays in_review.'
+    runs production-sha-5a52e72 at 1/1 COMPLETED. Env and secrets unchanged from :94.
+    Window 03:24-03:37Z: 1 log line (listener), 0 error lines, ALB 2 requests, 0 target
+    5xx (ev-016). Prod slip-api :164 (production-sha-2fc6b04) contains PR 164. Rollback:
+    point the service back at slip-admin-production:94 (production-sha-da4de98); prod
+    has no circuit breaker. This supersedes the 2026-11-19T10:01:48Z note for slip-admin
+    only; the Portal (SPAR-77) is not promoted here. Not done: joint Admin and Portal
+    QA, and a suspend and lift on prod. SPAR-76 stays in_review.'
   at: '2026-11-20T04:03:00Z'
   operator: claude
 - phase: in_review -> in_review
@@ -173,6 +173,28 @@ history:
     and joint Admin and Portal QA on staging, which waits for Thanwa''s PR (SPAR-77).
     No code, deploy, env, task definition, or ECS change. SPAR-76 stays in_review.'
   at: '2026-11-20T04:46:12Z'
+  operator: claude
+- phase: in_review -> in_review
+  agent: pm
+  reason: slip-admin production smoke is recorded. The five suspension cases on prod
+    were not reported by the team and were not run by an agent. SPAR-77 staging QA
+    is scheduled on the prepared checklist. Portal head remains 54654db. Do not merge
+    PR 35 and do not promote Portal. No credentials go to agents.
+  at: '2026-11-20T08:33:45Z'
+  operator: cursor
+- phase: in_review -> in_review
+  agent: pm
+  reason: Staging QA is pinned to slip-api-staging:218 at 63d3d7e, Admin :108, and
+    Portal 54654db. Earth reported three auth/suspension Go regressions passed at
+    that commit. The five Portal login cases and five Admin production steps still
+    have no team result. Do not merge PR 35 and do not promote Portal. SPAR-75 stays
+    open.
+  at: '2026-11-20T08:43:05Z'
+  operator: cursor
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-20T11:34:48Z'
   operator: claude
 completion_gates:
   pr_review:
@@ -220,5 +242,6 @@ handoff:
   artifact: runs/TASK-VS-087/reviewer-output.yaml
 last_synced_output:
   file: reviewer-output.yaml
-  digest: e8cd1a2bfc24393672d60fb9208ade08c169652134183664579bb0a31e55ac98
+  digest: 8444435ab196608cf7e98167d911079a2e03b82b22ec11ef0c60093049424f4e
   next: pm
+decision_applied_at: '2026-11-20T11:34:48Z'

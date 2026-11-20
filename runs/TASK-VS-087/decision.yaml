@@ -1,0 +1,7 @@
+task_id: TASK-VS-087
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-20T11:34:48Z'
+  against_phase: in_review
+  note: 'recorded from chat by the Claude conductor: Earth closed SPAR-75/76/77 and TASK-VS-087. API (slip-api#164), Admin (slip-admin#51/#55) and Portal (slip-front-end#35 via #38/#39) are on prod (ev-017). Joint Admin/Portal staging QA and the prod suspend/lift test were not run; Earth handed them to the Frontend and QA teams. Accepted by operator decision, not a test result.'
