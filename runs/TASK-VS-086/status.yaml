@@ -1,0 +1,116 @@
+---
+task_id: TASK-VS-086
+task_label: 'SPAR-72 manual content: slips batch 5'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-20'
+history:
+- phase: created -> assigned
+  agent: dev
+  reason: 'opened with completion gates: independent_review, staging_acceptance, knowledge_closeout'
+  at: '2026-11-19T04:20:33Z'
+  operator: claude
+- phase: 'gate independent_review: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-19T04:20:33Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-19T04:20:33Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: dev
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-19T04:20:33Z'
+  operator: claude
+- phase: 'gate independent_review: pending -> pass'
+  agent: reviewer
+  reason: 'Michael De Santa independent review of the 2 slips ArticleInputs against
+    Portal f8dd417 and slip-api: REQUEST_CHANGES with 4 edits (quota table row removed,
+    bank-not-found long sentence, filter sentence, 3-pass wording), made by me and
+    confirmed by Jason (comment 01a1f216-2170-7d97-b131-81ec08a8a2a9); final hashes
+    ev-002. Michael''s optional items and the slip-failed-next-steps summary mismatch
+    were reported, not changed. Agent-attested review, not a command result.'
+  at: '2026-11-19T07:00:55Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'Operator-attested: Earth applied the 2 reviewed ArticleInputs on staging
+    only (PUT 200 x2, payload sha256 checked against ev-002) and read back admin API,
+    public API and app-staging pages. I did not apply or repeat it. Jason''s readback
+    (comment 01a1f294) agrees: sections match, slips topic still 3, total 41, tables
+    1 and 2, removed quota/3-pass sentences absent, production unchanged. My own read-only
+    readback (ev-003): both chapters have the new sections and no รายละเอียด heading
+    on staging, production still the single summary section. Page text and table counts
+    are from Earth and Jason, not rechecked by me. Known and accepted, not fixed:
+    slip-history still says results are kept 90 days (Portal copy; really a date-picker
+    limit) and the slip-failed-next-steps summary still over-promises. Production
+    not touched.'
+  at: '2026-11-19T07:00:55Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101151Z-spar-72-manual-content-vs-086.yaml'
+  at: '2026-11-20T10:11:51Z'
+  operator: claude
+- phase: assigned -> done
+  agent: dev
+  reason: 'Closed at Earth''s request 2026-11-20: engineering no longer edits manual
+    articles; Content team takes over (SPAR-72). Staging content of reviewed batches
+    left as is; production untouched.'
+  at: '2026-11-20T10:11:51Z'
+  operator: claude
+completion_gates:
+  independent_review:
+    status: pass
+    actor: reviewer
+    reason: 'Michael De Santa independent review of the 2 slips ArticleInputs against
+      Portal f8dd417 and slip-api: REQUEST_CHANGES with 4 edits (quota table row removed,
+      bank-not-found long sentence, filter sentence, 3-pass wording), made by me and
+      confirmed by Jason (comment 01a1f216-2170-7d97-b131-81ec08a8a2a9); final hashes
+      ev-002. Michael''s optional items and the slip-failed-next-steps summary mismatch
+      were reported, not changed. Agent-attested review, not a command result.'
+    updated_at: '2026-11-19T07:00:55Z'
+    evidence_refs: []
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'Operator-attested: Earth applied the 2 reviewed ArticleInputs on staging
+      only (PUT 200 x2, payload sha256 checked against ev-002) and read back admin
+      API, public API and app-staging pages. I did not apply or repeat it. Jason''s
+      readback (comment 01a1f294) agrees: sections match, slips topic still 3, total
+      41, tables 1 and 2, removed quota/3-pass sentences absent, production unchanged.
+      My own read-only readback (ev-003): both chapters have the new sections and
+      no รายละเอียด heading on staging, production still the single summary section.
+      Page text and table counts are from Earth and Jason, not rechecked by me. Known
+      and accepted, not fixed: slip-history still says results are kept 90 days (Portal
+      copy; really a date-picker limit) and the slip-failed-next-steps summary still
+      over-promises. Production not touched.'
+    updated_at: '2026-11-19T07:00:55Z'
+    evidence_refs:
+    - ev-003
+    ran:
+      by: operator
+      ref: Earth applied via admin API with own session; report in comment 01a1f291-f53d-7e2e-9c2d-ad1a2c51bcca
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101151Z-spar-72-manual-content-vs-086.yaml'
+    updated_at: '2026-11-20T10:11:51Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route

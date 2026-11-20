@@ -1,0 +1,114 @@
+---
+task_id: TASK-VS-083
+task_label: 'SPAR-72 manual content: line batch 3'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-20'
+history:
+- phase: created -> assigned
+  agent: dev
+  reason: 'opened with completion gates: independent_review, staging_acceptance, knowledge_closeout'
+  at: '2026-11-18T20:11:53Z'
+  operator: claude
+- phase: 'gate independent_review: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-18T20:11:53Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-18T20:11:53Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: dev
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-18T20:11:53Z'
+  operator: claude
+- phase: 'gate independent_review: pending -> pass'
+  agent: reviewer
+  reason: 'Michael De Santa independent review of the 3 line ArticleInputs against
+    Portal source; verdict led to edits (status-badges: Auto-reply and read-only items
+    removed, 4 badges, no 95% phrase; connect-failed: Auto-reply callout removed,
+    OA wording; disconnect-or-move: webhook-removal phrase removed, who-can-cancel
+    wording) which I made and Jason confirmed (comment 01a1f050-653e-7c59-9615-e8075b51e5f1).
+    Final hashes ev-003 (ev-002 is stale, recorded before the sources file was updated).
+    Agent-attested review, not a command result.'
+  at: '2026-11-19T02:58:29Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'Operator-attested: Earth applied the 3 reviewed ArticleInputs on staging
+    only and read back. I did not apply or repeat it. Jason''s staging check (comment
+    01a1f1bd-71ed) agrees: sections match, tables 2/2/1, no Auto-reply/FullControl/95%/webhook-removed
+    text, connect-line-oa on staging still the 17 Nov content, public article count
+    unchanged. My own read-only public readback (ev-004): 3 articles have the new
+    sections and no รายละเอียด heading on staging; production still has the single
+    summary section. Table counts and page text are from Earth and Jason, not rechecked
+    by me. Production not touched. Reviewer observations on a 409 toast and bot message
+    are not addressed in this round, by instruction.'
+  at: '2026-11-19T02:58:29Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101151Z-spar-72-manual-content-vs-083.yaml'
+  at: '2026-11-20T10:11:51Z'
+  operator: claude
+- phase: assigned -> done
+  agent: dev
+  reason: 'Closed at Earth''s request 2026-11-20: engineering no longer edits manual
+    articles; Content team takes over (SPAR-72). Staging content of reviewed batches
+    left as is; production untouched.'
+  at: '2026-11-20T10:11:51Z'
+  operator: claude
+completion_gates:
+  independent_review:
+    status: pass
+    actor: reviewer
+    reason: 'Michael De Santa independent review of the 3 line ArticleInputs against
+      Portal source; verdict led to edits (status-badges: Auto-reply and read-only
+      items removed, 4 badges, no 95% phrase; connect-failed: Auto-reply callout removed,
+      OA wording; disconnect-or-move: webhook-removal phrase removed, who-can-cancel
+      wording) which I made and Jason confirmed (comment 01a1f050-653e-7c59-9615-e8075b51e5f1).
+      Final hashes ev-003 (ev-002 is stale, recorded before the sources file was updated).
+      Agent-attested review, not a command result.'
+    updated_at: '2026-11-19T02:58:29Z'
+    evidence_refs: []
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'Operator-attested: Earth applied the 3 reviewed ArticleInputs on staging
+      only and read back. I did not apply or repeat it. Jason''s staging check (comment
+      01a1f1bd-71ed) agrees: sections match, tables 2/2/1, no Auto-reply/FullControl/95%/webhook-removed
+      text, connect-line-oa on staging still the 17 Nov content, public article count
+      unchanged. My own read-only public readback (ev-004): 3 articles have the new
+      sections and no รายละเอียด heading on staging; production still has the single
+      summary section. Table counts and page text are from Earth and Jason, not rechecked
+      by me. Production not touched. Reviewer observations on a 409 toast and bot
+      message are not addressed in this round, by instruction.'
+    updated_at: '2026-11-19T02:58:29Z'
+    evidence_refs:
+    - ev-004
+    ran:
+      by: operator
+      ref: Earth applied via admin API with own session; report in comment 01a1f1bc-9994-74b5-a203-9ef83438fa27
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101151Z-spar-72-manual-content-vs-083.yaml'
+    updated_at: '2026-11-20T10:11:51Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route

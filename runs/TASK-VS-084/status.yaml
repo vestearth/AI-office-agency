@@ -1,0 +1,114 @@
+---
+task_id: TASK-VS-084
+task_label: 'SPAR-72 manual content: api batch 4'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-20'
+history:
+- phase: created -> assigned
+  agent: dev
+  reason: 'opened with completion gates: independent_review, staging_acceptance, knowledge_closeout'
+  at: '2026-11-19T02:58:37Z'
+  operator: claude
+- phase: 'gate independent_review: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-19T02:58:37Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-19T02:58:37Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: dev
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-19T02:58:37Z'
+  operator: claude
+- phase: 'gate independent_review: pending -> pass'
+  agent: reviewer
+  reason: 'Michael De Santa independent review of the 3 api ArticleInputs against
+    slip-api b6ac678 and the Portal: api-webhook pass; rotate-api-key one edit (the
+    ''ดูการใช้งานคีย์'' link item), made and Jason confirmed (comments 01a1f1c6, 01a1f1c7);
+    webhook-auto-disabled judged not to be applied. Earth then changed two summaries
+    and one title (comment 01a1f1e0), which Jason checked against the locked text
+    (comment 01a1f1e7). Final hashes ev-004. Agent-attested review, not a command
+    result.'
+  at: '2026-11-19T04:20:24Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: dev
+  reason: 'Operator-attested, partial by design: Earth applied rotate-api-key and
+    api-webhook on staging only (PUT 200 x2, payload sha256 checked against ev-004)
+    and set webhook-auto-disabled to draft on staging (status only). webhook-auto-disabled
+    new content was NOT applied and is held pending slip-api owner confirmation that
+    auto-disable exists. I did not apply or repeat anything. Jason''s readback (comment
+    01a1f208) agrees: api topic 5 articles, public total 41, the two chapters match
+    ev-004, webhook-auto-disabled returns 404 on staging, production unchanged. My
+    own read-only readback (ev-005) is recorded; Portal page text and the 41-article
+    link sweep are from Earth, not rechecked by me. Production not touched.'
+  at: '2026-11-19T04:20:24Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101143Z-spar-72-manual-content.yaml'
+  at: '2026-11-20T10:11:43Z'
+  operator: claude
+- phase: assigned -> done
+  agent: dev
+  reason: 'Closed at Earth''s request 2026-11-20: engineering no longer edits manual
+    articles; Content team takes over (SPAR-72). Staging content of reviewed batches
+    left as is; production untouched.'
+  at: '2026-11-20T10:11:43Z'
+  operator: claude
+completion_gates:
+  independent_review:
+    status: pass
+    actor: reviewer
+    reason: 'Michael De Santa independent review of the 3 api ArticleInputs against
+      slip-api b6ac678 and the Portal: api-webhook pass; rotate-api-key one edit (the
+      ''ดูการใช้งานคีย์'' link item), made and Jason confirmed (comments 01a1f1c6,
+      01a1f1c7); webhook-auto-disabled judged not to be applied. Earth then changed
+      two summaries and one title (comment 01a1f1e0), which Jason checked against
+      the locked text (comment 01a1f1e7). Final hashes ev-004. Agent-attested review,
+      not a command result.'
+    updated_at: '2026-11-19T04:20:24Z'
+    evidence_refs: []
+  staging_acceptance:
+    status: pass
+    actor: dev
+    reason: 'Operator-attested, partial by design: Earth applied rotate-api-key and
+      api-webhook on staging only (PUT 200 x2, payload sha256 checked against ev-004)
+      and set webhook-auto-disabled to draft on staging (status only). webhook-auto-disabled
+      new content was NOT applied and is held pending slip-api owner confirmation
+      that auto-disable exists. I did not apply or repeat anything. Jason''s readback
+      (comment 01a1f208) agrees: api topic 5 articles, public total 41, the two chapters
+      match ev-004, webhook-auto-disabled returns 404 on staging, production unchanged.
+      My own read-only readback (ev-005) is recorded; Portal page text and the 41-article
+      link sweep are from Earth, not rechecked by me. Production not touched.'
+    updated_at: '2026-11-19T04:20:24Z'
+    evidence_refs:
+    - ev-005
+    ran:
+      by: operator
+      ref: Earth applied via admin API with own session; report in comment 01a1f205-e697-7e01-9cad-9bf8c792823f
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101143Z-spar-72-manual-content.yaml'
+    updated_at: '2026-11-20T10:11:43Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route

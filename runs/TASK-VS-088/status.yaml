@@ -1,0 +1,90 @@
+---
+task_id: TASK-VS-088
+task_label: 'SPAR-72 manual content: packages batch 6'
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-20'
+history:
+- phase: created -> assigned
+  agent: dev
+  reason: 'opened with completion gates: independent_review, staging_acceptance, knowledge_closeout'
+  at: '2026-11-19T07:01:01Z'
+  operator: claude
+- phase: 'gate independent_review: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-19T07:01:01Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: dev
+  reason: pending
+  at: '2026-11-19T07:01:01Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: dev
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-19T07:01:01Z'
+  operator: claude
+- phase: 'gate independent_review: pending -> na'
+  agent: dev
+  reason: 'Not done: Earth stopped engineering-side manual article edits on 2026-11-20;
+    Content team owns article editing (SPAR-72 member comment). Batch never applied
+    anywhere.'
+  at: '2026-11-20T10:11:42Z'
+  operator: claude
+- phase: 'gate staging_acceptance: pending -> na'
+  agent: dev
+  reason: 'Not done: Earth stopped engineering-side manual article edits on 2026-11-20;
+    Content team owns article editing (SPAR-72 member comment). Batch never applied
+    anywhere.'
+  at: '2026-11-20T10:11:42Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101151Z-spar-72-manual-content-vs-088.yaml'
+  at: '2026-11-20T10:11:51Z'
+  operator: claude
+- phase: assigned -> done
+  agent: dev
+  reason: 'Closed at Earth''s request 2026-11-20: engineering no longer edits manual
+    articles; Content team takes over (SPAR-72). Staging content of reviewed batches
+    left as is; production untouched.'
+  at: '2026-11-20T10:11:51Z'
+  operator: claude
+completion_gates:
+  independent_review:
+    status: na
+    actor: dev
+    reason: 'Not done: Earth stopped engineering-side manual article edits on 2026-11-20;
+      Content team owns article editing (SPAR-72 member comment). Batch never applied
+      anywhere.'
+    updated_at: '2026-11-20T10:11:42Z'
+    evidence_refs: []
+  staging_acceptance:
+    status: na
+    actor: dev
+    reason: 'Not done: Earth stopped engineering-side manual article edits on 2026-11-20;
+      Content team owns article editing (SPAR-72 member comment). Batch never applied
+      anywhere.'
+    updated_at: '2026-11-20T10:11:42Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T101151Z-spar-72-manual-content-vs-088.yaml'
+    updated_at: '2026-11-20T10:11:51Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: done
+  artifact: forced-route
