@@ -149,3 +149,42 @@ merged tree must equal T1.
   (4119 → 4054, ~97% the pre-existing "verify without Idempotency-Key").
 - Rollback revisions: `slip-api-production:168`, `slip-admin-production:96`
   (admin first).
+
+## Follow-ups (2026-11-23, operator asked to do both)
+
+- SparqLab/slip-front-end#44 (`1e34460`): `/manual` card falls back to the icon
+  when its image fails (error event + on-mount `complete && naturalWidth === 0`
+  check for failures before hydration; lazy loading dropped). Tests 10/10, manual
+  files lint clean, typecheck clean; local mock check: 404 image → icon. Repo
+  `main` CI already red from `48c4ab3` (teammate's lint errors in branches /
+  packages files), so this PR's CI will be red for those files.
+- SparqLab/slip-api#180 (`8605a0f`): background sweep of orphaned
+  `public/manual/` images (unreferenced by topics or any article image block,
+  older than 7 days; cap 100 / half of prefix; one task at a time; under the
+  manual writer lock). `MANUAL_IMAGE_SWEEP` defaults to `dry-run`; deletion only
+  with `delete`, which needs the operator's go-ahead (deleting data). Buckets are
+  separate per env. S3 List/Delete permission of the service key is unknown
+  (vestearth cannot read IAM / bucket policy) — staging dry-run log will show
+  List. `go test ./...` + PostgreSQL integration green.
+- Review (independent subagent): portal approve; sweep had a blocker (grace
+  counted from upload, not from unlink) → fixed in `ca14722` with migration 088
+  `manual_image_orphans` (first-seen-unreferenced stamps), S3 calls outside DB
+  locks, writer lock dropped, JSON-path reference query, cap 100/run, shutdown
+  log guard. Positive control: ignoring first-seen makes the grace tests fail.
+- Merged to `main`: slip-api#180 (`2cccc0f`), slip-front-end#44 (`8c91e2f`,
+  CI red only from the teammate's pre-existing lint errors in branches/packages
+  files — checked in the CI log).
+- Staging: slip-front-end#45 → `a269406` (tree = T1), `slip-front-end-staging:150`
+  COMPLETED. slip-api#181 → `d96797b` (tree = T1, operator approved migration
+  088), `slip-api-staging:222` COMPLETED; boot: `goose: OK up
+  088_manual_image_orphans.sql (50ms)`, `manual image sweep configured
+  mode=dry-run`, no errors. Rollback: `slip-api-staging:221`,
+  `slip-front-end-staging:149`.
+- First staging sweep (12:52:08Z): S3 List works (listed 10), then
+  `manual image sweep aborted: 7 of 10 manual images unreferenced (more than
+  half)` — nothing deleted (dry-run anyway). Cross-check: 42 published articles
+  reference 2 distinct images publicly; the sweep saw 3 referenced (2 + a
+  draft), so the query is not missing references. The 7 are real orphans
+  (incl. the TASK-VS-093 test upload). The half-of-prefix guard is too strict
+  for a small bucket and needs retuning before `delete` is useful.
+- Not on prod. S3 versioning and the key's Delete permission still unknown.
