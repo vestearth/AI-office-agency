@@ -187,4 +187,13 @@ merged tree must equal T1.
   draft), so the query is not missing references. The 7 are real orphans
   (incl. the TASK-VS-093 test upload). The half-of-prefix guard is too strict
   for a small bucket and needs retuning before `delete` is useful.
+- Guard retuned (operator: "ปรับกฎ"): abort when no listed upload is referenced,
+  half-rule only from 50 uploads. SparqLab/slip-api#183 (`c8f08ef`), test
+  reproducing staging seen failing first; `go test ./...` green. Merged to
+  `main` (`2ccfda0`) and staging via #184 (`f4858b9`, tree = T1 `64e6084`) on
+  the operator's "Merge + staging"; `slip-api-staging:223` COMPLETED 1/1, no
+  ERROR. Sweep 13:29:18Z: `mode=dry-run listed=10 orphans=7 eligible=0
+  deleted=0` (no abort). The 7 become eligible ~2026-11-30 12:52Z (first seen
+  unreferenced 2026-11-23 12:52Z); the dry-run log will list them then.
+  Rollback: `slip-api-staging:222`.
 - Not on prod. S3 versioning and the key's Delete permission still unknown.
