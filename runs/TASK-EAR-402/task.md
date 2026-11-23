@@ -455,3 +455,56 @@ Not closed by this check:
   all four condition types. After this train, saving a CATEGORY_TURNOVER or
   ANY_GAME_TURNOVER event on prod gets a 400. That is UX only; no money moves.
   Promote Backoffice `main` to prod with or after the train.
+
+## Backoffice prod release prepared (2026-11-13, draft, not merged)
+
+Earth chose to promote Backoffice `main` with this train and asked for the
+release branch and PR now. Backoffice is a separate lane: merging into its
+`prod` branch deploys the prod UI **live** through Argo CD on k3s. It is not
+held at desired 0 like the ECS backends.
+
+- Branch `release/TASK-EAR-402-backoffice-prod` is `707790a`: `origin/prod`
+  `241bb6e` plus `origin/main` `2637315`, merged with `--no-ff`. Conflicts:
+  none; the TASK-EAR-363 precedent (PR #132) used the same pattern.
+- Draft PR [SparqLab/Games-Labs-backoffice#180](https://github.com/SparqLab/Games-Labs-backoffice/pull/180)
+  is open against `prod` and mergeable. No workflow ran: the repo has no PR
+  CI, and Deploy PROD triggers only on a push to `prod`.
+- Scope: 55 feature/fix commits plus 51 image-pin commits since 2026-09-17,
+  TASK-EAR-396 (`9cd0ae4`) among them. TASK-EAR-396 is added to `carries`.
+- The merged tree equals `main` except the four prod-lane files
+  (`k3s-prod/*`, `prod.yml`), and those equal `prod`.
+  - `Dockerfile`, `nuxt.config.ts`, `package.json` and the lockfile are
+    unchanged since `prod`.
+  - `k3s-prod/deployment.yaml` matches `k3s/` apart from names and image.
+- Depends on this train: these screens call gateway routes that exist only in
+  the train's shared-lib (`d816962`), not in prod's (`0d17debe`):
+  - `/admin/event/report`, `/admin/monthly/report` and
+    `/admin/weekly/report/summary`;
+  - `/admin/reports/game/{id}/players` and
+    `/admin/reports/player/{id}/providers`.
+
+  The backend commits of TASK-EAR-367, 371, 373–376, 389 and 390 are on
+  staging and in the release branches, none on prod.
+- Verification:
+  - `ev-005`: `npm ci` and `npm test` (node 24) gave **740 pass, 3 fail, 0
+    skip** of 743.
+  - `ev-006`: the image built with `docker buildx --pull --no-cache --platform
+    linux/amd64` (the prod runner platform) and a placeholder `API_BASE_URL`.
+    The Nuxt build completed; the image is about 56 MB.
+- **Blocker: the 3 failures are on Backoffice `main` itself.** The app and test
+  trees are identical to `main`. `bb01154` (2026-10-09, "show player win/loss
+  and the provider catalog") changed the provider and player report pages but
+  not `tests/monitoringReportsApi.test.mjs`. At `bb01154~1` the suite passes
+  712/712; at `bb01154` it fails these same 3.
+  - The provider page dropped `useReportList('provider', …)` and the TASK-EAR-373
+    `totals.providerTotals` binding for the provider catalog.
+  - The player page now fills `playerWlCoin`, which the test expects to stay
+    null.
+
+  Which side is right is the Backoffice owner's call. Fix it on `main` through
+  its own TASK run, refresh the branch, and rerun the tests. Never weaken the
+  tests.
+- Merge order: after api-gateway, the last step of the hard order above, and
+  only once the blocker is fixed.
+- Rollback: revert the `k3s-prod/deployment.yaml` image pin to
+  `prod-sha-18173c9`.

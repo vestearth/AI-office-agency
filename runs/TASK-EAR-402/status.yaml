@@ -13,6 +13,9 @@ waiting_for:
   (Order migration 046) before the first boot; each builds a plain index at boot.'
 - 'Operator: approval to run prod above desired 0 (cost-gated), then merge per repo
   in the hard order.'
+- 'Backoffice owner: decide and fix, on Backoffice main through its own TASK run, the
+  3 tests in tests/monitoringReportsApi.test.mjs that bb01154 (2026-10-09) left red
+  when it changed the provider and player report pages; then refresh draft PR SparqLab/Games-Labs-backoffice#180.'
 assignment:
   primary: devops
   parallel: false
@@ -24,8 +27,11 @@ next_action:
     origin/staging moves again before the merge, repeat the refresh first. After the
     prod-run approval and the waiting_for size checks: merge the PRs release/TASK-EAR-402-prod
     -> prod in the hard order in task.md (Logs, then Auth (no change), User, Wallet,
-    Order, Game, Provider, Missions; api-gateway last), verifying each Deploy PROD and
-    boot before the next. Leave the BNG_* production secrets unset.'
+    Order, Game, Provider, Missions; api-gateway last), verifying each Deploy PROD
+    and boot before the next. Leave the BNG_* production secrets unset. Backoffice
+    draft PR SparqLab/Games-Labs-backoffice#180 merges after api-gateway, once its
+    3 red tests are fixed on main and the branch is refreshed; merging it deploys
+    the prod UI live (k3s, not held at desired 0).'
 history:
 - phase: blocked -> blocked
   agent: devops
@@ -188,6 +194,23 @@ history:
     Provider BNG ride without an EAR run.'
   at: '2026-11-12T19:26:49Z'
   operator: claude
+- phase: 'carries: +TASK-EAR-396'
+  agent: devops
+  reason: 'Backoffice TASK-EAR-396 rides this train through draft PR SparqLab/Games-Labs-backoffice#180
+    (release/TASK-EAR-402-backoffice-prod 707790a, merge base after api-gateway);
+    checked with git merge-base: 9cd0ae4 is in 707790a'
+  at: '2026-11-13T04:59:19Z'
+  operator: claude
+- phase: blocked -> blocked
+  agent: devops
+  reason: 'Operator Earth asked to prepare the Backoffice prod release. release/TASK-EAR-402-backoffice-prod
+    (707790a = origin/prod 241bb6e + origin/main 2637315, clean --no-ff merge) pushed,
+    draft PR SparqLab/Games-Labs-backoffice#180 opened, not merged, no workflow ran.
+    npm test 740/743 (ev-005): 3 failures already on main since bb01154; image build
+    linux/amd64 passed (ev-006). Added a waiting_for item for the red tests and the
+    Backoffice step to next_action.'
+  at: '2026-11-13T04:59:29Z'
+  operator: claude
 completion_gates:
   train_prepared:
     status: pass
@@ -280,5 +303,6 @@ carries:
 - TASK-EAR-421
 - TASK-EAR-422
 - TASK-EAR-423
+- TASK-EAR-396
 waits_on:
 - kind: prod_run
