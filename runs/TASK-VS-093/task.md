@@ -197,3 +197,34 @@ merged tree must equal T1.
   unreferenced 2026-11-23 12:52Z); the dry-run log will list them then.
   Rollback: `slip-api-staging:222`.
 - Not on prod. S3 versioning and the key's Delete permission still unknown.
+
+## Follow-ups: prod promotion PRs (opened 2026-11-23, not merged)
+
+- SparqLab/slip-api#185 (`169121a`, T2 `64e6084`): sweep + guard; migration 088
+  (50 ms on staging); dry-run by default. Prod now `slip-api-production:169`
+  (= rollback).
+- SparqLab/slip-front-end#46 (`97072cb`, T2 `a2732b3`): card icon fallback.
+  Prod now `slip-front-end-production:106` (= rollback).
+- Scopes `origin/prod..origin/staging` = only TASK-VS-093 commits; prod images
+  equal `origin/prod`; no deploy in flight. Merging needs the operator's prod
+  approval (slip-api incl. boot-time migration 088).
+
+## Follow-ups on prod (2026-11-23, operator approved "อนุมัติขึ้น prod")
+
+- slip-api#185 → `prod` `cd511bc` (tree = T2). `slip-api-production:170`
+  (`production-sha-cd511bc`) COMPLETED 5/5 (rollout 14:01:44Z → 14:10:09Z);
+  env/secrets/other hash-identical to :169. `goose: OK up
+  088_manual_image_orphans.sql (41ms)`; all 5 tasks `mode=dry-run`. One 5xx
+  during the rollout (14:01:44Z, old-image task): `/v1/slips/verify` 502 "bank
+  verifier unavailable" — bank-connector path, unrelated.
+- Post-deploy **ev-002** (exit 0, PASS): before 13:49:44–14:01:44Z 5891 req,
+  5xx 0, ERROR 0, p50/p95 197/497 ms; after 14:10:30–14:22:30Z 5399 req, 5xx 0,
+  ERROR 0, p50/p95 195/492 ms.
+- First prod sweep 14:12Z on all 5 tasks: `listed=0 orphans=0 eligible=0
+  deleted=0` — consistent with prod's 42 published articles referencing 0 images.
+- slip-front-end#46 → `prod` `9b1164a` (tree = T2). `slip-front-end-production:107`
+  COMPLETED 1/1; env/secrets/other identical to :106; app.up-slip.com/manual 200.
+- Rollback: `slip-api-production:169`, `slip-front-end-production:106`.
+- Open: `MANUAL_IMAGE_SWEEP=delete` not set anywhere (needs S3 Delete permission
+  + versioning check; operator decision). Staging's 7 orphans become eligible
+  ~2026-11-30 12:52Z (visible in the dry-run log).
