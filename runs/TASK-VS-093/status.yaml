@@ -1,0 +1,77 @@
+---
+task_id: TASK-VS-093
+task_label: 'Manual topic cover image: admin upload + portal card'
+phase: assigned
+state: assigned
+iteration: 0
+current_agent: dev
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-23'
+updated_at: '2026-11-23'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, independent_review,
+    knowledge_closeout'
+  at: '2026-11-23T07:50:06Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: slip-api tests + admin/front-end tests and typecheck pass; staging smoke
+    of upload and card
+  at: '2026-11-23T07:50:06Z'
+  operator: claude
+- phase: 'gate independent_review: absent -> pending'
+  agent: pm
+  reason: Review the PRs before merge
+  at: '2026-11-23T07:50:06Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-23T07:50:06Z'
+  operator: claude
+- phase: 'gate independent_review: pending -> pass'
+  agent: reviewer
+  reason: 'Independent reviewer subagent (Claude lane) reviewed slip-api#177, slip-admin#62,
+    slip-front-end#42: no blockers; admin stuck-upload bug + missing PUT/edit tests
+    fixed in 244b8bf/208b2d0 and re-verified; verdicts posted as PR comments'
+  at: '2026-11-23T08:57:47Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: slip-api go test ./... + manual PostgreSQL integration green; admin 30/30
+    + typecheck; portal manual tests 9/9 + lint + typecheck; local browser check via
+    mock API. Staging smoke still pending after merge.
+  at: '2026-11-23T08:57:47Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: slip-api go test ./... + manual PostgreSQL integration green; admin 30/30
+      + typecheck; portal manual tests 9/9 + lint + typecheck; local browser check
+      via mock API. Staging smoke still pending after merge.
+    updated_at: '2026-11-23T08:57:47Z'
+    evidence_refs: []
+  independent_review:
+    status: pass
+    actor: reviewer
+    reason: 'Independent reviewer subagent (Claude lane) reviewed slip-api#177, slip-admin#62,
+      slip-front-end#42: no blockers; admin stuck-upload bug + missing PUT/edit tests
+      fixed in 244b8bf/208b2d0 and re-verified; verdicts posted as PR comments'
+    updated_at: '2026-11-23T08:57:47Z'
+    evidence_refs: []
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-11-23T07:50:06Z'
+    evidence_refs: []

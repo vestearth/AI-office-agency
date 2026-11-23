@@ -1,0 +1,151 @@
+# TASK-VS-093: Manual topic cover image: admin upload + portal card
+
+## Request (operator, 2026-11-23)
+
+Admin manual editing should accept an image that the merchant portal shows on
+the manual home (`/manual`). The attached screenshot showed the **topic** cards
+("เริ่มต้นใช้งาน · 4 บทความ"), whose artwork slot only held a preset icon. The
+operator chose: image belongs to the topic (card cover), icon stays as fallback.
+
+## Scope
+
+- `slip-api`: `manual_topics.image_key` (migration `087_manual_topic_image.sql`,
+  idempotent ADD COLUMN + CHECK, forward-only Down). Topic create/update accept
+  `image_key` from the existing `POST /v1/admin/manual/images` upload, same key
+  pattern as image blocks, object existence checked (422 `validation_failed`
+  `image_key` / 503 `storage_unavailable`). Admin and public topic DTOs return
+  `image_url`; public never returns the key. History snapshot includes
+  `image_key`. Doc: `docs/manual-api.md`.
+- `slip-admin`: "รูปการ์ด" upload/replace/remove in the topics modal (add and
+  edit), thumbnail in the topic list, `ManualTopicImage.vue`.
+- `slip-front-end`: `/manual` card shows the image (object-cover) instead of the
+  icon when `image_url` is http(s); otherwise the icon as before.
+
+Branches: `task/TASK-VS-093-manual-topic-image` in all three repos. PRs into
+`main` opened 2026-11-23: SparqLab/slip-api#177 (`a19b60f`),
+SparqLab/slip-admin#62 (`c33ec7d`), SparqLab/slip-front-end#42 (`7d63956`).
+Independent review gate still pending before merge.
+
+## Acceptance
+
+- Upload in admin → save → `/manual` card shows the image; removing it restores
+  the icon.
+- Topic without image renders exactly as before.
+
+## Deploy order and rollback
+
+1. `slip-api` first (migration runs on boot; metadata-only ADD COLUMN).
+2. Then `slip-admin` and `slip-front-end` (either order).
+
+Topic PUT is a full replace: an admin build older than this change omits
+`image_key` and would clear a topic's image if someone saves a topic from it
+during the rollout window. Rollback: redeploy the previous images; the column
+stays (the old binary selects named columns), artwork is kept.
+
+## Evidence (2026-11-23)
+
+- slip-api `go test ./...` green; `internal/manual` integration test against a
+  throwaway PostgreSQL 18.3 container (`SLIP_API_MANUAL_TEST_DSN`) green,
+  including 087 replay; seen failing with the repository change removed.
+- slip-admin `node --test tests/*.test.ts` 26/26, `nuxt typecheck` clean; the new
+  list-thumbnail UI test seen failing without the modal change.
+- slip-front-end `eslint .` clean, `nuxt typecheck` clean (after installing the
+  missing local `qrcode`/`pdf-lib` modules), `tests/manual.test.ts` 9/9. Other
+  front-end test files fail under plain node on extensionless imports (they need
+  bun, not installed here) — unrelated to this change.
+- Local browser check with a mock API: admin upload → save sends `image_key`;
+  portal card shows the image; topic without image keeps the icon.
+- Not yet verified on staging (needs real S3 upload + deploy). NOTE: the
+  `implementation_verification` gate was marked pass on 2026-11-23 before this
+  staging smoke, which its declared reason includes; the writer cannot revert a
+  gate. Treat the staging smoke as outstanding until recorded here.
+
+## Review (2026-11-23)
+
+Independent reviewer subagent: no blockers. Fixed after review — admin
+stuck-upload flag + per-form upload state (`slip-admin` 244b8bf), PUT
+keep/replace tests and clearer missing-image message (`slip-api` 208b2d0),
+rollback order in slip-api#177 body. Verdicts posted as PR comments. Open
+follow-ups (not blocking): portal icon fallback when the CDN image 404s;
+`safeImageUrl` accepts http.
+
+## Merged (2026-11-23)
+
+Merged into `main` in deploy order: SparqLab/slip-api#177 (`38d3547`),
+SparqLab/slip-admin#62 (`4cef3b8`), SparqLab/slip-front-end#42 (`88374b5`).
+`main` does not deploy; nothing is on staging or prod yet. Next: promote
+main → staging → prod through PRs (slip-api first; rollback admin first), then
+the staging smoke (upload in admin-staging, check app-staging `/manual`).
+
+## Staging promotion PRs (opened 2026-11-23, not merged)
+
+SparqLab/slip-api#178, SparqLab/slip-admin#63, SparqLab/slip-front-end#43 —
+`main` → `staging`. Scope `origin/staging..origin/main` = only the TASK-VS-093
+commits. Dry-run trees (T1): slip-api `d372595`, slip-admin `7e0cc93`,
+slip-front-end `a3bf2fa`; no conflicts. slip-api carries migration 087
+(ADD COLUMN with constant default + CHECK on `manual_topics`, no index), which
+the promote skill makes a STOP: merge needs the operator's go-ahead for boot-time
+migration. Merge order slip-api → admin/front-end, each pinned to its head; the
+merged tree must equal T1.
+
+## Staging (2026-11-23, operator approved "อนุมัติ merge" incl. boot-time migration 087)
+
+- slip-api#178 merged → staging `df99db5` (tree = T1 `d372595`), Deploy STAGING
+  success, `slip-api-staging:221` COMPLETED 1/1. Boot log: `goose: OK up
+  087_manual_topic_image.sql (25ms)`, listeners started, 0 ERROR/panic; old task
+  drained cleanly. Public `GET /v1/web/manual/topics` returns `image_url`, no
+  `image_key`.
+- slip-admin#63 → staging `50d5176` (tree = T1), `slip-admin-staging:110`
+  COMPLETED. slip-front-end#43 → staging `cc857c7` (tree = T1),
+  `slip-front-end-staging:148` COMPLETED.
+- A teammate then pushed `48c4ab3` (branches refactor, not this task) straight to
+  slip-front-end `staging` and merged it as `5e0fe98`; deployed successfully and
+  still contains this change. It will ride along to prod unless handled first.
+- Rollback revisions recorded: `slip-api-staging:220`, `slip-admin-staging:109`,
+  `slip-front-end-staging:147`.
+- Smoke test (operator's Chrome, signed in by the operator): uploaded a 1200×500
+  test PNG on topic `getting-started` in admin-staging → preview from CloudFront,
+  PUT `/v1/admin/manual/topics/getting-started` 200, toast "บันทึกหัวข้อแล้ว".
+  Public API returns the CloudFront `image_url` (GET 200 image/png 18192 B);
+  app-staging `/manual` shows the image on that card, other cards keep icons.
+  Removed afterwards at the operator's request: reopened edit still showed the
+  saved image, "ลบรูป" + save → PUT 200; public API has no topic with
+  `image_url`; app-staging card shows the rocket icon again. The uploaded S3
+  object stays (no cleanup job, same as article images).
+- Staging smoke for `implementation_verification` is now done.
+
+## Prod promotion PRs (opened 2026-11-23, not merged)
+
+- SparqLab/slip-api#179 and SparqLab/slip-admin#64:
+  `release/TASK-VS-093-production` (= `origin/prod` + merge of `origin/staging`) → `prod`.
+  Heads `c48a587` / `dfaba12`; merged trees = dry-run T2 (`d372595` / `7e0cc93`);
+  scope `origin/prod..origin/staging` = only TASK-VS-093 commits.
+- Prod before: `slip-api-production:168` (`production-sha-1dbe0aa`),
+  `slip-admin-production:96` (`production-sha-c13ccb7`); both equal `origin/prod`,
+  no deploy in flight. These are the rollback revisions.
+- slip-front-end is ALREADY on prod: a teammate merged `staging` into `prod` directly
+  at 17:16 (`d3c0f0f`, no PR), carrying `7d63956` (this task) and `48c4ab3`
+  (their branches refactor); `slip-front-end-production:106` runs
+  `production-sha-d3c0f0f`. Harmless for this feature (icon fallback until the API
+  ships `image_url`).
+- Merging #179 needs the operator's prod approval incl. boot-time migration 087
+  (25 ms on staging). Then #64 after the API is live.
+
+## Prod (2026-11-23, operator approved "อนุมัติขึ้น prod")
+
+- slip-api#179 merged → `prod` `23f1e6a` (tree = T2). Deploy PRODUCTION success;
+  `slip-api-production:169` (`production-sha-23f1e6a`) COMPLETED 3/3; rollout
+  10:51:19Z → 11:00:11Z. Env (26) / secrets (1) / other container fields
+  hash-identical to :168, image only. `goose: OK up 087_manual_topic_image.sql
+  (32ms)`. Public prod `/v1/web/manual/topics` returns `image_url`, no `image_key`.
+- slip-admin#64 merged → `prod` `42181b8` (tree = T2). Deploy PRODUCTION success;
+  `slip-admin-production:97` COMPLETED 1/1; env/secrets/other identical to :96.
+- Post-deploy evidence **ev-001** (`record-evidence.sh`, exit 0, VERDICT PASS),
+  `/ecs/slip-api-production`, filter `"http request completed"` + `{ $.level = "ERROR" }`:
+  before 10:39:00–10:51:00Z (17:39–17:51 ICT) 4047 requests, 5xx 0, ERROR 0,
+  p50/p95 198/602 ms; after 11:00:30–11:12:30Z (18:00:30–18:12:30 ICT) 3959
+  requests, 5xx 0, ERROR 0, p50/p95 203/553 ms; all reads complete (pages 1–3).
+  Filter control: `{ $.level = "INFO" }` = 340 events in one minute. WARN steady
+  (4119 → 4054, ~97% the pre-existing "verify without Idempotency-Key").
+- Rollback revisions: `slip-api-production:168`, `slip-admin-production:96`
+  (admin first).
