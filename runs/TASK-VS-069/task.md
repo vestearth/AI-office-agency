@@ -507,10 +507,42 @@ quota, while billing stays monthly at the main agent (the user).
   DEC-08, FR-11, open parameters, a release-criteria row) and aligned
   ARCHITECTURE, DESIGN_SYSTEM, AGENTS, SECURITY and TESTING.
 
+**Answered 2026-11-24 (Earth, in the Claude session, before the partner meeting):**
+
+- Price `P` is THB per billable unit and **excludes VAT** (value in
+  `partner-request.local.md`). Settles the VAT half of partner Q5.
+- Charged and free outcomes follow the existing slip-api policy (DEC-01 as written);
+  the outcome half of Q5 needs no partner negotiation.
+- **One downstream agent may own more than one branch.** The candidate mapping
+  "downstream agent = branch" no longer holds; an agent groups several branches
+  (a merchant is the nearest existing level). Ask the partner whether quota, the
+  quota callback and reports are per agent or per branch.
+- This partner's account gets an explicit **unlimited** credit setting (DEC-05
+  option); usage is still tracked and overdue invoices still suspend.
+- **D8 decided:** the partner's paying account is charged **one unit for every bank
+  call that ends in a timeout**, at the time of the timeout, with no monthly
+  reconciliation against KBank. Earth accepted that some timeouts KBank did not bill
+  are still charged (about 8% of timeouts in the October reconciliation). For the
+  implementation task: if recovery later resolves the same attempt to a charged
+  result, it must not add a second unit; show the timeout as its own line or reason
+  in usage reports so the partner can check it.
+- **Timeout unit uses the branch quota (Earth, 2026-11-24).** Under DEC-08 item 4 the
+  unit reserved before the bank call is consumed on timeout, not released. Follows
+  from "charge every timeout": if recovery later resolves the attempt to a free
+  outcome, the unit is not given back; if it resolves to a charged outcome, the
+  same unit covers it.
+- A price change takes effect from the **next billing period** (closes the open
+  part of D10.3; no mid-period price versions needed).
+- **404/4040 cooldown:** the default stays 30 s, and a platform admin may set it to
+  0 (off). Claude recommended locking 30 s because 0 lets client auto-retries spend
+  the shared KBank attempt budget; Earth chose admin-settable 0. slip-api already
+  treats `<= 0` as off (`internal/core/service/verification.go:842` at
+  `origin/prod` `3f5af45`). Scope (global or per account) and audit of the change are
+  for the implementation task.
+
 Still open, so the `design_decision` gate stays pending and `decision-memo.md` is not
 written yet:
 
-- Whether the 404/4040 cooldown may be set to 0 (off).
 - The quota callback threshold (partner Q2).
 - The items agent-slip-api `PRD.md` lists as open: read and replay rights while
   suspended, invoice attribution and cut-off, D8 and unknown-outcome exposure, the
