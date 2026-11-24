@@ -239,3 +239,11 @@ merged tree must equal T1.
   (ERR_MODULE_NOT_FOUND). eslint (changed files), `nuxt typecheck`, `nuxt build`
   exit 0. Local mock: SSR HTML has both figures; after hydration only the
   working one remains; topic cards still fall back to the icon.
+- Merged on the operator's "Merge + staging" (2026-11-24): #47 → `main`
+  `0c86371` (tree = dry-run `c3089ec`; main CI green; #47's own red CI was the
+  teammate lint in branches/packages, fixed on main by `b7c2f90`). Staging via
+  #52 → `e896ab2` (scope `465b59b` only, tree = T1 `c3089ec`).
+  `slip-front-end-staging:154` (`staging-sha-e896ab2`) COMPLETED 1/1;
+  env/secrets hash-identical to :153; Deploy STAGING success. app-staging
+  /manual 200; `/manual/dashboard/how-to-read-dashboard` serves its image with
+  `data-src` (new code live). Rollback: `slip-front-end-staging:153`. Not on prod.
