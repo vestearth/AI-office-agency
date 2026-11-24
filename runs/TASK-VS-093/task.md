@@ -247,3 +247,8 @@ merged tree must equal T1.
   env/secrets hash-identical to :153; Deploy STAGING success. app-staging
   /manual 200; `/manual/dashboard/how-to-read-dashboard` serves its image with
   `data-src` (new code live). Rollback: `slip-front-end-staging:153`. Not on prod.
+- Prod PR (opened 2026-11-24 on "Open prod PR", not merged): slip-front-end#53
+  `release/TASK-VS-093-article-image-production` → `prod`; scope
+  `origin/prod..origin/staging` = `465b59b` only; tree = T2 `c3089ec`. Prod
+  runs `slip-front-end-production:108` (`production-sha-5345513` = origin/prod)
+  = rollback.
