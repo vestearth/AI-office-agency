@@ -228,3 +228,14 @@ merged tree must equal T1.
 - Open: `MANUAL_IMAGE_SWEEP=delete` not set anywhere (needs S3 Delete permission
   + versioning check; operator decision). Staging's 7 orphans become eligible
   ~2026-11-30 12:52Z (visible in the dry-run log).
+
+## Follow-up: hide broken article images (2026-11-24, operator asked "ซ่อนรูปที่เสีย")
+
+- Correction to the 11/23 summary: articles have no icon, so the fallback for an
+  article image is hiding the figure (image + caption), not an icon.
+- slip-front-end#47 (`task/TASK-VS-093-article-image-hide`, open, not merged):
+  `useBrokenImages()` composable shared by the topic card and article view.
+- Tests: `node --test tests/manual.test.ts` 12/12; the 2 new tests failed first
+  (ERR_MODULE_NOT_FOUND). eslint (changed files), `nuxt typecheck`, `nuxt build`
+  exit 0. Local mock: SSR HTML has both figures; after hydration only the
+  working one remains; topic cards still fall back to the icon.
