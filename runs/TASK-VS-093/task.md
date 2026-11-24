@@ -252,3 +252,13 @@ merged tree must equal T1.
   `origin/prod..origin/staging` = `465b59b` only; tree = T2 `c3089ec`. Prod
   runs `slip-front-end-production:108` (`production-sha-5345513` = origin/prod)
   = rollback.
+- Prod (2026-11-24, operator "Approve prod"): #53 merged → `prod` `db5e4fa`
+  (tree = T2 `c3089ec`). `slip-front-end-production:109`
+  (`production-sha-db5e4fa`) COMPLETED 1/1, rollout 06:43:07–06:45:28Z;
+  env/secrets hash-identical to :108; Deploy PRODUCTION success;
+  app.up-slip.com/manual 200. **ev-003** (exit 0): before/after 12-min windows
+  both `events=0 error_events=0` (all pages) — the portal writes no per-request
+  logs (only its boot line), so this zero is silence, not proof; the rollout,
+  env compare and 200 are the evidence. Prod articles have no images, so the
+  hiding path itself was proven on the local mock only. Rollback:
+  `slip-front-end-production:108`.
