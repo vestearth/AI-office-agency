@@ -53,3 +53,32 @@ safe because the portal falls back. Rollback: redeploy previous images.
   changed files clean; `nuxt typecheck` clean.
 - Not yet: staging smoke after deploy; query plan on production-size ranges;
   independent review.
+
+## Review, merge, staging (2026-11-24)
+
+- Independent review (fresh-context reviewer subagent), round 1: slip-api#186
+  changes_requested — `/v1/usage` joined `quota_history` to raw verifications
+  over the whole range (2.4 s at 2M rows; 30 days on a 590k/day branch would
+  pass the 3 s repository timeout) and ran for every `/v1/usage` caller.
+  Fixed in `31ec170`: `quota_charged` is opt-in (`include=quota_charged`, only
+  the verification page sends it) and the sum reads `quota_history` alone on its
+  branch/merchant index with a bounded `created_at`. Round 2: both PRs approved;
+  remaining warnings fixed in `c43a363` (ranges > 48h return no value, write
+  slack 5 s) and `3ff6d77` (filtered-card hint).
+- Reviewer load test (30 days, busy branch, 17.7M ledger rows): today 0.64 s,
+  1 day 1.56 s, 7 days 4.1 s, 30 days 4.5–5.4 s (cold, laptop). So longer
+  ranges are capped at 48h and fall back to the old guess. Follow-up if the card
+  must be exact on long ranges: ledger rollup or covering index (migration).
+- Merged into `main`: slip-api#186 (`795f0ea`), slip-front-end#48 (`c86ef50`).
+- Staging (operator approved staging only):
+  - slip-front-end#49 main→staging, tree = dry-run T1, `slip-front-end-staging:151`
+    `staging-sha-7a43e6d` COMPLETED 1/1, Deploy STAGING success. Rollback `:150`.
+  - slip-api#188 main→staging → `2ee65aa`, `slip-api-staging:226`
+    `staging-sha-2ee65aa` COMPLETED 1/1, Deploy STAGING success (11m57s), boot
+    log clean (HTTP/gRPC started 05:01:16Z, no ERROR). Rollback `:225`.
+    Note: `main` moved between the dry run and the merge, so TASK-VS-095
+    (slip-api#187, `e24fd32`, 8404 retry metadata, no migration) went to staging
+    in the same push; the operator chose to keep it there.
+- Prod: not promoted (needs its own approval).
+- Pending: QA staging check of the acceptance scenario →
+  `implementation_verification`.

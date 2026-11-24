@@ -36,6 +36,13 @@ history:
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-24T04:06:49Z'
   operator: claude
+- phase: 'gate independent_review: pending -> pass'
+  agent: reviewer
+  reason: 'Fresh-context reviewer subagent (Claude lane), 2 rounds 2026-11-24: round
+    1 changes_requested on slip-api#186 (raw join on /v1/usage), fixed in 31ec170;
+    round 2 approved both PRs; remaining warnings fixed in c43a363 / 3ff6d77'
+  at: '2026-11-24T05:10:35Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pending
@@ -44,10 +51,12 @@ completion_gates:
     updated_at: '2026-11-24T04:06:49Z'
     evidence_refs: []
   independent_review:
-    status: pending
-    actor: pm
-    reason: quota display touches billing perception for merchants
-    updated_at: '2026-11-24T04:06:49Z'
+    status: pass
+    actor: reviewer
+    reason: 'Fresh-context reviewer subagent (Claude lane), 2 rounds 2026-11-24: round
+      1 changes_requested on slip-api#186 (raw join on /v1/usage), fixed in 31ec170;
+      round 2 approved both PRs; remaining warnings fixed in c43a363 / 3ff6d77'
+    updated_at: '2026-11-24T05:10:35Z'
     evidence_refs: []
   knowledge_closeout:
     status: pending
