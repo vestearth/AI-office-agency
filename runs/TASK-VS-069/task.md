@@ -540,6 +540,66 @@ quota, while billing stays monthly at the main agent (the user).
   `origin/prod` `3f5af45`). Scope (global or per account) and audit of the change are
   for the implementation task.
 
+**Charged and free outcomes for the partner (prepared 2026-11-25, answers Q5's
+outcome list).** Built from slip-api `origin/prod` `eef8bb8`
+(`internal/core/service/verification.go` `bankQuotaRule` / `saveBankRecord`,
+`internal/models/bank_not_found.go` `ChargeBankNotFound`), which includes the
+TASK-VS-068 retry surcharge (`d6e6a40`, on prod). The timeout row is the
+agent-product D8 decision above and is not slip-api behavior (slip-api charges
+nothing when the bank call errors) and not yet code in agent-slip-api. The price
+stays `P` here; the value is in `partner-request.local.md`.
+
+| # | Outcome | Units |
+|---|---|---|
+| 1 | Verified by the bank | 1 |
+| 2 | Verified, receiver mismatch | 1 |
+| 3 | Other bank rejection (expired, invalid) | 1 |
+| 4 | Verified after slip-system's own retry, KBank billed both attempts (`x-bank-billed-attempts: 2`) | +1 |
+| 5 | Duplicate found after the bank call | by the bank answer (+1 if retried) |
+| 6 | 8404, first observation | 1 |
+| 7 | 8404 less than 30 s after the previous 8404 | 1 |
+| 8 | 8404 at or after 24 h from the last charged 8404 | 1 |
+| 9 | Timeout, no bank answer (agent product only, D8) | 1, consumes branch quota |
+| 10 | 404/4040 not found | free |
+| 11 | Repeat within the 404/4040 cooldown (stored result, no bank call) | free |
+| 12 | 8404 at least 30 s after the previous one, inside 24 h of the last charge | free |
+| 13 | Verified within 24 h after a charged 8404 for the same slip | free |
+| 14 | Slip already verified in the same branch (pre-bank duplicate) | free |
+| 15 | Same Idempotency-Key replay | free |
+| 16 | Bank unavailable (502 `BANK_UNAVAILABLE`) | free |
+| 17 | Quota exhausted or not set (rejected before the bank call) | free |
+| 18 | Receiver lookup failed, retry rechecks the kept result (case 11) | free |
+| 19 | Sandbox / test mode | free |
+
+Duplicate detection is per branch: the same slip sent from two branches is
+checked and charged twice (Q8). Sendable English version:
+
+```text
+Price: P per billable unit, excluding VAT.
+
+Charged
+- Slip verified by the bank: 1 unit
+- Verified, but the receiver account does not match your setting: 1 unit
+- Rejected by the bank (e.g. expired or invalid slip): 1 unit
+- Bank answered slowly and our system retried, and the bank billed both
+  attempts (verified results only): 1 extra unit
+- Bank code 8404 (transaction not found): 1 unit the first time; a repeat is
+  charged again if it comes within 30 seconds of the previous one, or 24 hours
+  after the last charge
+- Timeout with no answer from the bank: 1 unit, deducted from the branch quota
+
+Free
+- Slip not found yet (404/4040), including repeats within a 30-second cooldown
+- Repeat 8404 at least 30 seconds apart, within 24 hours of the last charge
+- Verified within 24 hours after a charged 8404 for the same slip
+- Slip already verified in the same branch (duplicate), or a repeat with the
+  same Idempotency-Key
+- Bank unavailable, quota exhausted, branch without quota, sandbox
+
+Note: duplicate detection is per branch. The same slip sent from two
+branches is checked and charged twice.
+```
+
 Still open, so the `design_decision` gate stays pending and `decision-memo.md` is not
 written yet:
 
