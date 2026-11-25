@@ -600,6 +600,91 @@ Note: duplicate detection is per branch. The same slip sent from two
 branches is checked and charged twice.
 ```
 
+### Partner answers (2026-11-25, relayed by Earth after the partner meeting)
+
+Numbered as in the question list Claude prepared on 2026-11-24 (`partner_requirements`
+gate input).
+
+| # | Topic | Partner answer |
+|---|---|---|
+| 1 | Balance | **Money the partner has paid in (prepaid)**, not a limit or a monthly bill |
+| 2 | Structure | The partner has **agents only, no branches** under an agent. Supersedes Earth's 2026-11-24 "an agent may own several branches" |
+| 3 | Keys | The partner holds one key per agent; our side must also know the keys (meaning to confirm, see decisions below) |
+| 4 | Server-to-server API | The partner calls our API to create agents, and to **top up each agent's balance** |
+| 5 | Source | Optional field the partner may send back per request; not required in release 1 |
+| 6 | Callback | Only when an agent's balance **runs out** |
+| 7 | Exhausted | Reject before the bank call and charge nothing (confirms DEC-08 item 4) |
+| 8 | Volume | Unknown. We log usage history and size from real traffic after launch |
+| 9 | Retry | Probably no auto-retry, only occasional manual retries |
+| 10 | IP | Egress IPs are not fixed; **no IP allowlist** |
+| 11 | Leaked keys | The partner is responsible for usage on its keys |
+| 12 | Cross-agent duplicate | Still charged at each agent, and the partner **wants a flag** |
+| 13 | Sandbox / date | Sandbox nice to have, not required. **Go-live wanted before 2026-12-08** |
+| 14 | Portal users | One shared user for the partner |
+| 15 | Billing callbacks | Not needed: we receive payment from the partner in one go |
+| 16 | Suspension | No suspension; the partner handles its agents itself |
+| 17 | Scope | Sync API only, no LINE, image upload or batch: accepted |
+| 18 | SLA / contact | The partner will contact Earth |
+
+**Effect on what was decided (Claude, 2026-11-25; Earth to confirm where marked):**
+
+- **Billing model 1 (prepaid) replaces DEC-05's monthly postpaid** for this partner.
+  Invoices, credit limit and "unlimited", overdue suspension and the billing
+  callbacks (agent-slip-api FR-12) leave release 1. Credit exposure goes away; the
+  balance check before the bank call becomes the control.
+- **DEC-08's per-branch unit quota becomes a per-agent prepaid balance.** Agent =
+  one branch row in agent-slip-api (one key, one balance). The reservation before
+  the bank call, release on a free outcome and the depleted callback carry over.
+  The low-balance callback is dropped (answer 6).
+- **D8** stays: a timeout consumes one charge from the agent's balance.
+- "Price change from the next billing period" (2026-11-24) has no billing period
+  under prepaid; it needs an effective-time rule instead.
+- **New requirement:** a cross-agent duplicate flag within the partner account
+  (answer 12), with no change to charging.
+- **No IP allowlist** (answer 10): rate and concurrency caps per key (DEC-06) and
+  key rotate/revoke matter more; agent-slip-api must not reject verify for an empty
+  allowlist the way slip-api does.
+- **Unknown volume** (answer 8): start with conservative caps under the shared KBank
+  budget and per-agent usage history; revisit after the first weeks.
+- **Code on agent-slip-api `origin/main` `8b34d6c` (read 2026-11-25):** quota is
+  unit grants per branch (`migrations/006_branch_quota.sql`), counted as charged
+  verifications, with no money balance, no reservation and no partner-level pool.
+  S10 in `security-findings.local.md` must be fixed before real money. The move to
+  a prepaid money balance is a change to code already on `main`, with 13 days to
+  the requested go-live.
+
+**Decided 2026-11-25 (Earth, in the Claude session, after the partner answers):**
+
+- **DEC-09, money flow: partner pool plus allocation.** A platform admin records each
+  payment from the partner into the partner account's pool. The partner calls our
+  API to move money from the pool to an agent, and back. The partner cannot give
+  agents more than it has paid.
+- **DEC-10, balance unit: THB.** Pool and agent balances are money; each charge
+  deducts the applied price. A price change does not change a stored balance.
+- **DEC-11, key visibility:** keys are stored hashed. Admins see which key belongs
+  to which agent, with a key prefix and last characters; the full key is shown once,
+  at create or rotate, to the partner.
+- **DEC-12, key rotate and revoke by API in release 1.** The partner can rotate and
+  revoke an agent's key itself, because there is no IP allowlist and the partner
+  bears leaked-key usage.
+
+Defaults Claude proposes, not yet confirmed by Earth:
+
+- Admin records the payment amount net of VAT, and the tax invoice follows the
+  existing UpSlip top-up practice (issued on payment); accounting confirms.
+- A price change applies to charges admitted after its effective time.
+- A retry surcharge (row 4 of the outcome list) that the agent balance cannot cover
+  is skipped, as slip-api does for packages (TASK-VS-068 D4), so a balance never
+  goes negative.
+
+Recorded in agent-slip-api: SparqLab/agent-slip-api#3 (branch
+`docs/prepaid-partner-model`, 2026-11-25) updates `PRD.md` (DEC-09..12, DEC-05 and
+DEC-08 superseded, FR-06/07/08/11 rewritten, FR-12 withdrawn, new FR-13..15, timeout
+and retry-surcharge charging rows), `AGENTS.md` and `README.md`. ARCHITECTURE,
+DESIGN_SYSTEM, SECURITY, TESTING and MIGRATIONS still describe postpaid; the PRD says
+it wins until they are aligned. The PR body lists the code on `main` that conflicts
+with the PRD, including S10.
+
 Still open, so the `design_decision` gate stays pending and `decision-memo.md` is not
 written yet:
 
