@@ -683,7 +683,25 @@ DEC-08 superseded, FR-06/07/08/11 rewritten, FR-12 withdrawn, new FR-13..15, tim
 and retry-surcharge charging rows), `AGENTS.md` and `README.md`. ARCHITECTURE,
 DESIGN_SYSTEM, SECURITY, TESTING and MIGRATIONS still describe postpaid; the PRD says
 it wins until they are aligned. The PR body lists the code on `main` that conflicts
-with the PRD, including S10.
+with the PRD, including S10. Earth merged it on 2026-11-25 (`58197b4`).
+
+**Price decisions reconciled with SPAR-83 (2026-11-26).** Earth had changed DEC-04 in
+SPAR-83 on 2026-11-23: the minimum price is `P` (value in `partner-request.local.md`)
+and a zero price cannot be set. PR #3 was written without that update and kept
+"approved zero price" wording, so the SPAR-83 squad asked again. Earth confirmed on
+2026-11-26, posted to SPAR-83 by Claude at Earth's request:
+
+1. Minimum `P`, no zero, for prepaid too. Patch 01 (SPAR-83) fixes the zero-price
+   wording in agent-slip-api `PRD.md` (DEC-04, FR-05, FR-11, operating parameters,
+   release criteria) and `AGENTS.md`.
+2. **Account-level price for agents created by the management API:** an admin
+   confirms one price on the partner account (at least `P`, with a timestamp); a new
+   agent inherits it with its confirmation timestamp and can verify at once; admins
+   can still change one agent's price (at least `P`). Built with FR-14, not in
+   patch 01.
+3. **Existing branches:** an admin confirms the price of each branch that stays in
+   use before patch 01 is deployed; unconfirmed branches are blocked. Monthly reports
+   must sum each verification's `unit_price`, not the month-end price; separate task.
 
 Still open, so the `design_decision` gate stays pending and `decision-memo.md` is not
 written yet:
