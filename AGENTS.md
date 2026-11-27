@@ -163,6 +163,11 @@ is an anti-pattern.
 `--gate <name>:<reason>`, or `--no-gates "<reason>"` for work with nothing to
 gate. After that, gates change only through `scripts/update-completion-gate.rb`.
 See [docs/completion-gates.md](docs/completion-gates.md#opening-a-task-with-gates-55).
+A task that comes from a Multica issue starts `task.md` with the line
+`Multica issue SPAR-NN — <issue title>`, so the link is found by grep from
+either side. There is no structured Multica field (decided 2026-11-27); add one
+only after a task is mis-mapped to its issue, or when a dashboard view of
+Multica status is approved.
 
 ### Lightweight-to-formal escalation
 
