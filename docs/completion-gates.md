@@ -18,6 +18,11 @@ gate, or automatic discovery of the gates a task should have. A gate marked
 is intentional for this slice; independent attestation belongs with the later
 authorization/policy work and needs evidence that it is required.
 
+Gate evidence is also verifiable only in the checkout that recorded it. A gate's
+`evidence_refs` resolve against `evidence.yaml`, which stays local, so a
+worktree or fresh clone fails validation until the task's evidence is copied in
+(see [evidence-contract.md](evidence-contract.md#where-evidence-lives)).
+
 ## Shape
 
 ```yaml

@@ -124,6 +124,41 @@ when `repo_sha` differs from HEAD of `repo`. It is skipped when `repo_sha` is
 `unknown` or the path is no longer a git repo. Use it when the evidence is meant
 to describe the tree in front of you right now (e.g. a merge-readiness gate).
 
+## Where evidence lives
+
+`evidence.yaml`, `evidence/` and `run-records/` are gitignored by the `runs/`
+allowlist in `.gitignore`. They stay in the checkout that recorded them. The
+files that do sync (`status.yaml` gates, `*-output.yaml`) cite their ids, so
+those ids resolve only in that checkout. `authorization.yaml` is different: it
+syncs.
+
+A copy without these files fails validation for every task that cites
+evidence. That includes a worktree, a fresh clone, a `git archive` export and a
+cloud session. The errors read `references evidence but … evidence.yaml does
+not exist` or `artifact_path not found`. This is expected and is not a defect
+in the task. On 2026-11-27, 121 of 638 runs failed this way from a git-only copy
+and passed in the main checkout.
+
+To validate or run a gate writer in such a copy, first copy the three paths that
+exist for the task from the recording checkout:
+
+```bash
+rsync -a <recording-checkout>/runs/<TASK>/evidence.yaml \
+  <recording-checkout>/runs/<TASK>/evidence \
+  <recording-checkout>/runs/<TASK>/run-records \
+  <copy>/runs/<TASK>/
+```
+
+Never recreate, edit or stub evidence to make a copy validate.
+
+Why it stays local: logs can hold account ids, email addresses and internal
+addresses, and this repo is public. The ledger is not synced either, because
+every runtime that works office tasks runs on the operator's machine against the
+main checkout. Decision and revisit trigger: ADR-AIO-0008 in knowledge-base
+(`30 ADR/`). Revisit when an office task is worked from another machine or a
+cloud session, or when two or more sessions in 30 days are blocked by these
+errors.
+
 ## Scope
 
 This slice implements the **producer wrapper** lane only: evidence exists because
