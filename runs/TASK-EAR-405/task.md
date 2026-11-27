@@ -121,3 +121,26 @@ userID or roundID. User/QA performs the debit/settlement step. Next audit must
 correlate that round's Wallet rail, Game round_lifecycles.currency and Logs
 monitoring_round_outcomes.currency=COIN, then inspect the authenticated report
 using a date range that excludes older unknown-currency rows.
+
+## Candidate post-deploy round — 2026-11-28
+
+Earth asked to close the in_review tasks whose PRs were all merged. All three
+PRs here are merged, but `authenticated_staging` still has no COIN sample, so
+the task stays in_review.
+
+Staging logs (ev-002, read-only CloudWatch) show one real round after the
+Provider deploy cutoff: round `01a1855c-dcb6-769d-a891-9a9593f475f4`,
+2026-10-29 01:53:38 UTC, provider `idg`, game `ht-abyssalrite`, bet 50, win 35.
+Provider called Game SettleRound for bet and win, Game upserted the round and
+published `player.activity`, and Logs ignored the duplicate redeliveries of
+`round.settled` and `turnover.settled` (the first delivery was consumed). The
+logs do not print currency, so this is a candidate, not a pass.
+
+To pass the gate, check this one round with the existing read-only DBeaver
+connections:
+- ClickHouse `gameslabs.monitoring_round_outcomes FINAL` where `round_id` is the
+  id above: `currency` must be `COIN`.
+- Staging PostgreSQL `round_lifecycles.currency` for the same round, and the
+  matching `wallet_transactions` coin movement.
+If the round is not COIN (or IDG carries no provable currency), the QA handoff
+above still applies: one new COIN round on a non-paying test channel.
