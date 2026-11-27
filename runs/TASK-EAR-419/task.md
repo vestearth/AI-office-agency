@@ -90,3 +90,16 @@ Wallet PR60 merged into staging688fd85 and deployed as82 BEFORE Order PR87 merge
 ## Product rule propagation follow-up — 2026-11-03
 
 DIAMOND item-redemption acceptance is excluded by the confirmed POINT-only product rule, not merely a missing test fixture. Earlier acceptance descriptions are historical and are superseded by this rule. Scoped PromptPay/Card/POINT acceptance and completed staging integration remain valid; historical recovery remains pending. No legacy code/contract removal or runtime enforcement is claimed. Current handoff and acceptance artifacts now carry the same rule.
+
+## Closed — 2026-11-28
+
+Earth dropped the historical DEV redemption recovery and closed the task. The
+App team had not named the original Oct 29 redemption after 25 days, and it
+concerns one test account's points on DEV. `payment_redeem_recovery` is `na` by
+that decision: no historical redemption was recovered and none is claimed, and
+there is no follow-up task. The last implementation checkpoint above stays
+unchecked for that reason.
+
+Order#87 (`a5367df`) and Wallet#60 (`688fd85`) are on staging and inside the
+`release/TASK-EAR-402-prod` branches, not on prod yet; production ships with
+the TASK-EAR-402 release train.

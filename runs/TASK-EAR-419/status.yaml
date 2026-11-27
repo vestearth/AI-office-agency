@@ -1,18 +1,18 @@
 ---
 task_id: TASK-EAR-419
 task_label: Games Labs payment and redemption durable event delivery and DEV recovery
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 5
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev-2
   parallel: false
 created_at: '2026-10-29'
-updated_at: '2026-11-03'
+updated_at: '2026-11-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -204,6 +204,19 @@ history:
   reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261103T035829Z-codex-01a19bc9-profile-settings-history.yaml'
   at: '2026-11-03T03:58:29Z'
   operator: codex
+- phase: 'gate payment_redeem_recovery: pending -> na'
+  agent: pm
+  reason: Operator dropped the historical DEV redemption recovery from this task (chat
+    2026-11-28, after 25 days waiting for the App team to name the original Oct 29
+    redemption). No recovery was applied and none is claimed; no follow-up task. The
+    durable-delivery fix itself is verified by the passing gates.
+  at: '2026-11-27T19:09:48Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T19:09:55Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -300,11 +313,13 @@ completion_gates:
     - ev-034
     - ev-041
   payment_redeem_recovery:
-    status: pending
+    status: na
     actor: pm
-    reason: Verify and recover the allowlisted DEV payment and affected user's redemption
-      attempts using original idempotency
-    updated_at: '2026-10-29T08:36:50Z'
+    reason: Operator dropped the historical DEV redemption recovery from this task
+      (chat 2026-11-28, after 25 days waiting for the App team to name the original
+      Oct 29 redemption). No recovery was applied and none is claimed; no follow-up
+      task. The durable-delivery fix itself is verified by the passing gates.
+    updated_at: '2026-11-27T19:09:48Z'
     evidence_refs: []
   knowledge_closeout:
     status: pass
@@ -349,3 +364,4 @@ last_synced_output:
   file: dev-2-output.yaml
   digest: eeebcf16e60ba4375c35c52ba3ea07976a1993112d0a0263192bc9d6579aa5e2
   next: reviewer
+decision_applied_at: '2026-11-27T19:09:55Z'

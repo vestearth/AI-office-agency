@@ -1,0 +1,7 @@
+task_id: TASK-EAR-419
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T19:09:55Z'
+  against_phase: in_review
+  note: 'recorded from chat by the Claude conductor: Earth chose to drop the historical DEV redemption recovery and close the task ("ยกเลิกแล้วปิด", 2026-11-28). Order#87 and Wallet#60 are merged to staging; implementation, migration replay, staging deploy, scoped App acceptance (PromptPay, Card, POINT), review remediation and knowledge closeout gates pass; payment_redeem_recovery is na by that decision. Production stays out of scope (it rides the TASK-EAR-402 release train).'
