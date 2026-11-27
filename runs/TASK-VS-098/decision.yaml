@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-098
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T21:11:53Z'
+  against_phase: pending
+  note: 'recorded from chat by the Claude conductor: Earth asked to close ("ปิดทั้ง
+    8 งาน", 2026-11-28). Earth chose to close now ("ปิดเลย") although task.md Done
+    also lists items still open, which stay in Multica SPAR-85: the bare host still
+    answers 302 (not 301) to www (ev-015, 2026-11-28); Google and Bing index evidence
+    (Earth); Trevor week 2/4/6 measurements after index confirmation. Released: slip-landing#31
+    is in slip-landing-production:69 (production-sha-cc78cff, on origin/prod) (ev-014).'

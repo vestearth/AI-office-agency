@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-098
 task_label: SPAR-85 Up-Slip GEO/AEO pilot
-phase: pending
-state: pending
+phase: done
+state: done
 iteration: 0
-current_agent: pm
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-26'
-updated_at: '2026-11-26'
+updated_at: '2026-11-28'
 history:
 - phase: created -> pending
   agent: pm
@@ -53,6 +53,16 @@ history:
     were aligned in slip-landing PR #33 (2cad3cc).'
   at: '2026-11-26T10:23:54Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T211153Z-vs-098-geo-aeo-pilot.yaml'
+  at: '2026-11-27T21:11:53Z'
+  operator: claude
+- phase: pending -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T21:11:53Z'
+  operator: claude
 completion_gates:
   baseline:
     status: pass
@@ -77,9 +87,9 @@ completion_gates:
     evidence_refs:
     - ev-002
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-26T08:15:22Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T211153Z-vs-098-geo-aeo-pilot.yaml'
+    updated_at: '2026-11-27T21:11:53Z'
     evidence_refs: []
+decision_applied_at: '2026-11-27T21:11:53Z'
