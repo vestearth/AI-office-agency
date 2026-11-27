@@ -4,7 +4,8 @@
 #
 # The collector must count only structured rework signals (a transition INTO
 # debugging, a classified failure) — never `in_review -> in_review`, which is
-# mostly progress notes — and must never write anything.
+# mostly progress notes, nor `debugging -> debugging`, which is already inside
+# debugging — and must never write anything.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -52,7 +53,8 @@ printf 'review_verdict: approved\n' > "$RUNS/TASK-EAR-1/reviewer-output.yaml"
 # Three progress notes on in_review must not count as rework.
 status TASK-EAR-2 done 2026-10-11 "assigned -> in_review" "in_review -> in_review" "in_review -> in_review" "in_review -> in_review" "in_review -> done"
 printf 'review_verdict: changes_requested\ndefect_class: silent_fallback\n' > "$RUNS/TASK-EAR-2/reviewer-output.yaml"
-status TASK-VS-3 in_review 2026-09-01 "assigned -> in_review" "in_review -> debugging" "debugging -> in_review" "in_review -> debugging"
+# A progress note while already in debugging is not a new entry into it.
+status TASK-VS-3 in_review 2026-09-01 "assigned -> in_review" "in_review -> debugging" "debugging -> debugging" "debugging -> in_review" "in_review -> debugging"
 # An absolute path under the workspace root counts as its repository, not "Users".
 cat > "$RUNS/TASK-VS-3/debugger-output.yaml" <<YAML
 diagnosis:
@@ -75,7 +77,7 @@ assert_eq "$(j totals runs)" "3" "runs (non-task dirs ignored)"
 assert_eq "$(j totals done)" "2" "done runs"
 assert_eq "$(j by_prefix EAR runs_with_debugging)" "1" "EAR: only the run that entered debugging"
 assert_eq "$(j by_prefix EAR debugging_cycles)" "1" "EAR: in_review -> in_review is not rework"
-assert_eq "$(j by_prefix VS debugging_cycles)" "2" "VS: two entries into debugging"
+assert_eq "$(j by_prefix VS debugging_cycles)" "2" "VS: two entries into debugging; debugging -> debugging is not one"
 assert_eq "$(j defect_classes silent_fallback tasks)" '["TASK-EAR-1","TASK-EAR-2"]' "class from debugger and reviewer, by task"
 assert_eq "$(j recurring)" '["silent_fallback"]' "a class seen in 2+ distinct tasks is recurring"
 assert_eq "$(j unclassified debugger)" '["TASK-VS-3"]' "debugger output without a class"
