@@ -2,11 +2,11 @@
 task_id: TASK-VS-100
 task_label: 'UpSlip manual QA: 16px body text, step line breaks, step numbers per
   section'
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
@@ -73,6 +73,11 @@ history:
     in knowledge-reviews/closeouts/20261127T184253Z-verifyslip-manual-render-rules.yaml'
   at: '2026-11-27T18:42:54Z'
   operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T18:48:55Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -132,3 +137,4 @@ completion_gates:
       in knowledge-reviews/closeouts/20261127T184253Z-verifyslip-manual-render-rules.yaml'
     updated_at: '2026-11-27T18:42:54Z'
     evidence_refs: []
+decision_applied_at: '2026-11-27T18:48:55Z'

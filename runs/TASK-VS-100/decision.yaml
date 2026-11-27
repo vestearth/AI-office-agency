@@ -1,0 +1,7 @@
+task_id: TASK-VS-100
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T18:48:55Z'
+  against_phase: assigned
+  note: 'recorded from chat by the Claude conductor: Earth asked to close TASK-VS-100 as done ("ปิด task เป็น done เลย"). slip-front-end#58 and slip-admin#70 merged and on staging via #59/#71 (ECS :163/:113); staging browser check of the portal and the signed-in admin editor passed; knowledge closeout recorded (knowledge-base 26523e2). Production promotion is not part of this task.'
