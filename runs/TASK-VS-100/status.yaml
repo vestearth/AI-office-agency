@@ -58,6 +58,15 @@ history:
     COMPLETED at 1/1. Rollback: :162 / :112.'
   at: '2026-11-27T17:16:13Z'
   operator: claude
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Observed on staging 2026-11-28 in a browser. Portal (Chrome): line/line-disconnect-or-move
+    steps 1-3, 1-2, 1-3; dashboard/how-to-read-dashboard multi-line step renders 4
+    lines from 4 source lines; article text computes to 16px. Admin (signed in by
+    Earth in the desktop panel): editor form badges and preview both 1-3, 1-2, 1-3,
+    preview text 16px, new previewHint shown; editor closed without saving.'
+  at: '2026-11-27T18:29:07Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -94,14 +103,22 @@ completion_gates:
       ref: slip-front-end a0f2ac0, slip-admin b2828bd
       url: https://github.com/SparqLab/slip-front-end/actions/runs/46039615570
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-27T13:25:56Z'
+    status: pass
+    actor: reviewer
+    reason: 'Observed on staging 2026-11-28 in a browser. Portal (Chrome): line/line-disconnect-or-move
+      steps 1-3, 1-2, 1-3; dashboard/how-to-read-dashboard multi-line step renders
+      4 lines from 4 source lines; article text computes to 16px. Admin (signed in
+      by Earth in the desktop panel): editor form badges and preview both 1-3, 1-2,
+      1-3, preview text 16px, new previewHint shown; editor closed without saving.'
+    updated_at: '2026-11-27T18:29:07Z'
     evidence_refs: []
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: claude
+      ref: app-staging + admin-staging, slip-front-end-staging:163, slip-admin-staging:113
+      url: https://app-staging.up-slip.com/manual/line/line-disconnect-or-move
   knowledge_closeout:
     status: pending
     actor: pm

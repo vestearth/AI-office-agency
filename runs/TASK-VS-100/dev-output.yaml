@@ -37,7 +37,9 @@ summary: |-
     a whitespace-pre-line paragraph; no bare text-body in the article; staging CSS maps
     text-body-l to 16px/26px. (Staging has no identity-verification article; these two are
     the staging articles with multi-section steps and a multi-line step.)
-  - admin-staging answers 200; the editor itself still needs a signed-in check.
+  - Browser check 2026-11-28: portal pages in Chrome (16px computed, 4-line step renders 4
+    lines); admin editor in the desktop panel after Earth signed in: form badges and preview
+    both 1-3, 1-2, 1-3, preview text 16px, new previewHint; closed without saving.
 artifacts:
 - path: slip-front-end/app/features/manual/format.ts
   action: modified
@@ -63,7 +65,7 @@ artifacts:
   action: modified
 next_action:
   agent: reviewer
-  reason: On staging since 2026-11-28. staging_acceptance waits for QA to re-check the portal manual page and the signed-in admin editor; knowledge_closeout follows.
+  reason: On staging since 2026-11-28 and staging_acceptance passed (browser check of portal and signed-in admin editor). Only knowledge_closeout remains.
 context_sources:
   github:
     branch: task/TASK-VS-100-manual-qa
