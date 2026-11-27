@@ -1,0 +1,25 @@
+task_id: TASK-VS-100
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Project Map.md
+summary: The UpSlip user manual is a slip-api CMS on prod (not the localStorage mock the Project Map described), and its article render rules changed after QA on 2026-11-28.
+sources:
+  - slip-api origin/prod b4a5c36 (SPAR-71, internal/manual)
+  - slip-admin origin/prod app/features/manual/services/manual.ts
+  - slip-front-end app/features/manual/format.ts (manualStepNumbers)
+  - ai-dev-office/runs/TASK-VS-100/dev-output.yaml
+recommended_action: update_note
+requires_human_review: true
+note_patch: |
+  Applied in knowledge-base 26523e2 at the operator's request ("ปิด knowledge
+  closeout ให้ด้วย", 2026-11-28). It replaces the Project Map bullet that called
+  the admin manual editor a localStorage mock:
+
+  - The user manual (help articles, not manual slip verification) is a slip-api
+    CMS since `b4a5c36` (SPAR-71, 2026-11-17): slip-admin edits through
+    `/v1/admin/manual/{topics,articles,images}` and the portal reads
+    `/v1/web/manual/...`. Both are on `origin/prod`, and the prod public API
+    served 41 articles on 2026-11-28. Staging and prod content differ.
+    - Render rules (TASK-VS-100): step numbers restart at 1 in every section,
+      step descriptions keep the admin's line breaks, article content renders at
+      16px (`text-body-l`) while the global `--text-body` stays 14px.

@@ -67,6 +67,12 @@ history:
     preview text 16px, new previewHint shown; editor closed without saving.'
   at: '2026-11-27T18:29:07Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261127T184253Z-verifyslip-manual-render-rules.yaml'
+  at: '2026-11-27T18:42:54Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -120,9 +126,9 @@ completion_gates:
       ref: app-staging + admin-staging, slip-front-end-staging:163, slip-admin-staging:113
       url: https://app-staging.up-slip.com/manual/line/line-disconnect-or-move
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-27T13:25:56Z'
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261127T184253Z-verifyslip-manual-render-rules.yaml'
+    updated_at: '2026-11-27T18:42:54Z'
     evidence_refs: []
