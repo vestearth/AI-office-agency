@@ -13,7 +13,7 @@ assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-27'
-updated_at: '2026-11-27'
+updated_at: '2026-11-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -42,24 +42,57 @@ history:
     --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
   at: '2026-11-27T13:25:56Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: Review approved on both PRs. Targeted tests 15/15 (portal) and 32/32 (admin)
+    at the merged heads f75bb90 and c8cc992; the 8 new tests were seen failing before
+    the fix. Typecheck passes in both repos. Portal CI red only at Lint, same as main
+    since 314066d (75 problems on both).
+  at: '2026-11-27T17:10:52Z'
+  operator: claude
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: 'Main promoted to staging via slip-front-end#59 and slip-admin#71 (only
+    TASK-VS-100 commits). Deploy STAGING runs green; ECS slip-front-end-staging:163
+    (staging-sha-a0f2ac0) and slip-admin-staging:113 (staging-sha-b2828bd) rollout
+    COMPLETED at 1/1. Rollback: :162 / :112.'
+  at: '2026-11-27T17:16:13Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: the change is verified on the reviewed commit (tests or checks that ran)
-    updated_at: '2026-11-27T13:25:56Z'
+    status: pass
+    actor: dev
+    reason: Review approved on both PRs. Targeted tests 15/15 (portal) and 32/32 (admin)
+      at the merged heads f75bb90 and c8cc992; the 8 new tests were seen failing before
+      the fix. Typecheck passes in both repos. Portal CI red only at Lint, same as
+      main since 314066d (75 problems on both).
+    updated_at: '2026-11-27T17:10:52Z'
     evidence_refs: []
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-front-end f75bb90, slip-admin c8cc992
+      url: https://github.com/SparqLab/slip-front-end/pull/58#issuecomment-7224079143
   deploy_staging:
-    status: pending
-    actor: pm
-    reason: the staging deploy ran from the reviewed commit
-    updated_at: '2026-11-27T13:25:56Z'
+    status: pass
+    actor: devops
+    reason: 'Main promoted to staging via slip-front-end#59 and slip-admin#71 (only
+      TASK-VS-100 commits). Deploy STAGING runs green; ECS slip-front-end-staging:163
+      (staging-sha-a0f2ac0) and slip-admin-staging:113 (staging-sha-b2828bd) rollout
+      COMPLETED at 1/1. Rollback: :162 / :112.'
+    updated_at: '2026-11-27T17:16:13Z'
     evidence_refs: []
     requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
     after:
     - implementation_verification
     requires_record: true
+    ran:
+      by: claude
+      ref: slip-front-end a0f2ac0, slip-admin b2828bd
+      url: https://github.com/SparqLab/slip-front-end/actions/runs/46039615570
   staging_acceptance:
     status: pending
     actor: pm

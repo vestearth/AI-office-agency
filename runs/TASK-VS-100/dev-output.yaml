@@ -26,6 +26,18 @@ summary: |-
   - Portal dev server against the public manual API: section 2 shows steps 1-6, step 2
     bullets one per line, content computes to 16px. Admin editor not opened in a browser
     (needs admin login); covered by the SSR render tests.
+
+  Staging (2026-11-28, approved by Earth in chat):
+  - Review approved on #58 and #70 (PR comments), merged to main (6971208, 20f9c97),
+    promoted via slip-front-end#59 and slip-admin#71 (no other commit in staging..main).
+  - ECS slip-front-end-staging:163 (staging-sha-a0f2ac0) and slip-admin-staging:113
+    (staging-sha-b2828bd), rollout COMPLETED 1/1. Rollback: :162 / :112.
+  - app-staging SSR: line/line-disconnect-or-move shows steps 1-3, 1-2, 1-3 across three
+    sections; dashboard/how-to-read-dashboard step 2 text keeps its bullet line breaks inside
+    a whitespace-pre-line paragraph; no bare text-body in the article; staging CSS maps
+    text-body-l to 16px/26px. (Staging has no identity-verification article; these two are
+    the staging articles with multi-section steps and a multi-line step.)
+  - admin-staging answers 200; the editor itself still needs a signed-in check.
 artifacts:
 - path: slip-front-end/app/features/manual/format.ts
   action: modified
@@ -51,11 +63,11 @@ artifacts:
   action: modified
 next_action:
   agent: reviewer
-  reason: Two PRs ready for review (SparqLab/slip-front-end#58, SparqLab/slip-admin#70); staging deploy and staging acceptance gates follow the merge.
+  reason: On staging since 2026-11-28. staging_acceptance waits for QA to re-check the portal manual page and the signed-in admin editor; knowledge_closeout follows.
 context_sources:
   github:
     branch: task/TASK-VS-100-manual-qa
-    pr: https://github.com/SparqLab/slip-front-end/pull/58 https://github.com/SparqLab/slip-admin/pull/70
+    pr: https://github.com/SparqLab/slip-front-end/pull/58 https://github.com/SparqLab/slip-admin/pull/70 https://github.com/SparqLab/slip-front-end/pull/59 https://github.com/SparqLab/slip-admin/pull/71
   socraticode:
     status: skipped
     queries: []

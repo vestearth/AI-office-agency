@@ -1,0 +1,11 @@
+---
+task_id: TASK-VS-100
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: รีวิวแล้ว merge ขึ้น staging ได้เลย
+  at: '2026-11-27T17:10:52Z'
+  action: deploy_staging
+  scope: 'TASK-VS-100 only. slip-front-end #58 and slip-admin #70, main to staging.'
