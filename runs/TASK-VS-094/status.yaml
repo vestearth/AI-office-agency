@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-094
 task_label: Verification page quota tile and row quota show the real charge
-phase: assigned
-state: assigned
+phase: done
+state: done
 iteration: 0
-current_agent: dev
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 created_at: '2026-11-24'
-updated_at: '2026-11-24'
+updated_at: '2026-11-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -43,12 +43,41 @@ history:
     round 2 approved both PRs; remaining warnings fixed in c43a363 / 3ff6d77'
   at: '2026-11-24T05:10:35Z'
   operator: claude
+- phase: 'gate implementation_verification: pending -> na'
+  agent: reviewer
+  reason: 'Operator closed without the QA staging scenario (card 4, rows -1 / 0) ("ปิดทั้ง
+    8 งาน", 2026-11-28); that scenario was never run and is not claimed. What exists:
+    tests and two review rounds plus the reviewer load test (task.md); slip-api#186
+    and slip-front-end#48 are in slip-api-production:177 (11df770) and slip-front-end-production:114
+    (d597d54) (ev-002, ev-003); production GET /v1/usage after the change: 249 requests,
+    0 5xx, 0 ERROR, p50/p95/max 8/17/79 ms vs before 296 requests, p50/p95/max 6/17/31
+    ms (ev-001). The access log has no query string, so include=quota_charged calls
+    are not told apart.'
+  at: '2026-11-27T21:14:32Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T211432Z-vs-094-verification-quota-charged.yaml'
+  at: '2026-11-27T21:14:32Z'
+  operator: claude
+- phase: assigned -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T21:14:43Z'
+  operator: claude
 completion_gates:
   implementation_verification:
-    status: pending
-    actor: pm
-    reason: tests + staging check that the tile equals the quota ledger
-    updated_at: '2026-11-24T04:06:49Z'
+    status: na
+    actor: reviewer
+    reason: 'Operator closed without the QA staging scenario (card 4, rows -1 / 0)
+      ("ปิดทั้ง 8 งาน", 2026-11-28); that scenario was never run and is not claimed.
+      What exists: tests and two review rounds plus the reviewer load test (task.md);
+      slip-api#186 and slip-front-end#48 are in slip-api-production:177 (11df770)
+      and slip-front-end-production:114 (d597d54) (ev-002, ev-003); production GET
+      /v1/usage after the change: 249 requests, 0 5xx, 0 ERROR, p50/p95/max 8/17/79
+      ms vs before 296 requests, p50/p95/max 6/17/31 ms (ev-001). The access log has
+      no query string, so include=quota_charged calls are not told apart.'
+    updated_at: '2026-11-27T21:14:32Z'
     evidence_refs: []
   independent_review:
     status: pass
@@ -59,9 +88,9 @@ completion_gates:
     updated_at: '2026-11-24T05:10:35Z'
     evidence_refs: []
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-24T04:06:49Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T211432Z-vs-094-verification-quota-charged.yaml'
+    updated_at: '2026-11-27T21:14:32Z'
     evidence_refs: []
+decision_applied_at: '2026-11-27T21:14:43Z'

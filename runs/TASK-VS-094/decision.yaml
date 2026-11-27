@@ -1,0 +1,12 @@
+---
+task_id: TASK-VS-094
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T21:14:43Z'
+  against_phase: assigned
+  note: 'recorded from chat by the Claude conductor: Earth asked to close ("ปิดทั้ง
+    8 งาน", 2026-11-28). implementation_verification set to na: the QA staging scenario
+    was never run. slip-api#186 and slip-front-end#48 are in slip-api-production:177
+    (11df770) and slip-front-end-production:114 (d597d54) (ev-002, ev-003); production
+    /v1/usage after the change has 0 5xx and p95 17 ms (ev-001).'

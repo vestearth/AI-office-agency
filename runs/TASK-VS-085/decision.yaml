@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-085
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T21:14:43Z'
+  against_phase: pending
+  note: 'recorded from chat by the Claude conductor: Earth asked to close ("ปิดทั้ง
+    8 งาน", 2026-11-28). staging_acceptance set to na: no webhook/verify request reached
+    slip-api on staging or production since the fix (ev-003, ev-004), so the real
+    success/failure result was never observed at runtime; proof is the regression
+    test and the independent review. The fix 8b54e68 is in slip-front-end-production:114
+    (d597d54) (ev-005).'

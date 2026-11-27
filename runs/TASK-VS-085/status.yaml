@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-085
 task_label: Portal webhook test calls verify
-phase: pending
-state: pending
+phase: done
+state: done
 iteration: 0
-current_agent: pm
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-19'
-updated_at: '2026-11-19'
+updated_at: '2026-11-28'
 history:
 - phase: created -> pending
   agent: pm
@@ -70,6 +70,27 @@ history:
     (PR #30), which contains reviewed head 242b635; CI run 44475634715 success'
   at: '2026-11-19T07:00:00Z'
   operator: claude
+- phase: 'gate staging_acceptance: pending -> na'
+  agent: reviewer
+  reason: Operator closed without a staging acceptance ("ปิดทั้ง 8 งาน", 2026-11-28);
+    nothing is claimed for runtime behaviour. No POST .../webhook/verify reached slip-api
+    on staging (2026-11-19T07:00Z..11-27T21:00Z, ev-004) or production (8d10h54m before
+    and after the Portal fix, ev-003), so nobody pressed the button in either environment;
+    the filter matches the route the Portal calls. The fix (8b54e68) is in slip-front-end-production:114
+    (d597d54, on origin/prod) (ev-005). Behaviour proof is the regression test and
+    the independent review only.
+  at: '2026-11-27T21:14:32Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T211432Z-vs-085-portal-webhook-verify.yaml'
+  at: '2026-11-27T21:14:32Z'
+  operator: claude
+- phase: pending -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T21:14:43Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -106,20 +127,25 @@ completion_gates:
       ref: 8420a45882ce3bcf02979b396d1b934f7f1a6537
       url: https://github.com/SparqLab/slip-front-end/actions/runs/44475634775
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-19T03:40:52Z'
+    status: na
+    actor: reviewer
+    reason: Operator closed without a staging acceptance ("ปิดทั้ง 8 งาน", 2026-11-28);
+      nothing is claimed for runtime behaviour. No POST .../webhook/verify reached
+      slip-api on staging (2026-11-19T07:00Z..11-27T21:00Z, ev-004) or production
+      (8d10h54m before and after the Portal fix, ev-003), so nobody pressed the button
+      in either environment; the filter matches the route the Portal calls. The fix
+      (8b54e68) is in slip-front-end-production:114 (d597d54, on origin/prod) (ev-005).
+      Behaviour proof is the regression test and the independent review only.
+    updated_at: '2026-11-27T21:14:32Z'
     evidence_refs: []
     after:
     - deploy_staging
     requires_record: true
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-19T03:40:52Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T211432Z-vs-085-portal-webhook-verify.yaml'
+    updated_at: '2026-11-27T21:14:32Z'
     evidence_refs: []
   independent_review:
     status: pass
@@ -136,3 +162,4 @@ completion_gates:
       by: michael-de-santa
       ref: 242b635a95ba8010ccdf62c4266b567d2bfb4ce4
       url: https://github.com/SparqLab/slip-front-end/pull/29
+decision_applied_at: '2026-11-27T21:14:43Z'
