@@ -1,0 +1,40 @@
+---
+task_id: TASK-VS-097
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: ปล่อยตามนี้ได้เลย ตอบต่อข้อความขออนุมัติการปล่อยและตรวจบน staging
+  at: '2026-11-26T04:35:18Z'
+  action: deploy_staging
+  scope: TASK-VS-097 only. slip-api and migration 089 first, then slip-front-end and
+    slip-admin on staging.
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: chat
+  reason: รวมข้อความเตือน LINE ในรอบ staging นี้
+  at: '2026-11-26T04:38:48Z'
+  action: deploy_staging
+  scope: slip-api, slip-front-end, slip-admin staging. TASK-VS-097, migration 089,
+    plus c6602af LINE bind warning.
+- id: authz-003
+  type: grant
+  actor: Earth
+  via: chat
+  reason: ขอแก้หนึ่งอย่างก่อนครับใน staging ส่วน Prod ไปรอบเดียวกันได้
+  at: '2026-11-26T07:14:38Z'
+  action: deploy_staging
+  scope: 'slip-admin package create/edit backdrop fix on staging only. Include the
+    tested fix in existing production draft #67.'
+- id: authz-004
+  type: grant
+  actor: Earth
+  via: chat
+  reason: 'ทดสอบบน staging ผ่านแล้วครับ ปล่อยขึ้น Prod ได้เลย ขอ API #192 ก่อน พอ
+    migration 089 ผ่านแล้วค่อยปล่อย Admin #67 ครับ'
+  at: '2026-11-26T07:41:20Z'
+  action: deploy_production
+  scope: 'Production: slip-api #192 first, then slip-admin #67 after migration 089
+    and API readiness.'

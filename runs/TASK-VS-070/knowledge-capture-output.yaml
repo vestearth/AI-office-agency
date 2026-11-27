@@ -1,0 +1,35 @@
+task_id: TASK-VS-070
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+summary: Daily grouped counts needed independent rollup coverage despite VS-053/056. PR135 is now deployed with sampled daily recovery; a concurrent duplicate migration was contained and corrected separately.
+sources:
+  - ai-dev-office/runs/TASK-VS-070/task.md
+  - ai-dev-office/runs/TASK-VS-070/evidence.yaml
+  - ai-dev-office/runs/TASK-VS-071/task.md
+  - ai-dev-office/runs/TASK-VS-071/evidence.yaml
+  - slip-api/internal/repositories/verification.go
+  - slip-api/internal/repositories/verification_summary_test.go
+  - slip-api/migrations/083_verification_manual.sql
+  - https://github.com/SparqLab/slip-api/pull/135
+  - https://github.com/SparqLab/slip-api/pull/138
+  - https://github.com/SparqLab/slip-api/pull/140
+recommended_action: update_note
+requires_human_review: true
+provenance:
+  freshness: current
+  verified_at: '2026-11-12'
+  task_id: TASK-VS-070
+  evidence_refs: [ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-017, ev-018]
+  repo_origin: SparqLab/slip-api
+  repo_sha: 47e4245b113e1fdea1d0922f5010a39c5e9b6e03
+  confidence: high
+note_patch: |
+  Add a dated daily-count follow-up preserving the historical scopes of VS-053/056:
+  PR135 / TASK-VS-070 extends existing hourly rollup reads to AdminStatusCountsByDay. Covered whole hours use verification_usage_hourly; uncovered history and partial-hour edges stay raw in one data statement snapshot. Bangkok grouping and status counters remain compatible. Daily ranges are half-open, whereas splitUsageRange takes an inclusive end: truncate the exclusive end to PostgreSQL microseconds before subtracting one microsecond.
+  A real PostgreSQL regression retaining rollup rows while removing fixture raw rows failed before the patch and passed afterward. Forty parity cases cover coverage none/full/partial/after, stale uncovered rollup values, multiple merchants, midnight, partial hours, microsecond/exclusive bounds and empty/reversed ranges. Full relevant repository/migration integration suites, readonly build and vet passed.
+  Release follow-up: a concurrent manual-flag commit introduced duplicate migration082 and superseded the first staging release. Local Goose and live startup logs proved the collision. Operator-approved stop/restore retained healthy API149/195. TASK-VS-071 / PR138 preserved applied082_blog_actor and renamed never-applied manual migration083 with1s lock/5s statement bounds; old-writer, existing-row/replay and previous-image startup compatibility were tested. No historical manual-classification backfill; old rows defaultfalse. Rollback image only and retain columns.
+  PR139 staging and PR140 production deployed the combined reviewed tree. Final API197 staging1/1 and API151 production3/3 COMPLETED; imageproduction-sha-47e4245;27env/secret references hash-identical to149. Production user refresh produced dailyHTTP200 at16ms and11ms on new151tasks (TASK-VS-070 ev017/018). This is sampled recovery of the original endpoint, not long-term nonrecurrence or an independent production raw/day reconciliation.
+  Since-rollout12m22s read4pages/5838requests with0fiveXX/0startup failures. A globalzeroERROR claim did not pass: one unchanged bank-flow path logged context-canceled, joined by request_id toHTTP408. It is separate from the daily fix and no client action is inferred. Longer-window check_after is recorded on TASK-VS-070 for2026-11-13T02:00Z.
+  Sources: TASK-VS-070 task.md/evidence.yaml (ev002/003 regression,ev017/018 live daily/runtime); TASK-VS-071 task.md/evidence.yaml (ev017config,ev021rollout,ev023..025 log windows,ev027runtime); linked PRs135/138/140 and owning source files above.
+  Related: [[10 Projects/VerifySlip/Merchant Usage Hourly Rollup — 2026-10-26]]; [[10 Projects/VerifySlip/Project Map]].

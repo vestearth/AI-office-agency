@@ -1,0 +1,22 @@
+summary: |
+  AdminStatusCountsByDay now reads covered whole hours from verification_usage_hourly and partial/uncovered ranges raw in one SQL statement. Bangkok daily grouping, status counters and exclusive microsecond boundaries are preserved. The new regression failed on original code and passed after the fix. PR135 is open into main for review; no merge, deployment, production mutation or production recovery claim.
+artifacts:
+  - path: slip-api/internal/repositories/verification.go
+    action: modified
+  - path: slip-api/internal/repositories/verification_summary_test.go
+    action: modified
+evidence_refs: [ev-002, ev-003, ev-004, ev-005, ev-006, ev-007, ev-008]
+next_action:
+  agent: reviewer
+  reason: Review PR135 into main; operator has not authorized merge or deployment.
+context_sources:
+  github:
+    branch: task/TASK-VS-070-admin-daily-rollup
+    commit: b0fea9245107e60d61438d6f44cbd8d2ff53de8e
+    pr: https://github.com/SparqLab/slip-api/pull/135
+    verified_base: main
+  socraticode:
+    status: used
+    queries: [AdminStatusCountsByDay splitUsageRange verification_usage_hourly coverage exclusive bounds regression]
+    notes: Index findings verified against current source; reuse coverage/range splitter and existing DB fixtures.
+blockers: []

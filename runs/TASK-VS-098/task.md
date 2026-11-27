@@ -1,0 +1,68 @@
+# TASK-VS-098 · SPAR-85 Up-Slip GEO/AEO pilot
+
+Multica issue: SPAR-85 (01a215db-4a2e-75c2-b791-219449fa1637), under SPAR-84. Earth authorized kickoff on 26 November 2026.
+
+## Owners
+
+- Earth owns Cloudflare/CDN, Google Search Console, Bing Webmaster Tools, existing Analytics access and API contract sign-off.
+- Codex coordinates SPAR-85 through verification and follow-up measurement and owns slip-landing implementation and staging verification (Earth, 26 November 2026).
+- Trevor owns Product/Content for this pilot: baseline, Thai Quickstart content coordination with Codex, and measurement at weeks 2, 4 and 6. The first Multica run is baseline only.
+
+## Scope and acceptance
+
+- Before deploying pilot changes, capture the 20 valid observations specified in SPAR-85 using the locked prompts in the issue. Store each raw response and its citations with date/time ICT, UI model label, country, language, search mode and session settings. Record mentions, recommendations, official citations and factual correctness separately. A qualifying response recommends Up-Slip appropriately or cites an Up-Slip page in support, and its product facts are correct. Aggregate separately out of 10 per platform. Unavailable results are missing, never zero. Browser sign-in, session isolation or proof of search can block a platform. Record precise blockers. Generic search, other API models and simulated responses are not observations.
+- On the existing public website, use one stable primary host, a 301 preserving path/query from the secondary host, consistent query-free metadata and an indexable sitemap with robots discovery. Verify bot access and capture distinct Google and Bing indexing evidence.
+- Publish the Thai Quickstart in the existing public guide, linked from the API page. Use synthetic request/response data with API-owner review of auth, endpoint, response semantics and quota-related wording. Link pricing and quota information to /package per SPAR-85. The existing API and Portal manual scope remain as approved.
+- Limit pre-publication work to 3 person-days and follow-up recording to one hour per round. After public access and indexing are verified, repeat the locked baseline at weeks 2, 4 and 6. Escalate if indexing is unconfirmed after four weeks. Use the same-platform +2/10 in two consecutive rounds and the optional existing Analytics evidence per SPAR-85. If the threshold is missed after three rounds, pause expansion.
+
+Deployment requires the baseline first. This kickoff dispatches baseline collection only.
+
+
+## Landing implementation, 26 November 2026
+
+Earth selected https://www.up-slip.com as the primary public origin. The planned Cloudflare 301 matches the bare up-slip.com host and keeps the original path and query. Verify the live redirect, robots.txt (including Cloudflare handling), and actual crawler access during release.
+
+The local slip-landing branch task/TASK-VS-098 at bdf2f38 targets main. Nuxt build passed. SSR smoke verified 34 sitemap URLs, robots discovery, one query-free canonical and og:url on landing pages and the Thai-only blog article, localized alternates, the Thai Quickstart in public HTML and links from the API page. Published blog article SSR was checked using the public API. The public demo returned the excerpt shown in Quickstart (200, verified, fixture transRef and amount).
+
+Baseline already passed. Earth still owns API contract sign-off and the production edge/indexing checks. Trevor owns follow-up measurement after release and index confirmation. The commit was published as PR #31 into main.
+
+
+## Review handoff
+
+- Draft PR: https://github.com/SparqLab/slip-landing/pull/31 (base main, head bdf2f38d1eb6ba254f97aac529f07227ceacde85).
+- Compared the Quickstart with slip-api prod source bc59868: demo fixture, verify route and JSON payload, branch Bearer key and IPv4 allowlist, Idempotency-Key, accepted queue response and result mapping. Earth sign-off is pending.
+- Public probe: the bare host currently returns 302 to www preserving the tested path/query. The www sitemap still returns 404. Permanent 301 and sitemap publication remain release checks.
+
+- PR #31 is ready for review at `9690d55`. Full sitemap matrix first exposed three redirecting service index URLs. Removed those aliases, rebuilt, and verified all 31 listed URLs return 200 with a single query-free www canonical and robots discovery. The baseline trees of main, staging and prod were identical before the pilot.
+
+- Chromium smoke on commit 9690d55 passed at viewport widths 375 and 1440. Clicking the public API link reached the Quickstart, the target was visible, the curl example preserved line continuations, and the document had no horizontal overflow.
+
+- PR #31 merged into main as a189bbcc1aabef157b17b6ee8a22b026ee97ac02. The main tree matches tested head 9690d55. Staging promotion PR #32 is draft and contains only the pilot change. Earth API contract acceptance remains pending before the staging deploy.
+
+- PR #33 merged the related API sample fixes as 2cad3cc. Independent build/SSR passed on that exact PR #32 head: sitemap 31/31, robots, API examples and manual th/en/zh, with the live demo matching. PR #33 documents Claude self-review. PR #32 still explicitly awaits Earth contract acceptance before leaving draft.
+
+- 26 Nov 17:23 ICT: Earth accepted the Quickstart API contract in the Claude session. The `api_contract` gate passed with ev-002 (Quickstart on 2cad3cc checked against slip-api bc59868, the prod td `:176` image, plus the live demo). The PR #32 title no longer carries the Multica issue id, so workspace PR auto-complete cannot close the issue before the week 2/4/6 measurements. PR #32 merged into staging as 38e614b. Deploy STAGING run 45801046868 succeeded, and ECS `slip-landing-staging:69` (`staging-sha-38e614b`) finished rolling out. ev-003 passed on staging.up-slip.com: robots, 31/31 sitemap URLs, canonical/og:url/hreflang, query stripping, Quickstart and API samples. A Chrome check confirmed the API page link lands on the visible Quickstart with no overflow at 1440. Remaining: production promotion (separate), Earth's Cloudflare 301 and Search Console/Bing indexing, the `knowledge_closeout` gate, and Trevor's measurements after indexing. Observation: Cloudflare returns 403 to the `Python-urllib` User-Agent on api.up-slip.com for both the demo and `/v1/slips/verify`, while python-requests, Go, axios, Java and PHP get through. This is an edge setting and does not affect the curl Quickstart.
+
+- Production promotion draft: https://github.com/SparqLab/slip-landing/pull/34 (staging `38e614b` into prod `ded1665`, the same 11 pilot files). It waits for Earth's go-ahead. The prod baseline before merge: www sitemap returns 404, www robots.txt has only Cloudflare comments, the bare host returns 302 to www, and the service is `slip-landing-production:64`. The PR body lists the post-merge checks (rollout, the www matrix, the robots `Sitemap:` line behind Cloudflare managed robots) and the rollback to `:64`.
+
+- Crawler access, 26 Nov 17:59 ICT, ev-005 (ev-004 reached the same verdict, but its log mis-split HTTP headers into the robots text, so ev-005 replaces it). Neither robots.txt blocks OAI-SearchBot, PerplexityBot, Claude-SearchBot, Googlebot or Bingbot. Prod www today has only Cloudflare content-signal comments and no directives. The post-merge origin has `User-agent: *`, `Disallow:` and the `Sitemap:` line. Fetching `/`, `/service/api`, `/manual` and `/package` with each crawler's User-Agent returned 200 with the full page, no `cf-mitigated` challenge, no `X-Robots-Tag` and no meta noindex. The fetch came from this machine, not the crawlers' verified IPs, so per SPAR-85 it is supplementary only. Earth still has to confirm the Cloudflare bot and AI-crawler settings and run the GSC/Bing live inspections after prod. Structured data: no page has JSON-LD today, and the site shows no customer reviews or ratings. Google's AI features doc says no special schema.org markup is needed for AI Overviews or AI Mode.
+
+- Scope addition approved by Earth in the Claude session on 26 Nov: JSON-LD before prod. PR #35 (main `f46ce0b`) adds two pieces. Home (th/en/zh) gets an `Organization` (www `@id`/url, 180×180 logo, the footer socials, support email and phone). `/package` (th/en/zh) gets one `Service` per channel with an `AggregateOffer` in THB, VAT included. Its low/high/count come from the same `web-packages` data the table renders, and nothing is emitted without data. There is no AggregateRating or Review because the site has no genuine reviews. The SSR check failed on the main build and passed on the branch. PR #36 promoted it to staging as `8a234e8`. Deploy run 45808191618 succeeded, and ECS `slip-landing-staging:70` finished rolling out. ev-006 checked the JSON-LD against the staging package API, and the release matrix re-ran and passed. PR #34 now carries `8a234e8` (13 files), and its body lists a prod JSON-LD check. The schema.org validator page did not finish loading in Chrome, so validity rests on the scripted parse and field checks.
+
+- **Published to production, 26 Nov 18:49 ICT (Earth's go-ahead in the Claude session).** PR #34 merged into prod as `d64c084`. `Deploy PRODUCTION` run 45814002147 succeeded, and ECS `slip-landing-production:65` (`production-sha-d64c084`) finished rolling out, replacing `:64`. Checks on www:
+  - ev-007: robots, 31/31 sitemap URLs 200, one query-free www canonical and og:url, th/en/zh-CN/x-default hreflang, `?utm_source` stripped, Quickstart and samples.
+  - ev-008: Organization on `/`, `/en` and `/zh`, and both Services on `/package` matching the prod package API (API 0–479999/44, LINE 0–167999/45).
+  - ev-009: the five crawlers are allowed and get 200 with no challenge.
+  - www robots.txt now serves only the origin file (`User-agent: *`, `Disallow:`, `Sitemap:`), and Cloudflare caches it for 4 hours.
+  - Remaining for Earth: the bare host still returns 302, not 301, to www (path and query kept). Earth also needs to submit the sitemap and inspect `/service/api` and `/manual` in Google Search Console and Bing Webmaster Tools, and to check the Cloudflare bot and AI-crawler settings. The 4-week index clock and Trevor's week 2/4/6 rounds start from index confirmation. The `knowledge_closeout` gate is still pending.
+
+- Team review in SPAR-85, 26 Nov 19:00 ICT. Earth asked Claude to take the issue to Done. Claude updated the description progress section, posted the release summary with the acceptance table and a review request, and created a Multica wakeup for Trevor at 2026-12-24 09:00 ICT (the 4-week index deadline check).
+  - Trevor's review (ev-010): the Quickstart and JSON-LD pass. Trevor flagged API-page and pricing copy, and each claim was checked against slip-api `bc59868`.
+  - PR #37 (main `c098204`) fixes the confirmed mismatches in th/en/zh: branch identified by the API key, not a branch ID; `422` means the bank did not confirm (an unreadable QR is 400); "in seconds" replaces "a split second"; trial is API and LINE once each per account; Quickstart polls `status_url` with the same branch key until `outcome`.
+  - PR #38 moved it to staging as `e205d73` (`slip-landing-staging:71`). ev-011 passed, and the sample, JSON-LD and release checks still pass.
+  - Prod draft is PR #39, waiting for Earth.
+  - Held for Earth as contract owner: the `/package` quota wording. `not_found` (404/4040) is free. KBank 8404 (returned as 422) costs 1 quota per slip, with repeats within 24h free unless under 30s apart, and a verified result within 24h of a charged 8404 is free. Other 422 results cost 1. Also held: the "ทดลองฟรี — ไม่มีเงื่อนไข" heading and its paragraph.
+  - Claude replied to Trevor in the thread with "no action needed until Earth confirms index". Trevor's run on that reply ended without a comment.
+  - Earth's decisions (26 Nov, Claude session): keep PR #39 as a draft for now, keep the `/package` quota wording as written in VS-063, and keep the trial heading and paragraph as they are. All three are recorded in the SPAR-85 description (revision 10).
+  - 27 Nov: Earth, as the contract owner, chose the earlier wording for three spots that PR #37 changed, in all locales: the CTA trial line ("free trial for 1 channel per account"), the `/service/api` rejected card body (unreadable slip) and the Quickstart 202 line ("wait for the result from `status_url`"). PR #40 (main `bcb7d82`) restores those three files to their state before `c098204`. PR #41 promoted it to staging as `e8397f2`. Deploy run 45931286701 succeeded, and ECS `slip-landing-staging:72` finished rolling out. ev-012 is the copy check updated to Earth's wording. It failed on the #37 staging build for exactly those three spots and passed on this build. The sample, JSON-LD and release checks still pass. PR #39 (draft) now carries 2 files from #37: branch identified by the API key, and the "in seconds" ribbon.
+  - **Published to production, 27 Nov 10:12 ICT (Earth's go-ahead in the Claude session).** PR #39 merged into prod as `f283e68` with 2 files (branch identified by the API key, "in seconds" ribbon). `Deploy PRODUCTION` run 45932552997 succeeded, and ECS `slip-landing-production:66` (`production-sha-f283e68`) finished rolling out, replacing `:65`. ev-013: the copy check passes on www (before the merge it failed on www only on those 2 items). The sample, JSON-LD (prod package API) and release checks (robots, 31/31 sitemap URLs, canonical/og:url/hreflang, query stripping) also pass on www. Rollback is `:65`. Still open for Done: the bare host 302 → 301 (Earth, Cloudflare), Google and Bing index evidence (Earth), Trevor's week 2/4/6 rounds, and the `knowledge_closeout` gate.

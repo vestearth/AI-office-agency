@@ -1,0 +1,63 @@
+---
+task_id: TASK-VS-095
+task_label: Portal single-slip 8404 retry
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-24'
+updated_at: '2026-11-24'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: knowledge_closeout (no delivery gates: Direct
+    operator request with explicit Staging behavioral acceptance and ledger verification;
+    handled by conductor.)'
+  at: '2026-11-24T04:50:03Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-24T04:50:03Z'
+  operator: codex
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: Need two authenticated Staging requests from /verification on the same file
+    and branch after 8404 and within 30 seconds, then verify the quota ledger.
+  at: '2026-11-24T05:05:56Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261124T050556Z-verifyslip-staging-duplicate-quota-01a20bc1.yaml'
+  at: '2026-11-24T05:05:56Z'
+  operator: codex
+- phase: 'waits_on: -qa'
+  agent: pm
+  reason: Staging Portal returned the stored 8404 after 8.28 seconds with no new verification
+    or quota history row.
+  at: '2026-11-24T05:22:28Z'
+  operator: codex
+- phase: pending -> done
+  agent: pm
+  reason: Verified the actual Staging 8404 same-key replay and quota history with
+    the signed-in Portal test.
+  at: '2026-11-24T05:22:28Z'
+  operator: codex
+completion_gates:
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261124T050556Z-verifyslip-staging-duplicate-quota-01a20bc1.yaml'
+    updated_at: '2026-11-24T05:05:56Z'
+    evidence_refs: []
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route

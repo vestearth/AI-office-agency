@@ -1,0 +1,18 @@
+summary: |
+  PR135 is merged and included in production151 /47e4245 via combined release recovery TASK-VS-071. Stage197COMPLETED1/1 and production151COMPLETED3/3; original source ancestry verified. User confirmed refresh, and daily endpoint returned200 in16ms and11ms on new tasks. Scope-specific sampled recovery passes. GlobalzeroERROR check remains partial: a separate context-canceled bank-flow request joined408; no daily timeout or server5xx. Long-window check_after retained.
+artifacts: []
+infra_checks:
+  - check: completed_reviewed_rollout
+    result: pass
+    details: Stage197 COMPLETED1/1 and production151 COMPLETED3/3, expected tags and reviewed source ancestry verified.
+  - check: scoped_runtime_recovery
+    result: pass
+    details: Migration083 applied, HTTP listeners healthy; daily endpoint returned20016ms/11ms on new tasks and no server5xx/startup failure observed in the fixed release window.
+  - check: global_zero_ERROR
+    result: fail
+    details: Global checker exit1 retained for one bank-flow context-canceled ERROR joined to same-requestHTTP408; unchanged handler/service, no daily timeout or server500. Nonblocking for scoped release acceptance; not represented as globally clean.
+evidence_refs: [ev-017, ev-018]
+next_action:
+  agent: reviewer
+  reason: Accept scoped deployed daily recovery using real endpoint samples and linked TASK-VS-071 release evidence; preserve qualified global log verdict.
+blockers: []

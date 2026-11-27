@@ -1,0 +1,100 @@
+---
+task_id: TASK-EAR-424
+task_label: 'Order ConfirmPayment: require proof of payment before package fulfilment'
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for:
+- 'Operator (Earth): approve (1) the staging-only reproduction (one order via the
+  store purchase source, task.md "Staging reproduction plan") and name the staging
+  test player account(s); (2) fix option A (Order handlers refuse pending orders,
+  S2S ConfirmCheckoutOrder unchanged); (3) prod train route: land on Order staging
+  before the TASK-EAR-402 refresh, or cherry-pick into release/TASK-EAR-402-prod.'
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-13'
+updated_at: '2026-11-13'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-11-12T18:56:35Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-12T18:56:35Z'
+  operator: claude
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-12T18:56:35Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-12T18:56:35Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-12T18:56:35Z'
+  operator: claude
+- phase: pending -> pending
+  agent: pm
+  reason: 'Investigation done from source (no runtime contact): defect CONFIRMED in
+    code on Order staging c244578, prod aedf982 and release/TASK-EAR-402-prod 059d148;
+    the public confirm route settles an owned pending order with no payment proof
+    and Wallet reward-package has no payment check; three player-reachable sources
+    of a pending order. RED handler test on a scratch copy (evidence/ev-001, local).
+    Open-and-stop: waiting on Earth (task.md "Decisions for Earth").'
+  at: '2026-11-12T19:09:35Z'
+  operator: claude
+- phase: 'waits_on: +operator_approval'
+  agent: pm
+  reason: staging reproduction, fix option and prod-train route need Earth's approval
+    (open-and-stop default for new TASK-EAR runs)
+  at: '2026-11-12T19:09:35Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-11-12T18:56:35Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-11-12T18:56:35Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-11-12T18:56:35Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-11-12T18:56:35Z'
+    evidence_refs: []
+waits_on:
+- kind: operator_approval

@@ -1,0 +1,62 @@
+---
+task_id: TASK-VS-096
+task_label: Promote VerifySlip replay and quota reporting to Production
+phase: done
+state: done
+iteration: 0
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-24'
+updated_at: '2026-11-24'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: knowledge_closeout (no delivery gates: Operator
+    directed release; conductor records deployment and behavioral acceptance separately.)'
+  at: '2026-11-24T06:30:35Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-24T06:30:35Z'
+  operator: codex
+- phase: 'waits_on: +qa'
+  agent: pm
+  reason: Production is deployed. Need an authenticated 8404 followed by a same-key
+    retry within 30 seconds to verify quota_history.
+  at: '2026-11-24T06:47:39Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261124T064739Z-verifyslip-staging-duplicate-quota-01a20bc1.yaml'
+  at: '2026-11-24T06:47:39Z'
+  operator: codex
+- phase: 'waits_on: -qa'
+  agent: pm
+  reason: Earth accepted Staging replay evidence and waived the additional Production
+    replay test to avoid live verification costs.
+  at: '2026-11-24T06:59:16Z'
+  operator: codex
+- phase: pending -> done
+  agent: pm
+  reason: Production rollout verified. Earth accepted the Staging replay evidence
+    and waived live replay testing.
+  at: '2026-11-24T06:59:16Z'
+  operator: codex
+completion_gates:
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261124T064739Z-verifyslip-staging-duplicate-quota-01a20bc1.yaml'
+    updated_at: '2026-11-24T06:47:39Z'
+    evidence_refs: []
+handoff:
+  from: pm
+  to: done
+  artifact: forced-route

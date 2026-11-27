@@ -1,0 +1,17 @@
+task_id: TASK-VS-071
+capture_type: project_note
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Admin Scoped Verification Count Indexes — 2026-10-15.md
+summary: Migration collision recovery and the combined deployment are already covered by the same-workstream TASK-VS-070 capture; reconcile that proposal without duplicating it.
+sources:
+  - ai-dev-office/runs/TASK-VS-070/knowledge-capture-output.yaml
+  - ai-dev-office/runs/TASK-VS-071/task.md
+  - ai-dev-office/runs/TASK-VS-071/evidence.yaml
+  - slip-api/migrations/083_verification_manual.sql
+  - slip-api/migrations/run_test.go
+  - https://github.com/SparqLab/slip-api/pull/138
+  - https://github.com/SparqLab/slip-api/pull/140
+recommended_action: skip
+requires_human_review: true
+note_patch: |
+  No second note proposal. Reconcile the existing TASK-VS-070 capture, which records the independent daily rollup path, duplicate082 containment and correction, exact final deployed image, sampled daily recovery, and qualified log verdict. Sources: the task capture, task/evidence files and PRs above.

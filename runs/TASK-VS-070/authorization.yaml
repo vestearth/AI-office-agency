@@ -1,0 +1,41 @@
+---
+task_id: TASK-VS-070
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: 'User: ช่วยรีวิว PR #135 อีกรอบครับ ว่ามีจุดตกหล่นหรือเสี่ยงนับยอดผิดไหม
+    ถ้าไม่มีแล้ว merge / deploy ต่อได้เลย; review found no blocker'
+  at: '2026-11-12T03:46:20Z'
+  action: deploy_staging
+  scope: slip-api PR135 b0fea924 through main into staging only
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: chat
+  reason: User authorized merge/deploy after review; current promotion dry run contains
+    only PR135 two files
+  at: '2026-11-12T03:46:20Z'
+  action: deploy_production
+  scope: slip-api PR135 b0fea924 through staging into production only; no unrelated
+    commits or migrations
+- id: authz-003
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Operator explicitly approved expanded combined-release review/acceptance
+    and recovery after concurrent change
+  at: '2026-11-12T05:33:09Z'
+  action: deploy_staging
+  scope: PR135 within reviewed combined TASK-VS-071 release, including manual flag
+    and corrected migration083
+- id: authz-004
+  type: grant
+  actor: Earth
+  via: chat
+  reason: Operator explicitly approved combined release and continue; production PR140
+    pinned to tested tree
+  at: '2026-11-12T05:33:09Z'
+  action: deploy_production
+  scope: PR135 within staging-tested combined TASK-VS-071 production release

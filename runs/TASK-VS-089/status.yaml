@@ -1,0 +1,105 @@
+---
+task_id: TASK-VS-089
+task_label: Portal quota and QR copy match slip-api (SPAR-74)
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-19'
+updated_at: '2026-11-20'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-11-19T08:45:39Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-19T08:45:39Z'
+  operator: claude
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-19T08:45:39Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-19T08:45:39Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-19T08:45:39Z'
+  operator: claude
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: pm
+  reason: Michael APPROVE on 6f1e111, regression 7/7 on exact head, CI successful
+  at: '2026-11-20T11:44:23Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T114653Z-spar-74-portal-quota-copy.yaml'
+  at: '2026-11-20T11:46:54Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: pm
+  reason: Actions success for staging merge 6a45573. ECS slip-front-end-staging:147
+    completed 1/1; deployed verification chunks contain revised copy.
+  at: '2026-11-20T11:49:58Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: pm
+    reason: Michael APPROVE on 6f1e111, regression 7/7 on exact head, CI successful
+    updated_at: '2026-11-20T11:44:23Z'
+    evidence_refs:
+    - ev-002
+    requires_record: true
+    ran:
+      by: Codex
+      ref: 6f1e111dfc412f729bf6e8cf6bb4991783b245fe
+      url: https://github.com/SparqLab/slip-front-end/actions/runs/44729594333
+  deploy_staging:
+    status: pass
+    actor: pm
+    reason: Actions success for staging merge 6a45573. ECS slip-front-end-staging:147
+      completed 1/1; deployed verification chunks contain revised copy.
+    updated_at: '2026-11-20T11:49:58Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-001
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: GitHub-Actions
+      ref: 6a45573ef10c767940e20b8eca0aac4bb04ead11
+      url: https://github.com/SparqLab/slip-front-end/actions/runs/44730119878
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-11-19T08:45:39Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T114653Z-spar-74-portal-quota-copy.yaml'
+    updated_at: '2026-11-20T11:46:54Z'
+    evidence_refs: []

@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-085
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: SPAR-73 comment 01a1f291-fa18-732b-84b0-45b7b1f36a3d (relayed 01a1f293-3ea7-7906-9071-dcd711281831)
+  reason: 'Earth decided 2026-11-19: staging via branch flow, this promote PR only;
+    prod not authorized'
+  at: '2026-11-19T06:53:57Z'
+  action: deploy_staging
+  scope: 'slip-front-end: merge the main->staging promote PR for PR #29 (head 242b635,
+    merge 8b54e68) only; staging only, no prod'

@@ -1,0 +1,240 @@
+---
+task_id: TASK-VS-071
+task_label: Resolve duplicate migration version and verify combined release
+phase: done
+state: done
+iteration: 3
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-12'
+updated_at: '2026-11-12'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, deploy_production, production_acceptance, knowledge_closeout'
+  at: '2026-11-12T03:57:16Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-12T03:57:16Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-12T03:57:16Z'
+  operator: codex
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-12T03:57:16Z'
+  operator: codex
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: the production deploy ran from the commit accepted on staging
+  at: '2026-11-12T03:57:16Z'
+  operator: codex
+- phase: 'gate production_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working in production
+  at: '2026-11-12T03:57:16Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-12T03:57:16Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review PR138 and combined release, then promote after rollback completes.
+  at: '2026-11-12T04:03:39Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: reviewer
+  reason: Reviewed263fba87; no-DB duplicate regression RED/GREEN, full repository/migration
+    PostgreSQL tests, old-image startup compatibility and manual true/false persistence
+    pass; build/vet pass
+  at: '2026-11-12T04:03:39Z'
+  operator: codex
+- phase: in_review -> devops_needed
+  agent: reviewer
+  reason: Promote merged PR138 main0d64143 through staging PR139 then production PR
+    after clean boot and completed rollout; user-approved combined scope.
+  at: '2026-11-12T04:05:15Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: Workflow43152594614 success; ECS197 staging-sha-ae31e94 COMPLETED1/1, exact
+    reviewed tree
+  at: '2026-11-12T05:30:49Z'
+  operator: codex
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: devops
+  reason: Migration083 and HTTP startup verified; fixed window through +2min after
+    completed read every page:240requests239newtask, zero5xx/ERROR/startup failures.
+    Config24entries unchanged. Daily-specific authenticated request not sampled; local
+    parity is separate.
+  at: '2026-11-12T05:30:49Z'
+  operator: codex
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: Workflow43161923779 succeeded; ECS151 production-sha-47e4245 COMPLETED3/3;
+    tested tree and source ancestry verified;27config hashes unchanged
+  at: '2026-11-12T05:49:45Z'
+  operator: codex
+- phase: 'gate production_acceptance: pending -> pass'
+  agent: devops
+  reason: Migration083 applied;3healthy HTTP listeners; health200; user refreshed
+    daily endpoint twice20016/11ms on new tasks.12m22s observation5838requests0fiveXX,0startup
+    failures. Global zeroERROR check is PARTIAL(exit1):one bank-flow context-canceled
+    ERROR joins same-request408; source unchanged, no rollback indicated. Scope-specific
+    migration/daily acceptance passes; no blanket error-free claim.
+  at: '2026-11-12T05:49:45Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261112T055139Z-chat-01a1cdb3-vs-admin-daily.yaml'
+  at: '2026-11-12T05:51:39Z'
+  operator: codex
+- phase: devops_needed -> in_review
+  agent: devops
+  reason: Final review scoped deployment/endpoint recovery, accept classified client-cancel
+    exception without claiming globalzeroERROR, then close completed release.
+  at: '2026-11-12T05:53:03Z'
+  operator: codex
+- phase: in_review -> done
+  agent: reviewer
+  reason: Authorized recovery, combined release review, migration fix, deployments
+    and scoped runtime verification complete. Longer daily recurrence follow-up belongs
+    toTASK-VS-070.
+  at: '2026-11-12T05:53:04Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: reviewer
+    reason: Reviewed263fba87; no-DB duplicate regression RED/GREEN, full repository/migration
+      PostgreSQL tests, old-image startup compatibility and manual true/false persistence
+      pass; build/vet pass
+    updated_at: '2026-11-12T04:03:39Z'
+    evidence_refs:
+    - ev-002
+    - ev-003
+    - ev-005
+    - ev-006
+    requires_record: true
+    ran:
+      by: codex
+      ref: 263fba87a6f62583cfdec682d0e82e40829d60ec
+      url: https://github.com/SparqLab/slip-api/pull/138
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: Workflow43152594614 success; ECS197 staging-sha-ae31e94 COMPLETED1/1,
+      exact reviewed tree
+    updated_at: '2026-11-12T05:30:49Z'
+    evidence_refs:
+    - ev-009
+    - ev-014
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-001
+    authorization_through: authz-002
+    after:
+    - implementation_verification
+    requires_record: true
+    ran:
+      by: github-actions
+      ref: ae31e945fcc168522ddb024b0dd8ef564c1cc524
+      url: https://github.com/SparqLab/slip-api/actions/runs/43152594614
+  staging_acceptance:
+    status: pass
+    actor: devops
+    reason: Migration083 and HTTP startup verified; fixed window through +2min after
+      completed read every page:240requests239newtask, zero5xx/ERROR/startup failures.
+      Config24entries unchanged. Daily-specific authenticated request not sampled;
+      local parity is separate.
+    updated_at: '2026-11-12T05:30:49Z'
+    evidence_refs:
+    - ev-011
+    - ev-012
+    - ev-013
+    - ev-015
+    after:
+    - deploy_staging
+    requires_record: true
+    ran:
+      by: codex
+      ref: slip-api-staging:197
+      url: https://github.com/SparqLab/slip-api/actions/runs/43152594614
+  deploy_production:
+    status: pass
+    actor: devops
+    reason: Workflow43161923779 succeeded; ECS151 production-sha-47e4245 COMPLETED3/3;
+      tested tree and source ancestry verified;27config hashes unchanged
+    updated_at: '2026-11-12T05:49:45Z'
+    evidence_refs:
+    - ev-016
+    - ev-017
+    - ev-021
+    - ev-027
+    requires_authorization: deploy_production
+    authorization_refs:
+    - authz-002
+    authorization_through: authz-002
+    after:
+    - staging_acceptance
+    requires_record: true
+    ran:
+      by: github-actions
+      ref: 47e4245b113e1fdea1d0922f5010a39c5e9b6e03
+      url: https://github.com/SparqLab/slip-api/actions/runs/43161923779
+  production_acceptance:
+    status: pass
+    actor: devops
+    reason: Migration083 applied;3healthy HTTP listeners; health200; user refreshed
+      daily endpoint twice20016/11ms on new tasks.12m22s observation5838requests0fiveXX,0startup
+      failures. Global zeroERROR check is PARTIAL(exit1):one bank-flow context-canceled
+      ERROR joins same-request408; source unchanged, no rollback indicated. Scope-specific
+      migration/daily acceptance passes; no blanket error-free claim.
+    updated_at: '2026-11-12T05:49:45Z'
+    evidence_refs:
+    - ev-017
+    - ev-020
+    - ev-021
+    - ev-022
+    - ev-023
+    - ev-024
+    - ev-025
+    - ev-026
+    - ev-027
+    after:
+    - deploy_production
+    requires_record: true
+    ran:
+      by: codex
+      ref: slip-api-production:151
+      url: https://github.com/SparqLab/slip-api/actions/runs/43161923779
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261112T055139Z-chat-01a1cdb3-vs-admin-daily.yaml'
+    updated_at: '2026-11-12T05:51:39Z'
+    evidence_refs: []
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-VS-071/reviewer-output.yaml
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: b3df9c88b82d3afe738a159f90d4b2cda657ef8160fcbf6916e0ce9821474fa1
+  next: done

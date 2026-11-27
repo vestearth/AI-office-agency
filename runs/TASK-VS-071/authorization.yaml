@@ -1,0 +1,23 @@
+---
+task_id: TASK-VS-071
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: chat
+  reason: User approved expanded combined-release review/acceptance and stopping/restoring
+    existing service before migration fix
+  at: '2026-11-12T04:00:00Z'
+  action: deploy_staging
+  scope: Restore staging195, fix never-applied manual migration as083, review/test
+    combined release and deploy via PRs
+- id: authz-002
+  type: grant
+  actor: Earth
+  via: chat
+  reason: User approved expanded release review/acceptance and stop/restore revision;
+    original request authorizes merge/deploy after review clears
+  at: '2026-11-12T04:00:00Z'
+  action: deploy_production
+  scope: Restore production149; deploy reviewed combined rollup/manual release after
+    migration version correction and staging validation

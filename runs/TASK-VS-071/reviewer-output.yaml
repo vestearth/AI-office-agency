@@ -1,0 +1,14 @@
+summary: |
+  Migration collision was reproduced, safely contained, corrected and deployed. Reviewed release preserves applied082_blog_actor, adds manual083 with bounded additive DDL, and verifies old-writer/previous-image compatibility. Real PostgreSQL repository and migration tests/build/vet pass. Stage197 and prod151 completed on the reviewed tree with unchanged config and sampled daily recovery. Scope-specific release acceptance approved; globalzeroERROR criterion remains partial due to one explicitly matched context-canceled408 on unchanged bank-flow code, with no5xx or migration failure. No blanket error-free or long-term recurrence claim.
+artifacts: []
+review_verdict: approved
+risk_level: high
+build_check:
+  compile: pass
+  tests: pass
+  details: Full final PostgreSQL repository and migration suites plus no-DB uniqueness regression, old-image startup compatibility, manual true/false persistence, readonly build and vet pass. Separate blog integration DSN was not enabled.
+evidence_refs: [ev-001, ev-002, ev-003, ev-005, ev-006, ev-014, ev-015, ev-017, ev-021, ev-022, ev-023, ev-024, ev-025, ev-026, ev-027]
+next_action:
+  agent: done
+  reason: Authorized recovery, combined release review, migration fix, deployments and scoped runtime verification complete. Longer daily recurrence follow-up belongs toTASK-VS-070.
+blockers: []

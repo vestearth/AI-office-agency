@@ -1,0 +1,107 @@
+---
+task_id: TASK-VS-092
+task_label: 'SPAR-79: stop API package auto-renewal after channel cancellation'
+phase: in_review
+state: in_review
+iteration: 1
+current_agent: reviewer
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-20'
+updated_at: '2026-11-20'
+history:
+- phase: created -> assigned
+  agent: dev
+  reason: 'opened with completion gates: implementation_verification, independent_review,
+    knowledge_closeout'
+  at: '2026-11-20T08:38:04Z'
+  operator: codex
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: dev
+  reason: PostgreSQL regression fails before and passes after, plus build and applicable
+    checks
+  at: '2026-11-20T08:38:04Z'
+  operator: codex
+- phase: 'gate independent_review: absent -> pending'
+  agent: dev
+  reason: Review the staging PR before merge
+  at: '2026-11-20T08:38:04Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: dev
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-20T08:38:04Z'
+  operator: codex
+- phase: 'gate implementation_verification: pending -> pass'
+  agent: dev
+  reason: Expected PostgreSQL red runs and passing regressions at the PR head, full
+    PostgreSQL suite, vet, build and formatting checks
+  at: '2026-11-20T08:45:44Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review the open staging PR and the recorded PostgreSQL regressions.
+  at: '2026-11-20T08:46:14Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T084622Z-spar-79-api-package-renewal.yaml'
+  at: '2026-11-20T08:46:22Z'
+  operator: codex
+- phase: 'gate independent_review: pending -> pass'
+  agent: dev
+  reason: Michael De Santa independently approved PR 173 at the exact authorized head
+    in the SPAR-79 review thread
+  at: '2026-11-20T10:44:20Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: dev
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T111003Z-spar-79-api-package-renewal.yaml'
+  at: '2026-11-20T11:10:03Z'
+  operator: codex
+completion_gates:
+  implementation_verification:
+    status: pass
+    actor: dev
+    reason: Expected PostgreSQL red runs and passing regressions at the PR head, full
+      PostgreSQL suite, vet, build and formatting checks
+    updated_at: '2026-11-20T08:45:44Z'
+    evidence_refs:
+    - ev-002
+    - ev-003
+    - ev-004
+    - ev-005
+    - ev-006
+    - ev-007
+    - ev-008
+    - ev-009
+  independent_review:
+    status: pass
+    actor: dev
+    reason: Michael De Santa independently approved PR 173 at the exact authorized
+      head in the SPAR-79 review thread
+    updated_at: '2026-11-20T10:44:20Z'
+    evidence_refs:
+    - ev-013
+    ran:
+      by: Michael De Santa
+      ref: e3b04b241c9d2507b0830ac0fc6fe3cb30a851f1
+  knowledge_closeout:
+    status: pass
+    actor: dev
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T111003Z-spar-79-api-package-renewal.yaml'
+    updated_at: '2026-11-20T11:10:03Z'
+    evidence_refs: []
+handoff:
+  from: dev
+  to: reviewer
+  artifact: runs/TASK-VS-092/dev-output.yaml
+last_synced_output:
+  file: dev-output.yaml
+  digest: 38ff09fada18fb9a66fb3924e586acc3d908c8ca57cb3ecd62587bc9e89782bb
+  next: reviewer

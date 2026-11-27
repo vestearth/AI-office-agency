@@ -1,0 +1,14 @@
+summary: |
+  Preserved applied082_blog_actor, moved never-applied manual migration to083 with bounded additive DDL, and added migration uniqueness/upgrade/replay/old-image and manual history round-trip tests. The uniqueness regression failed before fix and passed after. Combined full repository and migration integration tests, build and vet pass. PR138 main at263fba87. Operator authorized combined release recovery and deployment.
+artifacts:
+  - path: slip-api/migrations/083_verification_manual.sql
+    action: modified
+  - path: slip-api/migrations/run_test.go
+    action: modified
+  - path: slip-api/internal/repositories/verification_quota_lock_test.go
+    action: modified
+evidence_refs: [ev-001, ev-002, ev-003, ev-004, ev-005, ev-006]
+next_action:
+  agent: reviewer
+  reason: Review PR138 and combined release, then promote after rollback completes.
+blockers: []

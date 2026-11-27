@@ -1,0 +1,165 @@
+---
+task_id: TASK-VS-070
+task_label: Use hourly rollup for admin daily verification counts
+phase: done
+state: done
+iteration: 3
+current_agent: done
+ready: false
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: dev
+  parallel: false
+created_at: '2026-11-12'
+updated_at: '2026-11-12'
+history:
+- phase: created -> assigned
+  agent: pm
+  reason: 'opened with completion gates: knowledge_closeout (no delivery gates: Implementation
+    and PR review only; no merge, deployment, or production mutation)'
+  at: '2026-11-12T03:18:25Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-12T03:18:25Z'
+  operator: codex
+- phase: assigned -> in_review
+  agent: dev
+  reason: Review PR135 into main; operator has not authorized merge or deployment.
+  at: '2026-11-12T03:26:11Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261112T032630Z-chat-01a1cdb3-vs-admin-daily.yaml'
+  at: '2026-11-12T03:26:30Z'
+  operator: codex
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: Operator expanded delivery scope to staging and production after review
+  at: '2026-11-12T03:46:20Z'
+  operator: codex
+- phase: 'gate deploy_production: absent -> pending'
+  agent: pm
+  reason: Promote only after staging completes
+  at: '2026-11-12T03:46:20Z'
+  operator: codex
+- phase: 'gate production_observation: absent -> pending'
+  agent: pm
+  reason: Record completed rollout, env hashes and post-deploy log observation
+  at: '2026-11-12T03:46:20Z'
+  operator: codex
+- phase: in_review -> devops_needed
+  agent: reviewer
+  reason: Merge pinned PR135 into main then promote via staging and prod PRs; authorization
+    recorded. Preserve rollback revisions and verify rollout/config/logs.
+  at: '2026-11-12T03:46:20Z'
+  operator: codex
+- phase: 'gate knowledge_closeout: pass -> pass'
+  agent: pm
+  reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+    in knowledge-reviews/closeouts/20261112T035455Z-chat-01a1cdb3-vs-admin-daily.yaml'
+  at: '2026-11-12T03:54:55Z'
+  operator: codex
+- phase: 'gate deploy_staging: pending -> pass'
+  agent: devops
+  reason: PR135 ancestor included in staging197 COMPLETED1/1 through combined TASK-VS-071
+    PR139
+  at: '2026-11-12T05:49:45Z'
+  operator: codex
+- phase: 'gate deploy_production: pending -> pass'
+  agent: devops
+  reason: PR135 ancestor included in production151 COMPLETED3/3; combined promotionPR140
+    tested on stage197
+  at: '2026-11-12T05:49:45Z'
+  operator: codex
+- phase: 'gate production_observation: pending -> pass'
+  agent: devops
+  reason: User refreshed daily endpoint twice on new151tasks:HTTP20016ms and11ms,
+    no daily error.1737requests in own fixed evidence window0fiveXX. One separate
+    bank-flow context-canceled ERROR matches same-request408; globalzeroERROR checkerexit1
+    retained, not a daily timeout or server500.
+  at: '2026-11-12T05:49:45Z'
+  operator: codex
+- phase: 'check_after: 2026-11-13T02:00:00Z'
+  agent: pm
+  reason: Production151 deployed and two authenticated daily refreshes succeeded;
+    recheck a longer traffic window
+  at: '2026-11-12T05:49:45Z'
+  operator: codex
+- phase: devops_needed -> in_review
+  agent: devops
+  reason: Accept scoped deployed daily recovery using real endpoint samples and linked
+    TASK-VS-071 release evidence; preserve qualified global log verdict.
+  at: '2026-11-12T05:53:03Z'
+  operator: codex
+- phase: in_review -> done
+  agent: reviewer
+  reason: Requested review/merge/deployment and sampled endpoint recovery complete;
+    longer-window check_after retained, no additional release work pending.
+  at: '2026-11-12T05:53:03Z'
+  operator: codex
+completion_gates:
+  knowledge_closeout:
+    status: pass
+    actor: pm
+    reason: 'closeout recorded: capture + librarian_reconcile (new_knowledge_with_existing_impact)
+      in knowledge-reviews/closeouts/20261112T035455Z-chat-01a1cdb3-vs-admin-daily.yaml'
+    updated_at: '2026-11-12T03:54:55Z'
+    evidence_refs: []
+  deploy_staging:
+    status: pass
+    actor: devops
+    reason: PR135 ancestor included in staging197 COMPLETED1/1 through combined TASK-VS-071
+      PR139
+    updated_at: '2026-11-12T05:49:45Z'
+    evidence_refs:
+    - ev-018
+    requires_authorization: deploy_staging
+    authorization_refs:
+    - authz-003
+    authorization_through: authz-004
+  deploy_production:
+    status: pass
+    actor: devops
+    reason: PR135 ancestor included in production151 COMPLETED3/3; combined promotionPR140
+      tested on stage197
+    updated_at: '2026-11-12T05:49:45Z'
+    evidence_refs:
+    - ev-018
+    requires_authorization: deploy_production
+    authorization_refs:
+    - authz-004
+    authorization_through: authz-004
+    after:
+    - deploy_staging
+  production_observation:
+    status: pass
+    actor: devops
+    reason: User refreshed daily endpoint twice on new151tasks:HTTP20016ms and11ms,
+      no daily error.1737requests in own fixed evidence window0fiveXX. One separate
+      bank-flow context-canceled ERROR matches same-request408; globalzeroERROR checkerexit1
+      retained, not a daily timeout or server500.
+    updated_at: '2026-11-12T05:49:45Z'
+    evidence_refs:
+    - ev-017
+    - ev-018
+    after:
+    - deploy_production
+handoff:
+  from: reviewer
+  to: done
+  artifact: runs/TASK-VS-070/reviewer-output.yaml
+last_synced_output:
+  file: reviewer-output.yaml
+  digest: f25c1b182424388385ed760f15fb47d646bc71c6ac798dc81c8e9cc97da2a62b
+  next: done
+check_after:
+  at: '2026-11-13T02:00:00Z'
+  what: Read all CloudWatch pages after production151 rollout for /v1/admin/verifications/daily;
+    count HTTP500/deadlines and success timings, compare request IDs/task images;
+    separate client-canceled bank-flow408. Sampled refresh success is not long-term
+    nonrecurrence proof.

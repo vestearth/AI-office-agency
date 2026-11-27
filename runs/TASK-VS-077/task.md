@@ -55,3 +55,9 @@ operator-reported; no independent authenticated retest was performed in this run
 - Used the governed `update-completion-gate.rb` writer to pass only `staging_acceptance`, citing `ev-026` and recording `ran.by: operator` at staging SHA `b0d7de462f15fbbd5771054a5ce46af960a370e1`.
 - Task remains `in_review` per Jason's explicit instruction not to close it. No production gates added; no writes to TASK-VS-073/078 or product repositories, and no deploy, runtime operation, content application, or extra QA test performed.
 - Content decisions for the 28 articles and LINE OA sample URL remain open, with no editorial application. Office records remain local/uncommitted pending publication.
+
+## SPAR-72 Admin production promotion — 2026-11-19
+
+Earth explicitly authorized production promotion for slip-admin only. Verified [PR #50](https://github.com/SparqLab/slip-admin/pull/50) targets `prod` from `staging` at `b0d7de4`, with prior prod at `2e78711`. Merge dry run has the reviewed staging tree `bea817ae`. Staging acceptance is recorded in ev-026. Previous stable ECS task definition is `slip-admin-production:92`.
+
+PR #50 merged as `fdc1df2` with the same tree as the accepted staging revision. [Deploy PRODUCTION 44446839232](https://github.com/SparqLab/slip-admin/actions/runs/44446839232) succeeded. Verified ECS `slip-admin-production:93`, image `production-sha-fdc1df2`, rollout COMPLETED, running/desired 1/1. Evidence ev-027 confirms prod Portal runtime config in ECS and the served Admin shell, unchanged hashes for other environment values and secret references, Admin shell HTTP 200, unauthenticated Admin manual topics HTTP 401, and public manual HTTP 200 (8 topics, 42 published articles). Production authenticated Admin QA and first image upload/save remain open. No content changes or other service promotions were performed.

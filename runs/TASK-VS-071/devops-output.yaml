@@ -1,0 +1,18 @@
+summary: |
+  Operator-approved containment stopped the superseding workflows and restored149/195. PR138 corrected duplicate082 to083 without changing applied blog migration; reviewed combined release promoted through PR139/140. Final stage197COMPLETED1/1, prod151 production-sha-47e4245 COMPLETED3/3, same tested tree,27config entries unchanged. Migration083 applied once;3HTTP listeners/healthy tasks. Sampled daily endpoint20016/11ms. Whole12m22s5838requests0fiveXX and0startup failures. GlobalzeroERROR criterion is partial, exit1 retained:one canceled bank-flow request joins408 on unchanged handler/service. No rollback indication from this client cancellation.
+artifacts: []
+infra_checks:
+  - check: completed_reviewed_rollout
+    result: pass
+    details: Stage197 COMPLETED1/1 and production151 COMPLETED3/3, expected tags and reviewed source ancestry verified.
+  - check: scoped_runtime_recovery
+    result: pass
+    details: Migration083 applied, HTTP listeners healthy; daily endpoint returned20016ms/11ms on new tasks and no server5xx/startup failure observed in the fixed release window.
+  - check: global_zero_ERROR
+    result: fail
+    details: Global checker exit1 retained for one bank-flow context-canceled ERROR joined to same-requestHTTP408; unchanged handler/service, no daily timeout or server500. Nonblocking for scoped release acceptance; not represented as globally clean.
+evidence_refs: [ev-003, ev-005, ev-006, ev-014, ev-015, ev-017, ev-021, ev-022, ev-023, ev-024, ev-025, ev-026, ev-027]
+next_action:
+  agent: reviewer
+  reason: Final review scoped deployment/endpoint recovery, accept classified client-cancel exception without claiming globalzeroERROR, then close completed release.
+blockers: []

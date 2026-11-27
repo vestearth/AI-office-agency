@@ -1,0 +1,12 @@
+---
+task_id: TASK-VS-089
+authorizations:
+- id: authz-001
+  type: grant
+  actor: Earth
+  via: Codex chat
+  reason: Earth approved the SPAR-74 plan and asked to continue through staging QA
+    and Done after CI and Michael review
+  at: '2026-11-20T11:43:36Z'
+  action: deploy_staging
+  scope: 'SparqLab/slip-front-end SPAR-74 PR #32 only'

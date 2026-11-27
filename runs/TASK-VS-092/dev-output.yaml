@@ -1,0 +1,29 @@
+---
+summary: |
+  Reproduced SPAR-79 on slip-api 78e7ca8 in an isolated worktree and again on rebased test commit ee433aa. CancelChannel(api) followed by RenewExpired opened a new active term and reduced the fixture balance from 100.00 to 90.00 with one renewal debit. Quota-triggered renewal and the queued-plan case also charged on the rebased baseline.
+  At e3b04b241c9d2507b0830ac0fc6fe3cb30a851f1, the existing branch row lock supplies the API channel state for expiration and quota-triggered billing. Due API packages on LINE-only branches expire with balance 100.00 and zero renewal debits. Stored renewal preferences still apply if the API channel is explicitly enabled again.
+  Focused regressions, the complete Go test suite with local PostgreSQL, vet, build, formatting and diff checks passed. GitHub verified PR 173 open with base staging and the expected head. The original worktree still points to 78e7ca8.
+artifacts:
+- path: https://github.com/SparqLab/slip-api/pull/173
+  action: created
+  description: SPAR-79 implementation PR targeting staging.
+- path: slip-api-SPAR-79/internal/repositories/branch_package.go
+  action: modified
+  description: Checks the locked branch channel before API package renewal can debit credit.
+- path: slip-api-SPAR-79/internal/repositories/branch_package_cancel_channel_renewal_test.go
+  action: created
+  description: PostgreSQL coverage for expiry and quota-triggered billing after API cancellation.
+next_action:
+  agent: reviewer
+  reason: Review the open staging PR and the recorded PostgreSQL regressions.
+blockers: []
+evidence_refs:
+- ev-002
+- ev-003
+- ev-004
+- ev-005
+- ev-006
+- ev-007
+- ev-008
+- ev-009
+- ev-010

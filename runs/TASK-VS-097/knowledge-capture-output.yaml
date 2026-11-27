@@ -1,0 +1,36 @@
+task_id: TASK-VS-097
+capture_type: flow
+target_repo: knowledge-base
+target_note: Knowledge Base/10 Projects/VerifySlip/Package Visibility And Renewal Eligibility.md
+summary: VerifySlip can restrict a package to selected owner accounts while preserving the paid cycle and blocking future charges after access is revoked.
+sources:
+  - slip-api/migrations/089_package_visibility.sql
+  - slip-api/internal/repositories/package_visibility_test.go
+  - slip-api/internal/repositories/branch_package.go
+  - ai-dev-office/runs/TASK-VS-097/evidence/ev-017.log
+recommended_action: create_note
+requires_human_review: true
+note_patch: |
+  ## Restricted packages
+  Admin chooses everyone or selected accounts. Public web and LINE show public
+  offers. An invited owner can purchase for their own branches. Delegated
+  branch creation uses only public offers.
+  
+  Revoking access preserves already paid quota and expiry. The next purchase,
+  auto-renewal, or queued switch checks eligibility before debiting the wallet.
+  An eligible current plan can still renew under its existing settings if the
+  queued target is no longer available.
+  
+  Validate staging before using restricted offers. Once a restricted offer
+  exists, keep the migration and use an API build that enforces visibility.
+  A preceding API can list the offer to other accounts.
+  
+  Local PostgreSQL integration covers both renewal triggers, fallback,
+  transactions, and restoration. Staging and production remain unverified.
+  
+  Related: [[10 Projects/VerifySlip/Project Map]]
+  
+  Sources:
+  - slip-api/migrations/089_package_visibility.sql
+  - slip-api/internal/repositories/package_visibility_test.go
+  - ai-dev-office/runs/TASK-VS-097/evidence/ev-017.log
