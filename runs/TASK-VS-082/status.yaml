@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-082
 task_label: 'slip-api: stop auto-renew debits for packages on deleted branches'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-19'
-updated_at: '2026-11-19'
+updated_at: '2026-11-28'
 history:
 - phase: created -> pending
   agent: pm
@@ -129,6 +129,16 @@ history:
     data impact still unchecked
   at: '2026-11-18T21:41:50Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: reviewer
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T185909Z-vs-082-deleted-branch-renewal.yaml'
+  at: '2026-11-27T18:59:09Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T18:59:28Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -239,11 +249,10 @@ completion_gates:
       by: claude
       ref: 98d198868ac50b188995e4f5478552552874b64c
   knowledge_closeout:
-    status: pending
-    actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-18T20:06:19Z'
+    status: pass
+    actor: reviewer
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T185909Z-vs-082-deleted-branch-renewal.yaml'
+    updated_at: '2026-11-27T18:59:09Z'
     evidence_refs: []
 handoff:
   from: dev
@@ -256,3 +265,4 @@ check_after:
     every page read; and an operator with prod DB read access runs PR 161 Q1 restricted
     to ct.created_at >= ''2026-11-18T21:28:54Z'' (expected 0 rows) plus the full Q1
     to size refunds'
+decision_applied_at: '2026-11-27T18:59:24Z'

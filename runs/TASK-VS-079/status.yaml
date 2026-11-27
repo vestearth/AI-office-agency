@@ -2,18 +2,18 @@
 task_id: TASK-VS-079
 task_label: 'slip-api LINE platform bot: group-bind reply rejected by LINE (adjustMode
   shrink -> shrink-to-fit)'
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-18'
-updated_at: '2026-11-18'
+updated_at: '2026-11-28'
 history:
 - phase: created -> pending
   agent: pm
@@ -128,6 +128,16 @@ history:
     no reply failure (ev-009); confirm over a full day
   at: '2026-11-18T09:48:17Z'
   operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: reviewer
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T185909Z-vs-079-line-adjust-mode.yaml'
+  at: '2026-11-27T18:59:09Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T18:59:28Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -239,11 +249,10 @@ completion_gates:
       by: claude
       ref: e0cfe0cf1cee8da7bc32864a3a2ec42fbb05fdaf
   knowledge_closeout:
-    status: pending
-    actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-11-18T08:51:39Z'
+    status: pass
+    actor: reviewer
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T185909Z-vs-079-line-adjust-mode.yaml'
+    updated_at: '2026-11-27T18:59:09Z'
     evidence_refs: []
 handoff:
   from: dev
@@ -255,3 +264,4 @@ check_after:
     /ecs/slip-api-production filter ''"line reply failed"'' from 2026-11-18T09:25:05Z
     = 0 lines while platform-bot webhooks (/v1/line/webhook/2011708423) keep arriving,
     every page read'
+decision_applied_at: '2026-11-27T18:59:24Z'

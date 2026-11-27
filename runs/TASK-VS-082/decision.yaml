@@ -1,0 +1,7 @@
+task_id: TASK-VS-082
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T18:59:24Z'
+  against_phase: in_review
+  note: 'recorded from chat by the Claude conductor: Earth asked to close the in_review tasks whose PRs were all merged ("ไล่ปิด 6 งาน", 2026-11-28). All delivery gates had passed; the fix b6ac678 is still in the running slip-api-production:177 image (production-sha-11df770) (ev-011); knowledge closeout recorded as no durable delta. Open follow-up outside this task: the production data queries Q1/Q2 in slip-api#161 (debits taken after branch deletion, exposure) still need an operator run.'

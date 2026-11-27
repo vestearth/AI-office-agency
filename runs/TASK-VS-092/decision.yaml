@@ -1,0 +1,7 @@
+task_id: TASK-VS-092
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T18:59:24Z'
+  against_phase: in_review
+  note: 'recorded from chat by the Claude conductor: Earth asked to close the in_review tasks whose PRs were all merged ("ไล่ปิด 6 งาน", 2026-11-28). slip-api#173 (staging) and #174 (prod) merged; the fix 124ddba is in the running slip-api-production:177 image (production-sha-11df770, 3/3 COMPLETED, on origin/prod) (ev-033). Main has it through the backport slip-api#182 (merged 2026-11-25). Runtime behaviour on production was not observed (no prod DB read); the regression tests are the behaviour proof.'
