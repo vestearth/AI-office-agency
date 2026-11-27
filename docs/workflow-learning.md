@@ -4,7 +4,8 @@ Issue #58 scopes structured post-run observations, recurring-failure
 detection, human-approved workflow proposals, and knowledge-backed preflight
 warnings. This file covers **step 0**: one vocabulary for what went wrong
 (`defect_class`) and a read-only collector that counts it. Nothing here
-changes a contract, a policy, or a rule on its own.
+changes a contract, a policy, or a rule on its own. #58 was closed on
+2026-11-27 with steps 1–3 unbuilt; see [Status](#status-2026-11-27).
 
 ## `defect_class`
 
@@ -88,10 +89,39 @@ Baseline on 2026-10-19 (570 runs, 533 done):
 - Repositories: Missions appears in 11 of the 25 diagnoses.
 - Defect classes: none yet (all 25 diagnoses predate the field).
 
-## What comes next (not built)
+## Status (2026-11-27)
+
+#58 was closed without building steps 1–3
+([closing review](https://github.com/vestearth/AI-office-agency/issues/58#issuecomment-7209388018)).
+
+- **The collector has no input under the current workflow.** It reads
+  `defect_class` only from reviewer and debugger outputs, and since
+  2026-10-17 almost no work produces them. Reviewer subagents post their
+  verdict on the PR, and conductor work closes through `decision.yaml` and
+  `reconcile-decision.rb`, which carry no class. A zero in the report means
+  nothing was recorded, not that nothing went wrong.
+- **Agent-behaviour learning runs in ai-skills.** On-request reviews of
+  session transcripts and Multica runs, kept as dated knowledge-base notes,
+  find recurring operator corrections. Fixes land as reviewed ai-skills PRs
+  and are checked by replays with the expected answers withheld. Those
+  failures (unchecked claims, omissions, under-autonomy) do not fit
+  `defect_class`, so that loop does not use it.
+- **Product-defect learning is deferred.** Nothing measures recurring
+  product-code defects across tasks. Reopen it with evidence, for example when
+  an on-request review of reviewer verdicts and decision notes finds the same
+  class in 2 or more tasks. The Multica audit SPAR-87 (2026-11-27) proposed
+  the first slice: wherever a manual or conductor review result is recorded,
+  record a class from `DEFECT_CLASSES`, or a no-defect or unknown disposition.
+
+The collector stays as a read-only report for rework and knowledge-closeout
+counts.
+
+## If product-defect learning is reopened
 
 Each step needs collected data first, and each needs a human decision:
 
+0. **Producer**: record the class where reviews actually close (see above),
+   keeping no-defect and unknown apart, before any of the steps below.
 1. **Proposals**: a recurring class with evidence (task ids, diagnoses)
    becomes a knowledge or workflow proposal through the existing capture and
    librarian lanes. It never becomes a rule automatically.
