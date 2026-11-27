@@ -43,6 +43,12 @@ matches (a status note mentioning the word, a planning doc), not a dispatch
 record — confirmed by reading both; neither is evidence of Multica having
 executed a role for this repo.
 
+> **Update 2026-11-27:** the count above is out of date. 37 run directories now
+> mention Multica in `task.md` or `status.yaml`, as prose links to the Multica
+> issue that carried the work, and 2 `authorization.yaml` grants record
+> `via: multica`. There is still no structured Multica field and no dispatch
+> record in any run.
+
 **The manual/`cursor`-runner record-import path has proven stable, as a
 complement, not a replacement.** 10 task directories carry a
 `.cursor-prompt.md` (the artifact `run-agent.sh <TASK_ID> <ROLE> cursor`

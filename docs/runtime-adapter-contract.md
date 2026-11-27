@@ -308,6 +308,9 @@ from scratch — nothing below is implemented, tested, or assumed stable:
   multica -- . ':!docs/*'` returns only a pre-existing, unrelated
   false-positive match on the word "multicast" in a task's status.yaml —
   confirmed by inspection, not new from this phase.
+  *Update 2026-11-27:* still no Multica-specific script, config key or schema
+  field. Run artifacts now mention Multica in prose (37 run directories), so the
+  grep result above no longer holds for `runs/`.
 - No change to `schemas/*.yaml` — every field this contract cites already
   existed before this phase.
 - No change to `run-agent.sh`, `scripts/decide-next-step.rb`,
