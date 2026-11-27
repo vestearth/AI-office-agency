@@ -61,7 +61,9 @@ checks through `scripts/record-evidence.sh <TASK_ID> -- <command>`, which
 captures the output, hashes it, and appends a record to
 `runs/<task>/evidence.yaml`. Role outputs cite the returned ids in an optional
 `evidence_refs` field. The canonical contract — id grammar, staleness rule, and
-what the validator recomputes — is `docs/evidence-contract.md`.
+what the validator recomputes — is `docs/evidence-contract.md`. The ledger and
+its logs are gitignored and stay in the checkout that recorded them: copy them
+into a worktree or fresh clone before validating there, and never recreate them.
 
 Review depth follows deterministic path rules, not a judgement of how important
 a change feels: `office.config.yaml` → `reviewer.risk_rules` maps changed paths
