@@ -429,6 +429,27 @@ Revisions: none
 TXT
 diff -u "$RUNS/p-expected.txt" "$RUNS/p-block.txt" || fail "P COMPLETION GATES block"
 ruby -e 'p = File.read(ARGV[0], encoding: "UTF-8"); abort "order" unless p.index("\n--- STATUS ---\n") < p.index("\n--- COMPLETION GATES ---\n")' "$D/.cursor-prompt.md" || fail "P block must follow STATUS"
+# A task with recorded evidence: a RECORDED EVIDENCE block after COMPLETION GATES
+# lists the ids the role may cite, and the prompt_assembly event names the file.
+D="$(task TASK-1801)"
+gate TASK-1801 declare implementation_verification --actor pm --reason intake >/dev/null
+mkdir -p "$D/evidence"
+printf 'ok\n' > "$D/evidence/ev-001.log"
+printf 'ok\n' > "$D/evidence/ev-002.log"
+ruby -ryaml -rdigest -e 'd = ARGV[0]; e = %w[ev-001 ev-002].map { |id| { "id" => id, "run_id" => nil, "type" => "test", "command" => "true", "exit_code" => 0, "repo" => d, "repo_origin" => nil, "repo_sha" => "unknown", "working_tree_dirty" => false, "executed_at" => "2026-11-27T00:00:00Z", "artifact_path" => "evidence/#{id}.log", "artifact_sha256" => Digest::SHA256.file(File.join(d, "evidence", "#{id}.log")).hexdigest } }; File.write(File.join(d, "evidence.yaml"), YAML.dump({ "task_id" => "TASK-1801", "evidence" => e }))' "$D"
+dispatch_prompt TASK-1801
+ruby -e 'p = File.read(ARGV[0], encoding: "UTF-8"); i = p.index("\n--- RECORDED EVIDENCE ---\n") or abort "no block"; i += 1; j = p.index("--- OUTPUT PERSISTENCE REQUIREMENT ---"); print p[i...j]' "$D/.cursor-prompt.md" > "$RUNS/e-block.txt" \
+  || fail "E the prompt has no RECORDED EVIDENCE block"
+cat > "$RUNS/e-expected.txt" <<'TXT'
+--- RECORDED EVIDENCE ---
+runs/TASK-1801/evidence.yaml holds the checks already recorded for this task: ev-001, ev-002.
+Cite these ids in evidence_refs where a claim rests on them; never edit the file.
+
+TXT
+diff -u "$RUNS/e-expected.txt" "$RUNS/e-block.txt" || fail "E RECORDED EVIDENCE block"
+ruby -e 'p = File.read(ARGV[0], encoding: "UTF-8"); abort "order" unless p.index("\n--- COMPLETION GATES ---\n") < p.index("\n--- RECORDED EVIDENCE ---\n")' "$D/.cursor-prompt.md" || fail "E block must follow COMPLETION GATES"
+ruby -ryaml -rdate -e 'm = YAML.safe_load(File.read(ARGV[0]), permitted_classes: [Date, Time], aliases: true); ev = Array(m["events"]).select { |e| e["type"] == "prompt_assembly" }.last or abort "no prompt_assembly event"; abort "sources" unless ev["details"].to_s.include?("runs/TASK-1801/evidence.yaml")' "$D/meta.yaml" \
+  || fail "E prompt_assembly sources must name evidence.yaml"
 # A task without gates: everything after the role contract is byte-identical to the pre-2E prompt.
 mkdir -p "$RUNS/TASK-1400"
 printf 'task_id: TASK-1400\nphase: assigned\nstate: assigned\niteration: 1\ncurrent_agent: dev\nready: true\nblocked_on: []\nwaiting_for: []\nassignment:\n  primary: dev\n  parallel: false\nupdated_at: "2026-10-01"\nhistory: []\n' > "$RUNS/TASK-1400/status.yaml"

@@ -18,6 +18,7 @@ test('step prompt points at the task files, has the agent write only its output,
   assert.match(prompt, /schemas\/dev-output\.schema\.yaml/);
   assert.match(prompt, /Write \/ws\/ai-dev-office\/runs\/TASK-VS-029\/dev-output\.yaml, the only file you write in the task artifacts/);
   assert.match(prompt, /claims/, 'the checks the agent ran go in the output, as claims');
+  assert.match(prompt, /verification-evidence\.md and evidence\.yaml \(the checks already recorded; read only\)/, 'the agent reads the recorded evidence it may cite');
   assert.match(prompt, /Do not run the office scripts \(record-evidence\.sh, validate-yaml\.rb, enforce-output-contract\.rb, sync-status-from-output\.rb\)/);
   assert.doesNotMatch(prompt, /^\s*ruby validate-yaml\.rb/m, 'no script for the agent to run');
   assert.doesNotMatch(prompt, /record-evidence\.sh TASK-VS-029 --type/);

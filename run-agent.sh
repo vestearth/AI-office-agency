@@ -2584,6 +2584,21 @@ $GATES_TEXT"
   fi
 fi
 
+# Recorded evidence: name the ids already in this task's evidence.yaml so the
+# role can cite them in evidence_refs instead of guessing (the file stays local;
+# docs/evidence-contract.md "Where evidence lives"). Empty when the task has no
+# evidence, which keeps its prompt unchanged.
+EVIDENCE_SECTION=""
+if [[ -f "$TASK_DIR/evidence.yaml" ]]; then
+  EVIDENCE_IDS="$(ruby -E UTF-8:UTF-8 -ryaml -rdate -e 'd = YAML.safe_load(File.read(ARGV[0]), permitted_classes: [Date, Time]) rescue nil; ids = (d.is_a?(Hash) ? Array(d["evidence"]) : []).map { |e| e["id"] if e.is_a?(Hash) }.compact; print ids.join(", ")' "$TASK_DIR/evidence.yaml" 2>/dev/null || true)"
+  if [[ -n "$EVIDENCE_IDS" ]]; then
+    EVIDENCE_SECTION="
+--- RECORDED EVIDENCE ---
+runs/$TASK_ID/evidence.yaml holds the checks already recorded for this task: $EVIDENCE_IDS.
+Cite these ids in evidence_refs where a claim rests on them; never edit the file."
+  fi
+fi
+
 CONTEXT_SECTION=""
 if [[ "$AGENT" != "auto" && "$AGENT" != "scaffold" ]]; then
   if ! CONTEXT_SECTION="$(build_context_index_section "$AGENT" "$TASK_FILE" "$STATUS_FILE" "$PM_OUTPUT_FILE" "$CONTEXT_PROVIDER_NAME" "$CONTEXT_PROVIDER_MODE" "$CONTEXT_PROVIDER_FALLBACK")"; then
@@ -2602,7 +2617,7 @@ fi
 
 PROMPT="$(cat "$AGENT_FILE")
 ${CONTEXT_SECTION}${REVIEW_DEPTH_SECTION}
-${TASK_SECTION}${STATUS_SECTION}${GATES_SECTION}${PM_SECTION}${PREV_SECTION}
+${TASK_SECTION}${STATUS_SECTION}${GATES_SECTION}${EVIDENCE_SECTION}${PM_SECTION}${PREV_SECTION}
 
 --- OUTPUT PERSISTENCE REQUIREMENT ---
 Before you finish, write the complete, valid YAML output to this exact path:
@@ -2618,6 +2633,7 @@ PROMPT_SOURCES=""
 append_prompt_source "agents/$AGENT.md"
 [[ -f "$TASK_FILE" ]] && append_prompt_source "runs/$TASK_ID/task.md"
 [[ -f "$STATUS_FILE" ]] && append_prompt_source "runs/$TASK_ID/status.yaml"
+[[ -n "$EVIDENCE_SECTION" ]] && append_prompt_source "runs/$TASK_ID/evidence.yaml"
 [[ -f "$PM_OUTPUT_FILE" && "$AGENT" != "pm" ]] && append_prompt_source "runs/$TASK_ID/pm-output.yaml"
 if [[ "$AGENT" == "reviewer" ]]; then
   for reviewed_output in dev-output.yaml dev-2-output.yaml debugger-output.yaml devops-output.yaml free-roam-output.yaml; do

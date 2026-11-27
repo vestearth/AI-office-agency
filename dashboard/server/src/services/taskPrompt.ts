@@ -58,7 +58,7 @@ export function taskPrompt(input: TaskPromptInput): string {
     reference.length ? `${reference.join(', ')} ${reference.length === 1 ? 'is' : 'are'} reference only: read, never change.` : '',
     input.nextAction?.reason ? `Recorded next action${input.nextAction.agent ? ` (${input.nextAction.agent})` : ''}: ${input.nextAction.reason}` : '',
     'Before you start:',
-    `1. Read ${workspaceRoot}/AGENTS.md (workspace policy and hard guardrails), your role contract ${office}/agents/${role}.md, and in the task artifacts: task.md, status.yaml (phase, gates, waits_on, history), every earlier *-output.yaml and verification-evidence.md.`,
+    `1. Read ${workspaceRoot}/AGENTS.md (workspace policy and hard guardrails), your role contract ${office}/agents/${role}.md, and in the task artifacts: task.md, status.yaml (phase, gates, waits_on, history), every earlier *-output.yaml, verification-evidence.md and evidence.yaml (the checks already recorded; read only).`,
     primary
       ? '2. Check each worktree\'s branch and working tree before you edit anything, and stay inside the task scope and its completion gates.'
       : '2. Find the target repository from task.md. Check its branch and working tree before you edit anything, and stay inside the task scope and its completion gates.',

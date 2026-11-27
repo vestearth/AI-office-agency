@@ -65,6 +65,13 @@ what the validator recomputes — is `docs/evidence-contract.md`. The ledger and
 its logs are gitignored and stay in the checkout that recorded them: copy them
 into a worktree or fresh clone before validating there, and never recreate them.
 
+Task worktrees live under `<workspace root>/.worktrees/` (the dashboard names
+them `<repo>-<TASK>`), never under `/tmp` or `/private/tmp`: macOS deletes old
+files there on its own schedule, and an uncommitted task worktree in
+`/private/tmp` was lost that way on 2026-10-31. Before another lane takes over a
+task, commit the work on the task branch or list each repo's uncommitted
+changes in the handoff.
+
 Review depth follows deterministic path rules, not a judgement of how important
 a change feels: `office.config.yaml` → `reviewer.risk_rules` maps changed paths
 to `high | medium | low`, and the level decides whether a `build_check` `pass`
