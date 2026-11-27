@@ -5,7 +5,8 @@
 #
 # It counts structured rework signals only:
 #   - a history row that moves INTO `debugging` (`… -> debugging`). A row like
-#     `in_review -> in_review` is mostly a progress note and is never counted;
+#     `in_review -> in_review` is mostly a progress note and is never counted,
+#     and neither is `debugging -> debugging`, which is already in debugging;
 #   - `defect_class` on debugger (diagnosis.defect_class) and reviewer outputs;
 #   - debugger `affected_files` paths, by repository (first path segment);
 #   - knowledge closeout coverage of `done` runs (a closeout record naming the
@@ -90,7 +91,12 @@ Dir.children(RUNS_DIR).sort.each do |id|
 
   prefix = id[/\ATASK-([A-Z][A-Z0-9]*)-\d+\z/, 1] || "none"
   done = status["phase"].to_s == "done"
-  cycles = Array(status["history"]).count { |h| h.is_a?(Hash) && h["phase"].to_s.match?(/->\s*debugging\s*\z/) }
+  cycles = Array(status["history"]).count do |h|
+    next false unless h.is_a?(Hash)
+
+    phase = h["phase"].to_s
+    phase.match?(/->\s*debugging\s*\z/) && !phase.match?(/\A\s*debugging\s*->/)
+  end
 
   totals["runs"] += 1
   totals["done"] += 1 if done
