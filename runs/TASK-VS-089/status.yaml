@@ -1,18 +1,18 @@
 ---
 task_id: TASK-VS-089
 task_label: Portal quota and QR copy match slip-api (SPAR-74)
-phase: pending
-state: pending
+phase: done
+state: done
 iteration: 0
-current_agent: pm
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: pm
   parallel: false
 created_at: '2026-11-19'
-updated_at: '2026-11-20'
+updated_at: '2026-11-28'
 history:
 - phase: created -> pending
   agent: pm
@@ -57,6 +57,20 @@ history:
     completed 1/1; deployed verification chunks contain revised copy.
   at: '2026-11-20T11:49:58Z'
   operator: codex
+- phase: 'gate staging_acceptance: pending -> pass'
+  agent: reviewer
+  reason: 'Not run as a staging QA pass. The copy is already on production: slip-front-end-production:114
+    (production-sha-d597d54, on origin/prod) contains 021f9f2, d3fea00 and 6f1e111
+    (ev-004), and the JS served by app.up-slip.com carries all four SPAR-74 strings
+    with the old "ผลไม่พบรายการไม่หัก" removed (ev-003). Earth asked to close ("ปิดทั้ง
+    8 งาน", 2026-11-28).'
+  at: '2026-11-27T21:07:45Z'
+  operator: claude
+- phase: pending -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T21:08:14Z'
+  operator: claude
 completion_gates:
   implementation_verification:
     status: pass
@@ -89,17 +103,27 @@ completion_gates:
       ref: 6a45573ef10c767940e20b8eca0aac4bb04ead11
       url: https://github.com/SparqLab/slip-front-end/actions/runs/44730119878
   staging_acceptance:
-    status: pending
-    actor: pm
-    reason: the change is observed working on staging
-    updated_at: '2026-11-19T08:45:39Z'
-    evidence_refs: []
+    status: pass
+    actor: reviewer
+    reason: 'Not run as a staging QA pass. The copy is already on production: slip-front-end-production:114
+      (production-sha-d597d54, on origin/prod) contains 021f9f2, d3fea00 and 6f1e111
+      (ev-004), and the JS served by app.up-slip.com carries all four SPAR-74 strings
+      with the old "ผลไม่พบรายการไม่หัก" removed (ev-003). Earth asked to close ("ปิดทั้ง
+      8 งาน", 2026-11-28).'
+    updated_at: '2026-11-27T21:07:45Z'
+    evidence_refs:
+    - ev-003
+    - ev-004
     after:
     - deploy_staging
     requires_record: true
+    ran:
+      by: claude
+      ref: TASK-VS-089 ev-003, ev-004
   knowledge_closeout:
     status: pass
     actor: pm
     reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261120T114653Z-spar-74-portal-quota-copy.yaml'
     updated_at: '2026-11-20T11:46:54Z'
     evidence_refs: []
+decision_applied_at: '2026-11-27T21:08:14Z'

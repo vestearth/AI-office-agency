@@ -1,0 +1,11 @@
+---
+task_id: TASK-VS-078
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T21:08:14Z'
+  against_phase: assigned
+  note: 'recorded from chat by the Claude conductor: Earth asked to close ("ปิดทั้ง
+    8 งาน", 2026-11-28). slip-front-end#24 (e4255f2) is in the running slip-front-end-production:114
+    image (production-sha-d597d54, on origin/prod) (ev-009); deploy_production and
+    production_acceptance had already passed (operator-attested 2026-11-18).'

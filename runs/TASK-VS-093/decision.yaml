@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-093
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T21:08:14Z'
+  against_phase: assigned
+  note: 'recorded from chat by the Claude conductor: Earth asked to close ("ปิดทั้ง
+    8 งาน", 2026-11-28). slip-api#177 and #183 are in slip-api-production:177 (11df770)
+    (ev-004); slip-front-end#42, #44 and #47 are in slip-front-end-production:114
+    (d597d54) (ev-005); slip-admin#62 is in slip-admin-production:98 (05d1620) (ev-006).
+    Left as an operator decision outside this task: MANUAL_IMAGE_SWEEP=delete is not
+    set anywhere (needs S3 Delete permission and a versioning check).'

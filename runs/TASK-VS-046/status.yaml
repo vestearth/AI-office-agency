@@ -1,22 +1,22 @@
 ---
 task_id: TASK-VS-046
 task_label: Show real topup slip rejection reason in slip-front-end
-phase: in_review
-state: in_review
+phase: done
+state: done
 iteration: 0
-current_agent: reviewer
-ready: true
+current_agent: done
+ready: false
 blocked_on: []
 waiting_for: []
 assignment:
   primary: dev
   parallel: false
 next_action: 'slip-front-end reject-reason screens (#17, #18) are on staging 4dff3ef,
-  not prod a43861f (ev-013). Next: Earth approves the staging -> prod promotion (it also
-  carries Thanwa 122a637 branch channel closure + 7004b50), then check prod, then the
-  knowledge closeout. slip-api side is already on prod (daa6dbe).'
+  not prod a43861f (ev-013). Next: Earth approves the staging -> prod promotion (it
+  also carries Thanwa 122a637 branch channel closure + 7004b50), then check prod,
+  then the knowledge closeout. slip-api side is already on prod (daa6dbe).'
 created_at: '2026-10-25'
-updated_at: '2026-11-13'
+updated_at: '2026-11-28'
 history:
 - phase: created -> assigned
   agent: pm
@@ -121,17 +121,27 @@ history:
   operator: claude
 - phase: in_review -> in_review
   agent: devops
-  reason: 'Recorded 2026-11-17 from another Claude session (Front-end CI and branch alignment),
-    which did not write this run. Earth approved the slip-front-end staging promotion in that
-    chat; SparqLab/slip-front-end#20 merged main 88349a5 into staging as 4dff3ef at
-    2026-11-17T04:05Z (tree 73bffb79 == main tree, no conflict); Deploy STAGING run 44014764468
-    success; slip-front-end-staging:133 staging-sha-4dff3ef COMPLETED 1/1 (ev-013). Scope:
-    VS-046 47bdb18/c7a44a1/093cba0 (#17, #18), Thanwa 122a637 branch channel closure, and
-    7004b50 lint fix for it (#19). Prod still a43861f (slip-front-end-production:92).
-    staging -> prod dry run: merge-tree equals the staging tree, 5 non-merge commits, 23 files.
-    No authenticated staging check of the reject-reason screens yet (needs a login with a
-    rejected top-up).'
+  reason: 'Recorded 2026-11-17 from another Claude session (Front-end CI and branch
+    alignment), which did not write this run. Earth approved the slip-front-end staging
+    promotion in that chat; SparqLab/slip-front-end#20 merged main 88349a5 into staging
+    as 4dff3ef at 2026-11-17T04:05Z (tree 73bffb79 == main tree, no conflict); Deploy
+    STAGING run 44014764468 success; slip-front-end-staging:133 staging-sha-4dff3ef
+    COMPLETED 1/1 (ev-013). Scope: VS-046 47bdb18/c7a44a1/093cba0 (#17, #18), Thanwa
+    122a637 branch channel closure, and 7004b50 lint fix for it (#19). Prod still
+    a43861f (slip-front-end-production:92). staging -> prod dry run: merge-tree equals
+    the staging tree, 5 non-merge commits, 23 files. No authenticated staging check
+    of the reject-reason screens yet (needs a login with a rejected top-up).'
   at: '2026-11-17T04:55:00Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: pending -> pass'
+  agent: pm
+  reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T210728Z-vs-046-topup-reject-reason.yaml'
+  at: '2026-11-27T21:07:28Z'
+  operator: claude
+- phase: in_review -> done
+  agent: orchestrator
+  reason: 'human decision: approve by earth'
+  at: '2026-11-27T21:08:14Z'
   operator: claude
 completion_gates:
   implementation_verification:
@@ -152,13 +162,13 @@ completion_gates:
     - ev-008
     - ev-009
   knowledge_closeout:
-    status: pending
+    status: pass
     actor: pm
-    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
-      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
-    updated_at: '2026-10-25T05:43:16Z'
+    reason: 'closeout recorded: skip (no_durable_delta) in knowledge-reviews/closeouts/20261127T210728Z-vs-046-topup-reject-reason.yaml'
+    updated_at: '2026-11-27T21:07:28Z'
     evidence_refs: []
 handoff:
   from: devops
   to: reviewer
   artifact: forced-route
+decision_applied_at: '2026-11-27T21:08:14Z'

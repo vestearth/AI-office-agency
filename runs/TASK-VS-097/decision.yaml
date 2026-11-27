@@ -1,0 +1,13 @@
+---
+task_id: TASK-VS-097
+decisions:
+- decision: approve
+  actor: earth
+  decided_at: '2026-11-27T21:08:14Z'
+  against_phase: assigned
+  note: 'recorded from chat by the Claude conductor: Earth asked to close ("ปิดทั้ง
+    8 งาน", 2026-11-28). slip-api#190 (b715fee) is in slip-api-production:177 (11df770)
+    (ev-051); slip-front-end#54 (340b090) is in slip-front-end-production:114 (d597d54)
+    (ev-052); slip-admin#65 and #68 (7277f73, 0a9af89) are in slip-admin-production:98
+    (05d1620) (ev-053). Earth confirmed signed-in staging QA on 2026-11-26; production
+    was not checked signed-in.'
