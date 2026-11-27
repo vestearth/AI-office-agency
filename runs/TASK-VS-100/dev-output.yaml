@@ -1,0 +1,64 @@
+summary: |-
+  TASK-VS-100: UpSlip manual QA fixes, frontend only (no API, schema or dependency change).
+
+  1. Article content renders at 16px: portal text blocks, ### sub-headings, table cells,
+     checklist, copy box and callout move from text-body (14px) to text-body-l (16px);
+     the global --text-body token is unchanged. Admin preview follows (text-sm -> text-base).
+  2. Step descriptions keep the admin's line breaks: the portal step <p> gained
+     whitespace-pre-line (admin preview already had it, which is why the two differed).
+  3. Step numbers restart at 1 in every section: manualStepNumbers() in portal format.ts and
+     admin type.ts, used by the portal article view, the admin preview and the editor badges.
+     Admin previewHint copy (th/en) updated.
+
+  Content check (public prod manual API, read-only): 41 articles; only
+  getting-started/identity-verification has steps in more than one section (two parallel
+  6-step flows), so per-section numbering changes no other article.
+
+  Evidence:
+  - Regression tests seen failing before the fix: portal tests/manual.test.ts 3 failed
+    (second section [3,4], no whitespace-pre-line, bare text-body), 15/15 after; admin
+    tests/manual-map.test.ts + tests/manual-ui.test.ts 5 failed (preview badges 1,2,3,4,
+    text-sm in rendered preview, old hint th/en), 32/32 after.
+  - Full node --test suites: failure sets identical to origin/main (bun-only test files);
+    pass count portal 20 -> 23, admin 31 -> 36.
+  - nuxt typecheck exit 0 in both repos; eslint clean on changed portal files; whole-repo
+    portal lint 75 problems on both origin/main and the branch (pre-existing).
+  - Portal dev server against the public manual API: section 2 shows steps 1-6, step 2
+    bullets one per line, content computes to 16px. Admin editor not opened in a browser
+    (needs admin login); covered by the SSR render tests.
+artifacts:
+- path: slip-front-end/app/features/manual/format.ts
+  action: modified
+- path: slip-front-end/app/features/manual/ui/ManualArticleView.vue
+  action: modified
+- path: slip-front-end/app/features/manual/ui/ManualBody.vue
+  action: modified
+- path: slip-front-end/tests/manual.test.ts
+  action: modified
+- path: slip-admin/app/features/manual/type.ts
+  action: modified
+- path: slip-admin/app/features/manual/ui/ManualArticleEditor.vue
+  action: modified
+- path: slip-admin/app/features/manual/ui/ManualPreview.vue
+  action: modified
+- path: slip-admin/i18n/locales/en.json
+  action: modified
+- path: slip-admin/i18n/locales/th.json
+  action: modified
+- path: slip-admin/tests/manual-map.test.ts
+  action: modified
+- path: slip-admin/tests/manual-ui.test.ts
+  action: modified
+next_action:
+  agent: reviewer
+  reason: Two PRs ready for review (SparqLab/slip-front-end#58, SparqLab/slip-admin#70); staging deploy and staging acceptance gates follow the merge.
+context_sources:
+  github:
+    branch: task/TASK-VS-100-manual-qa
+    pr: https://github.com/SparqLab/slip-front-end/pull/58 https://github.com/SparqLab/slip-admin/pull/70
+  socraticode:
+    status: skipped
+    queries: []
+    relevant_symbols: []
+    notes: Single-feature lookup; ripgrep and direct reads of the manual feature folders were enough.
+blockers: []
