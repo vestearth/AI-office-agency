@@ -1,0 +1,91 @@
+---
+task_id: TASK-EAR-426
+task_label: 'Order package code_name: VARCHAR(50) rejects the 64-char slugs Backoffice
+  sends'
+phase: pending
+state: pending
+iteration: 0
+current_agent: pm
+ready: true
+blocked_on: []
+waiting_for: []
+assignment:
+  primary: pm
+  parallel: false
+created_at: '2026-11-28'
+updated_at: '2026-11-28'
+history:
+- phase: created -> pending
+  agent: pm
+  reason: 'opened with completion gates: implementation_verification, deploy_staging,
+    staging_acceptance, knowledge_closeout'
+  at: '2026-11-27T21:03:08Z'
+  operator: claude
+- phase: 'gate implementation_verification: absent -> pending'
+  agent: pm
+  reason: the change is verified on the reviewed commit (tests or checks that ran)
+  at: '2026-11-27T21:03:08Z'
+  operator: claude
+- phase: 'gate deploy_staging: absent -> pending'
+  agent: pm
+  reason: the staging deploy ran from the reviewed commit
+  at: '2026-11-27T21:03:08Z'
+  operator: claude
+- phase: 'gate staging_acceptance: absent -> pending'
+  agent: pm
+  reason: the change is observed working on staging
+  at: '2026-11-27T21:03:08Z'
+  operator: claude
+- phase: 'gate knowledge_closeout: absent -> pending'
+  agent: pm
+  reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+    --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+  at: '2026-11-27T21:03:08Z'
+  operator: claude
+- phase: 'waits_on: +operator_decision'
+  agent: pm
+  reason: 'choose the fix: A widen Order to VARCHAR(64) plus validation (recommended)
+    or B cap the slug at 50 (task.md Options)'
+  at: '2026-11-27T21:05:42Z'
+  operator: claude
+- phase: 'waits_on: -operator_decision'
+  agent: pm
+  reason: operator chose option A in chat on 2026-11-28 (widen order_packages.code_name
+    to VARCHAR(64) with migration 049 and add length validation); recorded by the
+    Claude conductor; implementation not started
+  at: '2026-11-28T06:06:10Z'
+  operator: claude
+completion_gates:
+  implementation_verification:
+    status: pending
+    actor: pm
+    reason: the change is verified on the reviewed commit (tests or checks that ran)
+    updated_at: '2026-11-27T21:03:08Z'
+    evidence_refs: []
+    requires_record: true
+  deploy_staging:
+    status: pending
+    actor: pm
+    reason: the staging deploy ran from the reviewed commit
+    updated_at: '2026-11-27T21:03:08Z'
+    evidence_refs: []
+    requires_authorization: deploy_staging
+    after:
+    - implementation_verification
+    requires_record: true
+  staging_acceptance:
+    status: pending
+    actor: pm
+    reason: the change is observed working on staging
+    updated_at: '2026-11-27T21:03:08Z'
+    evidence_refs: []
+    after:
+    - deploy_staging
+    requires_record: true
+  knowledge_closeout:
+    status: pending
+    actor: pm
+    reason: 'a knowledge closeout is recorded for this task: ruby scripts/knowledge-closeout.rb
+      --task <TASK_ID> ... --record --resolve-gate (a recorded skip passes it)'
+    updated_at: '2026-11-27T21:03:08Z'
+    evidence_refs: []
